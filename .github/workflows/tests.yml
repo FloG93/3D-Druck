@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit-Tests (Geometrie, Exporte, Fusion-Skript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: JavaScript-Tests
+        run: node --test "tests/*.test.mjs"
+      - name: Fusion-360-Skript (mit nachgebauter API)
+        run: python tests/test_fusion_script.py
+
+  exports:
+    name: Exporte mit ezdxf und OpenCascade prüfen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prüfwerkzeuge installieren
+        run: pip install ezdxf cadquery-ocp
+      - name: Beispiel-Exporte erzeugen
+        run: node tests/tools/generate-exports.mjs build/exports
+      - name: DXF, STEP, STL und SVG validieren
+        run: python tests/tools/validate_exports.py build/exports

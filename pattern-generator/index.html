@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Muster-Generator</title>
+  <meta name="description" content="Parametrischer Lochmuster-Generator für Fusion 360 und 3D-Druck: Langlöcher, Waben und Kreise mit Attraktoren drehen und skalieren, Export als SVG, DXF, STEP, STL und Fusion-360-Skript.">
+  <meta name="theme-color" content="#121316">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Apply the saved theme before first paint.
+    try {
+      const t = localStorage.getItem('muster-generator.theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) { /* ignore */ }
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span id="logo"></span>
+        <span class="brand-name">Muster-Generator</span>
+        <span class="brand-sub">für Fusion 360 &amp; 3D-Druck</span>
+      </div>
+      <div class="toolbar" role="toolbar" aria-label="Werkzeuge">
+        <button type="button" class="tool" id="btn-undo" title="Rückgängig (Strg+Z)"></button>
+        <button type="button" class="tool" id="btn-redo" title="Wiederholen (Strg+Y)"></button>
+        <span class="sep"></span>
+        <button type="button" class="tool" id="btn-fit" title="Ansicht einpassen (F)"></button>
+        <div class="view-switch" role="group" aria-label="Ansicht">
+          <button type="button" class="tool active" id="btn-2d" title="2D-Ansicht"></button>
+          <button type="button" class="tool" id="btn-3d" title="3D-Vorschau"></button>
+        </div>
+        <span class="sep"></span>
+        <button type="button" class="tool" id="btn-share" title="Link zum Teilen kopieren"></button>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="tool" id="btn-theme" title="Hell/Dunkel umschalten"></button>
+        <button type="button" class="tool" id="btn-help" title="Hilfe"></button>
+        <button type="button" class="btn primary" id="btn-export"></button>
+      </div>
+    </header>
+
+    <aside class="panel panel-left" id="panel-left" aria-label="Dokument"></aside>
+
+    <main class="stage" id="stage">
+      <canvas id="view" aria-label="Muster-Vorschau"></canvas>
+      <div class="view3d" id="view3d" hidden></div>
+      <div class="hint" id="hint"></div>
+      <div class="zoom-tools">
+        <button type="button" class="tool small" id="btn-zoom-in" title="Vergrößern">+</button>
+        <button type="button" class="tool small" id="btn-zoom-out" title="Verkleinern">−</button>
+      </div>
+      <footer class="statusbar" id="status" aria-live="polite"></footer>
+    </main>
+
+    <aside class="panel panel-right" id="panel-right" aria-label="Muster"></aside>
+
+    <nav class="mobile-tabs" id="mobile-tabs" aria-label="Bereiche">
+      <button type="button" data-tab="left">Dokument</button>
+      <button type="button" data-tab="right" class="active">Muster</button>
+    </nav>
+  </div>
+
+  <dialog id="export-dialog" class="dialog"></dialog>
+  <dialog id="help-dialog" class="dialog help"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">Der Muster-Generator benötigt JavaScript.</p></noscript>
+</body>
+</html>

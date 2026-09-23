@@ -1,0 +1,12 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"script",
+	"author":	"Muster-Generator",
+	"description":	{
+		"":	"Importiert Lochmuster aus dem Muster-Generator (Export „Fusion-Skript“) als Skizze und schneidet sie auf Wunsch aus.",
+		"de-DE":	"Importiert Lochmuster aus dem Muster-Generator (Export „Fusion-Skript“) als Skizze und schneidet sie auf Wunsch aus.",
+		"en":	"Imports hole patterns from the Muster-Generator web app as a sketch and optionally cuts them."
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
