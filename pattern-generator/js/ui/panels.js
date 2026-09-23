@@ -1,11 +1,12 @@
-// Left and right side panels (document, boundary, image, hole shape,
-// arrangement, check). The modifier list lives in modifiers-panel.js.
+// Left and right side panels (document, boundary, 3D body, image, hole
+// shape, arrangement, check). The modifier list lives in modifiers-panel.js.
 
 import {
   h, Panel, bindPath, numberField, selectField, segmented, toggle, colorField,
   buttonRow, note, grid, section, formatNumber,
 } from './controls.js';
 import { regularPolygon } from '../core/boundary.js';
+import { MAX_TAPER } from '../core/relief.js';
 import { createImage } from './image.js';
 
 const fmt = (v, d = 2) => formatNumber(v, d);
@@ -76,6 +77,50 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
     }),
   );
   root.append(bnd.el);
+
+  // 3D body: holes through the plate or raised / recessed relief
+  const body = section('Körper (3D)', { id: 'body', icon: 'cube' });
+  const relief = () => doc().relief.mode;
+  body.body.append(
+    segmented(panel, {
+      bind: P('relief.mode'),
+      options: [
+        ['cut', 'Durchbrüche', null, 'Die Formen werden als Löcher durch die Platte geschnitten'],
+        ['emboss', 'Erhaben', null, 'Die Formen stehen als Rippen/Noppen auf der Platte'],
+        ['deboss', 'Vertieft', null, 'Die Formen werden als Nuten/Mulden in die Platte eingelassen'],
+      ],
+    }),
+    grid(
+      numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: P('export.thickness'), min: 0.1, max: 1000, step: 0.1, title: 'Dicke der Grundplatte (3D-Vorschau, STL, STEP)' }),
+      numberField(panel, { label: 'Höhe', unit: 'mm', bind: P('relief.height'), min: 0.05, max: 1000, step: 0.1, visible: () => relief() === 'emboss', title: 'So weit ragen die Formen über die Platte hinaus' }),
+      numberField(panel, { label: 'Tiefe', unit: 'mm', bind: P('relief.height'), min: 0.05, max: 1000, step: 0.1, visible: () => relief() === 'deboss', title: 'So tief werden die Formen in die Platte eingelassen' }),
+      numberField(panel, {
+        label: 'Flankenwinkel',
+        unit: '°',
+        bind: P('relief.taper'),
+        min: 0,
+        max: MAX_TAPER,
+        step: 1,
+        digits: 1,
+        visible: () => relief() !== 'cut',
+        title: '0° = senkrechte Wände · 45° = ohne Stützen druckbar · schmale Formen laufen spitz zu (Grat, Pyramide, Kegel)',
+      }),
+    ),
+    note(panel, () => {
+      const t = doc().export.thickness;
+      const { mode, height, taper } = doc().relief;
+      if (mode === 'cut') return 'Die Formen werden als <b>Löcher</b> durch die Platte geschnitten.';
+      const parts = [mode === 'emboss'
+        ? `Die Formen stehen als <b>Rippen/Noppen</b> ${fmt(height)} mm auf der Platte – gesamt ${fmt(t + height)} mm hoch.`
+        : `Die Formen werden als <b>Nuten/Mulden</b> ${fmt(height)} mm tief eingelassen.`];
+      if (mode === 'deboss' && height >= t) parts.push(`<span class="warn">Tiefer als die Platte: es bleibt ein Boden von ${fmt(t * 0.05)} mm. Für Löcher „Durchbrüche“ wählen.</span>`);
+      if (taper > 0) parts.push(`Flanken um ${fmt(taper, 1)}° geneigt – schmale Formen laufen spitz zu und werden dann ${mode === 'emboss' ? 'niedriger' : 'flacher'}.`);
+      parts.push('Wirkt auf 3D-Vorschau, STL und STEP; DXF/SVG enthalten die Konturen.');
+      return parts.join(' ');
+    }),
+    buttonRow(panel, [{ label: '3D-Vorschau', icon: 'cube', title: 'Platte in 3D ansehen', onClick: () => app.emit('view', '3d') }]),
+  );
+  root.append(body.el);
 
   // Background image
   const bg = section('Hintergrundbild', { id: 'background', icon: 'image', open: false });

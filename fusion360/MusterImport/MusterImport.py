@@ -1,9 +1,9 @@
 # MusterImport – Fusion 360 script for the Muster-Generator
 #
-# Reads a hole pattern exported from the Muster-Generator web app
-# ("Fusion-Skript" export, *.fusion.json), draws it as a connected sketch on a
-# planar face or construction plane and optionally cuts the holes (or creates
-# tool bodies) in one step.
+# Reads a pattern exported from the Muster-Generator web app ("Fusion-Skript"
+# export, *.fusion.json), draws it as a connected sketch on a planar face or
+# construction plane and in the same step cuts the holes, sinks the shapes in
+# as pockets, raises them as relief or creates tool bodies.
 #
 # Installation: Utilities > Add-Ins > Scripts and Add-Ins > "+" next to
 # "My Scripts" > choose this folder. Then run "MusterImport".
@@ -22,7 +22,14 @@ FORMAT = 'muster-generator/fusion'
 CM_PER_MM = 0.1  # the Fusion API works in centimetres
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settings.json')
 
-OPERATIONS = ['Löcher ausschneiden', 'Werkzeugkörper erzeugen', 'Nur Skizze']
+OP_CUT = 'Löcher ausschneiden'
+OP_DEBOSS = 'Vertiefen'
+OP_EMBOSS = 'Erhaben aufsetzen'
+OP_TOOLS = 'Werkzeugkörper erzeugen'
+OP_SKETCH = 'Nur Skizze'
+OPERATIONS = [OP_CUT, OP_DEBOSS, OP_EMBOSS, OP_TOOLS, OP_SKETCH]
+# Operation that matches the "Körper (3D)" setting of the web app.
+RELIEF_OPERATIONS = {'cut': OP_CUT, 'deboss': OP_DEBOSS, 'emboss': OP_EMBOSS}
 PLACEMENTS = ['Mitte der Fläche', 'Skizzenursprung']
 
 _app = None
@@ -68,8 +75,31 @@ def load_pattern(path):
         raise ValueError('Unbekannte Einheit: {}'.format(data.get('units')))
     holes = data.get('holes') or []
     if not holes:
-        raise ValueError('Die Datei enthält keine Löcher.')
+        raise ValueError('Die Datei enthält keine Formen.')
     return data
+
+
+def dialog_defaults(data, settings):
+    """Initial dialog values. A relief chosen in the web app (raised or
+    recessed) wins over the options used last time."""
+    operation = settings.get('operation')
+    defaults = {
+        'operation': operation if operation in OPERATIONS else OP_CUT,
+        'depth': settings.get('depth') or '2 mm',
+        'taper': settings.get('taper') or '0 deg',
+        'through_all': bool(settings.get('through_all', False)),
+    }
+    relief = data.get('relief') or {}
+    mode = relief.get('mode')
+    if mode in ('emboss', 'deboss'):
+        defaults['operation'] = RELIEF_OPERATIONS[mode]
+        height = float(relief.get('height') or 0)
+        if height > 0:
+            defaults['depth'] = '{:g} mm'.format(height)
+        defaults['taper'] = '{:g} deg'.format(float(relief.get('taper') or 0))
+    elif mode == 'cut' and defaults['operation'] in (OP_DEBOSS, OP_EMBOSS):
+        defaults['operation'] = OP_CUT
+    return defaults
 
 
 def plan_outline(item):
@@ -242,7 +272,7 @@ def create_pattern(data, entity, options):
     occurrence = design.activeOccurrence
     sketch = comp.sketches.add(entity, occurrence) if occurrence else comp.sketches.add(entity)
     holes = data['holes']
-    sketch.name = 'Muster {} ({} Löcher)'.format(data.get('name') or '', len(holes)).replace('  ', ' ')
+    sketch.name = 'Muster {} ({} Formen)'.format(data.get('name') or '', len(holes)).replace('  ', ' ')
 
     cx = cy = 0.0
     face_w = face_h = 0.0
@@ -254,7 +284,7 @@ def create_pattern(data, entity, options):
     progress = _ui.createProgressDialog()
     progress.cancelButtonText = 'Abbrechen'
     progress.isBackgroundTranslucent = False
-    progress.show('Muster importieren', 'Zeichne Loch %v von %m …', 0, len(holes), 1)
+    progress.show('Muster importieren', 'Zeichne Form %v von %m …', 0, len(holes), 1)
     sketch.isComputeDeferred = True
     max_extent = 0.0
     cancelled = False
@@ -274,46 +304,16 @@ def create_pattern(data, entity, options):
         sketch.isComputeDeferred = False
         progress.hide()
     if cancelled:
-        return 'Abgebrochen – die bereits gezeichneten Löcher bleiben in der Skizze.'
+        return 'Abgebrochen – die bereits gezeichneten Formen bleiben in der Skizze.'
 
-    lines = ['{} Löcher als Skizze „{}“ eingefügt.'.format(len(holes), sketch.name)]
+    lines = ['{} Formen als Skizze „{}“ eingefügt.'.format(len(holes), sketch.name)]
     operation = options['operation']
-    if operation != OPERATIONS[2]:
+    if operation != OP_SKETCH:
         profiles = hole_profiles(sketch, max_extent * CM_PER_MM * 1.05 + 1e-4)
         if profiles.count == 0:
-            lines.append('Keine geschlossenen Loch-Profile gefunden – Extrusion übersprungen.')
+            lines.append('Keine geschlossenen Profile gefunden – Extrusion übersprungen.')
         else:
-            cut = operation == OPERATIONS[0]
-            op = (adsk.fusion.FeatureOperations.CutFeatureOperation if cut
-                  else adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            extrudes = comp.features.extrudeFeatures
-            if options['through_all'] and cut:
-                extent = adsk.fusion.ThroughAllExtentDefinition.create()
-            else:
-                extent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(options['depth']))
-            direction = (adsk.fusion.ExtentDirections.PositiveExtentDirection if options['flip']
-                         else adsk.fusion.ExtentDirections.NegativeExtentDirection)
-
-            def extrude(with_participants):
-                ext_input = extrudes.createInput(profiles, op)
-                ext_input.setOneSideExtent(extent, direction)
-                if with_participants:
-                    ext_input.participantBodies = [entity.body]
-                return extrudes.add(ext_input)
-
-            try:
-                try:
-                    feature = extrude(cut and is_face)
-                except Exception:
-                    if not (cut and is_face):
-                        raise
-                    # Fall back to Fusion's automatic choice of bodies to cut.
-                    feature = extrude(False)
-                feature.name = 'Muster {}'.format('Ausschnitt' if cut else 'Werkzeugkörper')
-                lines.append('{} Profile {}.'.format(profiles.count, 'ausgeschnitten' if cut else 'als Körper extrudiert'))
-            except Exception as err:
-                lines.append('Extrusion fehlgeschlagen ({}). Tipp: „Richtung umkehren“ aktivieren '
-                             'oder „Nur Skizze“ wählen und selbst extrudieren.'.format(err))
+            lines.append(extrude_profiles(comp, entity, is_face, profiles, options))
 
     canvas = data.get('canvas') or {}
     cw, ch = canvas.get('width', 0), canvas.get('height', 0)
@@ -327,6 +327,73 @@ def create_pattern(data, entity, options):
     return '\n'.join(lines)
 
 
+EXTRUDE_NAMES = {
+    OP_CUT: ('Muster Ausschnitt', 'ausgeschnitten'),
+    OP_DEBOSS: ('Muster Vertiefung', 'vertieft'),
+    OP_EMBOSS: ('Muster Relief', 'erhaben aufgesetzt'),
+    OP_TOOLS: ('Muster Werkzeugkörper', 'als Körper extrudiert'),
+}
+
+
+def set_extent(ext_input, extent, direction, taper):
+    """One-sided extent; taper in radians, negative narrows the shapes."""
+    if not taper:
+        ext_input.setOneSideExtent(extent, direction)
+        return
+    angle = adsk.core.ValueInput.createByReal(taper)
+    try:
+        ext_input.setOneSideExtent(extent, direction, angle)
+    except TypeError:
+        ext_input.setOneSideExtent(extent, direction)
+        ext_input.taperAngle = angle
+
+
+def extrude_profiles(comp, entity, is_face, profiles, options):
+    """Runs the chosen extrusion and returns a line for the summary."""
+    operation = options['operation']
+    ops = adsk.fusion.FeatureOperations
+    if operation in (OP_CUT, OP_DEBOSS):
+        op = ops.CutFeatureOperation
+    elif operation == OP_EMBOSS:
+        op = ops.JoinFeatureOperation
+    else:
+        op = ops.NewBodyFeatureOperation
+    if operation == OP_CUT and options['through_all']:
+        extent = adsk.fusion.ThroughAllExtentDefinition.create()
+    else:
+        extent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(options['depth']))
+    # Cuts and tool bodies go into the face's body, relief grows out of it.
+    outward = operation == OP_EMBOSS
+    direction = (adsk.fusion.ExtentDirections.PositiveExtentDirection if outward != bool(options['flip'])
+                 else adsk.fusion.ExtentDirections.NegativeExtentDirection)
+    taper = -abs(options.get('taper') or 0.0) if operation in (OP_DEBOSS, OP_EMBOSS) else 0.0
+    use_bodies = is_face and op != ops.NewBodyFeatureOperation
+    extrudes = comp.features.extrudeFeatures
+
+    attempts = [(bodies, tapered) for tapered in ([True, False] if taper else [False])
+                for bodies in ([True, False] if use_bodies else [False])]
+    error = None
+    for with_bodies, tapered in attempts:
+        try:
+            ext_input = extrudes.createInput(profiles, op)
+            set_extent(ext_input, extent, direction, taper if tapered else 0.0)
+            if with_bodies:
+                ext_input.participantBodies = [entity.body]
+            feature = extrudes.add(ext_input)
+        except Exception as err:  # e.g. taper too steep for narrow shapes
+            error = err
+            continue
+        name, verb = EXTRUDE_NAMES[operation]
+        feature.name = name
+        text = '{} Profile {}.'.format(profiles.count, verb)
+        if taper and not tapered:
+            text += (' Hinweis: Mit Flankenwinkel war die Extrusion nicht möglich (Formen zu schmal '
+                     'für Winkel und Höhe) – daher mit senkrechten Wänden.')
+        return text
+    return ('Extrusion fehlgeschlagen ({}). Tipp: „Richtung umkehren“ aktivieren '
+            'oder „Nur Skizze“ wählen und selbst extrudieren.'.format(error))
+
+
 # ---------------------------------------------------------------------------
 # Command dialog
 # ---------------------------------------------------------------------------
@@ -337,11 +404,12 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd = adsk.core.CommandCreatedEventArgs.cast(args).command
             cmd.isRepeatable = False
             settings = load_settings()
+            defaults = dialog_defaults(_data, settings)
             inputs = cmd.commandInputs
 
             stats = _data.get('stats') or {}
             canvas = _data.get('canvas') or {}
-            info = '<b>{}</b><br>{} Löcher · {:g} × {:g} mm · offene Fläche {:.1f} %'.format(
+            info = '<b>{}</b><br>{} Formen · {:g} × {:g} mm · Flächenanteil {:.1f} %'.format(
                 os.path.basename(_path), len(_data['holes']), canvas.get('width', 0), canvas.get('height', 0),
                 100 * float(stats.get('openRatio', 0)))
             inputs.addTextBoxCommandInput('info', '', info, 2, True)
@@ -360,9 +428,10 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             op = inputs.addDropDownCommandInput('operation', 'Vorgang', adsk.core.DropDownStyles.TextListDropDownStyle)
             for name in OPERATIONS:
-                op.listItems.add(name, name == settings.get('operation', OPERATIONS[0]))
-            inputs.addValueInput('depth', 'Tiefe', 'mm', value_input(settings.get('depth'), '2 mm'))
-            inputs.addBoolValueInput('through_all', 'Durch alles', True, '', bool(settings.get('through_all', False)))
+                op.listItems.add(name, name == defaults['operation'])
+            inputs.addValueInput('depth', 'Tiefe / Höhe', 'mm', value_input(defaults['depth'], '2 mm'))
+            inputs.addBoolValueInput('through_all', 'Durch alles', True, '', defaults['through_all'])
+            inputs.addValueInput('taper', 'Flankenwinkel', 'deg', value_input(defaults['taper'], '0 deg'))
             inputs.addBoolValueInput('flip', 'Richtung umkehren', True, '', False)
             if _data.get('boundary'):
                 inputs.addBoolValueInput('boundary', 'Begrenzung als Hilfslinie', True, '', False)
@@ -394,9 +463,10 @@ def value_input(expression, default):
 def update_visibility(inputs):
     op = inputs.itemById('operation').selectedItem.name
     through = inputs.itemById('through_all')
-    inputs.itemById('depth').isVisible = op != OPERATIONS[2] and not (through.value and op == OPERATIONS[0])
-    through.isVisible = op == OPERATIONS[0]
-    inputs.itemById('flip').isVisible = op != OPERATIONS[2]
+    inputs.itemById('depth').isVisible = op != OP_SKETCH and not (through.value and op == OP_CUT)
+    through.isVisible = op == OP_CUT
+    inputs.itemById('taper').isVisible = op in (OP_DEBOSS, OP_EMBOSS)
+    inputs.itemById('flip').isVisible = op != OP_SKETCH
 
 
 class InputChangedHandler(adsk.core.InputChangedEventHandler):
@@ -424,6 +494,7 @@ class ExecuteHandler(adsk.core.CommandEventHandler):
                 'dy': inputs.itemById('dy').value,
                 'operation': inputs.itemById('operation').selectedItem.name,
                 'depth': inputs.itemById('depth').value,
+                'taper': inputs.itemById('taper').value,
                 'through_all': inputs.itemById('through_all').value,
                 'flip': inputs.itemById('flip').value,
                 'boundary': bool(boundary_input and boundary_input.value),
@@ -433,6 +504,7 @@ class ExecuteHandler(adsk.core.CommandEventHandler):
                 'operation': options['operation'],
                 'rotation': inputs.itemById('rotation').expression,
                 'depth': inputs.itemById('depth').expression,
+                'taper': inputs.itemById('taper').expression,
                 'through_all': options['through_all'],
             })
             summary = create_pattern(_data, sel.selection(0).entity, options)
@@ -487,7 +559,7 @@ def run(context):
         if cmd_def:
             cmd_def.deleteMe()
         cmd_def = _ui.commandDefinitions.addButtonDefinition(
-            CMD_ID, CMD_NAME, 'Lochmuster aus dem Muster-Generator einfügen')
+            CMD_ID, CMD_NAME, 'Muster aus dem Muster-Generator einfügen')
         on_created = CommandCreatedHandler()
         cmd_def.commandCreated.add(on_created)
         _handlers.append(on_created)

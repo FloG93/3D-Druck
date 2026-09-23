@@ -2,7 +2,9 @@
 
 DXF: read and audited with ezdxf, hole area recomputed from the entities.
 STEP: read with OpenCascade, every solid checked (BRepCheck) and its volume
-compared with the exact value. STL: closed 2-manifold and plausible volume.
+compared with the exact value – tool bodies, the plate with holes and the
+plate with raised / recessed relief. STL: closed 2-manifold and plausible
+volume, also for relief (the recessed one with sloped flanks).
 
 Usage: python tests/tools/validate_exports.py <folder>   (pip install ezdxf cadquery-ocp)
 """
@@ -71,13 +73,18 @@ def step_check(name, exp, mode):
         while fe.More(): faces += 1; fe.Next()
         ex.Next()
     t = 3.0
-    expv = exp['holeArea'] * t if mode == 'tools' else (exp['plateArea'] - exp['holeArea']) * t
+    expv = {
+        'tools': exp['holeArea'] * t,
+        'plate': (exp['plateArea'] - exp['holeArea']) * t,
+        'emboss': exp['plateArea'] * t + exp['holeArea'],
+        'deboss': exp['plateArea'] * t - exp['holeArea'],
+    }[mode]
     ok = abs(vol - expv) / expv < 1e-4 and invalid == 0
     whole_valid = BRepCheck_Analyzer(shape).IsValid()
-    report(ok and whole_valid, f"STEP {name:9s} {mode:5s} solids={solids} invalid={invalid} faces={faces} volume={vol:.3f} (exp {expv:.3f})")
+    report(ok and whole_valid, f"STEP {name:9s} {mode:6s} solids={solids} invalid={invalid} faces={faces} volume={vol:.3f} (exp {expv:.3f})")
 
-def stl_check(name, exp):
-    data = open(f'{OUT}/{name}.stl', 'rb').read()
+def stl_check(name, exp, relief=''):
+    data = open(f'{OUT}/{name}{relief}.stl', 'rb').read()
     n = struct.unpack('<I', data[80:84])[0]
     assert len(data) == 84 + 50 * n
     edges = Counter(); vol = 0.0
@@ -91,16 +98,26 @@ def stl_check(name, exp):
     bad = 0
     for (p, q), k in edges.items():
         if edges.get((q, p), 0) != k or k != 1: bad += 1
-    expv = (exp['plateArea'] - exp['holeArea']) * 3
     bound = exp['perimeter'] * 0.015 * 3  # inscribed polygons lose at most tol x perimeter
-    report(bad == 0 and abs(vol - expv) <= bound, f"STL  {name:9s} triangles={n} open/non-manifold edges={bad} volume={vol:.2f} (exp {expv:.2f} ± {bound:.2f})")
+    if relief == '_emboss':
+        expv = exp['plateArea'] * 3 + exp['holeArea']
+        ok = abs(vol - expv) <= bound
+    elif relief == '_deboss':
+        # Sloped flanks: less material removed than with straight walls.
+        expv = exp['plateArea'] * 3 - exp['holeArea']
+        ok = expv - bound <= vol <= exp['plateArea'] * 3
+    else:
+        expv = (exp['plateArea'] - exp['holeArea']) * 3
+        ok = abs(vol - expv) <= bound
+    report(bad == 0 and ok, f"STL  {name + relief:16s} triangles={n} open/non-manifold edges={bad} volume={vol:.2f} (exp {expv:.2f} ± {bound:.2f})")
 
 import xml.etree.ElementTree as ET
 for name, exp in summary.items():
     dxf_check(name, exp)
-    step_check(name, exp, 'tools')
-    step_check(name, exp, 'plate')
-    stl_check(name, exp)
+    for mode in ('tools', 'plate', 'emboss', 'deboss'):
+        step_check(name, exp, mode)
+    for relief in ('', '_emboss', '_deboss'):
+        stl_check(name, exp, relief)
     for f in (f'{name}.svg', f'{name}_plate.svg'):
         ET.parse(f'{OUT}/{f}')
 print('SVG files parsed')

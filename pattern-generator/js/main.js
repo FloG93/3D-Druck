@@ -11,6 +11,7 @@ import { encodeDoc, decodeHash } from './ui/share.js';
 import { createImage } from './ui/image.js';
 import { ExportDialog } from './ui/export-dialog.js';
 import { showHelp } from './ui/help.js';
+import { featureNames } from './core/relief.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -108,15 +109,18 @@ async function main() {
     if (!r) return;
     const a = app.analysis;
     const { width: W, height: H } = app.doc.canvas;
+    const mode = app.doc.relief.mode;
     const parts = [
       `<span title="Arbeitsfläche">Fläche <b>${de(W, 2)} × ${de(H, 2)} mm</b></span>`,
-      `<span>Löcher <b>${r.stats.count.toLocaleString('de-DE')}</b></span>`,
-      `<span title="Anteil der Lochfläche an der Plattenfläche">Offene Fläche <b>${de(r.stats.ratio * 100, 1)} %</b></span>`,
+      `<span>${featureNames(mode)[1]} <b>${r.stats.count.toLocaleString('de-DE')}</b></span>`,
+      mode === 'cut'
+        ? `<span title="Anteil der Lochfläche an der Plattenfläche">Offene Fläche <b>${de(r.stats.ratio * 100, 1)} %</b></span>`
+        : `<span title="Anteil der Formen an der Plattenfläche">Flächenanteil <b>${de(r.stats.ratio * 100, 1)} %</b></span>`,
     ];
     if (a && Number.isFinite(a.minWeb)) {
       const cls = a.overlap ? 'danger' : a.thin ? 'warn' : 'ok';
       const txt = a.minWeb < 0 ? 'Überlappung' : `${de(a.minWeb, 2)} mm`;
-      parts.push(`<span class="${cls}" title="Schmalster Steg zwischen zwei Löchern">Steg min <b>${txt}</b></span>`);
+      parts.push(`<span class="${cls}" title="Schmalster Abstand zwischen zwei Formen">Steg min <b>${txt}</b></span>`);
     }
     if (Number.isFinite(r.stats.minRim)) parts.push(`<span title="Kleinster Abstand zum Rand">Rand min <b>${de(r.stats.minRim, 1)} mm</b></span>`);
     if (a && a.overlap) parts.push(`<span class="danger">${a.overlap} überlappen</span>`);
@@ -206,6 +210,7 @@ async function main() {
   };
   $('btn-2d').addEventListener('click', () => setMode('2d'));
   $('btn-3d').addEventListener('click', () => setMode('3d'));
+  app.on('view', (next) => setMode(next));
 
   // Mobile: switch between the two panels.
   const tabs = $('mobile-tabs');

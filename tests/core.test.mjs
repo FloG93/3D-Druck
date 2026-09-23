@@ -197,7 +197,8 @@ test('built-in presets generate holes without overlaps', () => {
   for (const { name, doc: make } of BUILTIN_PRESETS) {
     const doc = normalizeDoc(make());
     const res = generate(doc);
-    assert.ok(res.holes.length > 20, `${name}: ${res.holes.length} holes`);
+    // Rib presets have few, long shapes.
+    assert.ok(res.holes.length >= 10, `${name}: ${res.holes.length} holes`);
     const a = analyzeWebs(res.holes, doc.check.minWeb);
     assert.equal(a.overlap, 0, `${name} has overlapping holes`);
   }

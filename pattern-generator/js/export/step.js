@@ -2,8 +2,9 @@
 // solids: every hole outline is extruded with planar, cylindrical and
 // elliptical (linear extrusion) side faces.
 //
-//   mode 'tools': one solid per hole ("Werkzeugkörper") for Combine → Cut
-//   mode 'plate': the boundary plate with all holes cut out
+//   mode 'tools': one solid per hole ("Werkzeugkörper") for Combine → Cut/Join
+//   mode 'plate': the boundary plate with all holes cut out, or with the
+//                 shapes as raised or recessed relief
 //
 // Topology conventions (outline loops are counter-clockwise seen from +Z):
 //   prism side face i:  bottom_i(+), vertical_{i+1}(+), top_i(-), vertical_i(-)
@@ -11,6 +12,7 @@
 // Every edge is used exactly twice with opposite orientation.
 
 import { exportGeometry, timestamp } from './common.js';
+import { reliefParams } from '../core/relief.js';
 
 function real(v) {
   let r = Math.round(v * 1e9) / 1e9;
@@ -185,30 +187,53 @@ function toolSolid(w, o, z0, z1, name) {
   return solid(w, name, faces);
 }
 
-function plateSolid(w, boundary, holes, z0, z1, name) {
+/**
+ * The plate as one solid. relief.mode 'cut': through holes, 'emboss': the
+ * shapes stand relief.height above the top face, 'deboss': pockets of that
+ * depth. Relief walls are vertical (sloped flanks exist only in the mesh).
+ */
+function plateSolid(w, boundary, holes, z0, z1, name, relief) {
   const bSegs = loopSegments(boundary);
   const bTopo = extrudeLoop(w, bSegs, z0, z1);
   const faces = prismSideFaces(w, bSegs, bTopo, z0, z1);
+  const up = (z) => w.add(`PLANE('',${w.axis(0, 0, z, [0, 0, 1], [1, 0, 0])})`);
   const topInner = [];
   const bottomInner = [];
   for (const o of holes) {
     const segs = loopSegments(o);
-    const topo = extrudeLoop(w, segs, z0, z1);
-    faces.push(...holeWallFaces(w, segs, topo, z0, z1));
-    topInner.push(w.loop(backward(w, topo.et)));
-    bottomInner.push(w.loop(forward(w, topo.eb)));
+    if (relief.mode === 'emboss') {
+      const zt = z1 + relief.height;
+      const topo = extrudeLoop(w, segs, z1, zt);
+      faces.push(...prismSideFaces(w, segs, topo, z1, zt));
+      faces.push(w.face(w.loop(forward(w, topo.et)), [], up(zt)));
+      topInner.push(w.loop(backward(w, topo.eb)));
+    } else if (relief.mode === 'deboss') {
+      const zf = z1 - relief.height;
+      const topo = extrudeLoop(w, segs, zf, z1);
+      faces.push(...holeWallFaces(w, segs, topo, zf, z1));
+      faces.push(w.face(w.loop(forward(w, topo.eb)), [], up(zf)));
+      topInner.push(w.loop(backward(w, topo.et)));
+    } else {
+      const topo = extrudeLoop(w, segs, z0, z1);
+      faces.push(...holeWallFaces(w, segs, topo, z0, z1));
+      topInner.push(w.loop(backward(w, topo.et)));
+      bottomInner.push(w.loop(forward(w, topo.eb)));
+    }
   }
-  faces.push(w.face(w.loop(forward(w, bTopo.et)), topInner, w.add(`PLANE('',${w.axis(0, 0, z1, [0, 0, 1], [1, 0, 0])})`)));
+  faces.push(w.face(w.loop(forward(w, bTopo.et)), topInner, up(z1)));
   faces.push(w.face(w.loop(backward(w, bTopo.eb)), bottomInner, w.add(`PLANE('',${w.axis(0, 0, z0, [0, 0, -1], [1, 0, 0])})`)));
   return solid(w, name, faces);
 }
 
 /**
- * opts: { mode: 'tools' | 'plate', thickness, zPlacement: 'center' | 'bottom' | 'top', origin, name }
+ * opts: { mode: 'tools' | 'plate', thickness, zPlacement: 'center' | 'bottom' | 'top', origin, name,
+ *         relief: { mode: 'cut' | 'emboss' | 'deboss', height } (plate mode) }
+ * In tools mode, thickness is the height of the tool bodies.
  */
 export function exportSTEP(result, doc, opts = {}) {
   const mode = opts.mode === 'plate' ? 'plate' : 'tools';
   const t = Math.max(opts.thickness || 2, 0.001);
+  const relief = reliefParams(opts.relief, t);
   const geo = exportGeometry(result, doc, { origin: opts.origin, includeBoundary: true });
   let z0 = 0;
   if (mode === 'tools') {
@@ -237,7 +262,7 @@ export function exportSTEP(result, doc, opts = {}) {
 
   const items = [origin];
   if (mode === 'plate') {
-    items.push(plateSolid(w, geo.boundaryAlways, geo.holes, z0, z1, name));
+    items.push(plateSolid(w, geo.boundaryAlways, geo.holes, z0, z1, name, relief));
   } else {
     geo.holes.forEach((o, i) => items.push(toolSolid(w, o, z0, z1, `Loch ${i + 1}`)));
   }

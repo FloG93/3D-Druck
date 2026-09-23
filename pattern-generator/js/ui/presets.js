@@ -47,7 +47,32 @@ export function renderThumbnail(canvas, docInput, colors) {
   const holes = new Path2D();
   for (const hole of res.holes) addOutlineToPath(holes, hole.outline);
   ctx.fillStyle = doc.shape.color;
-  ctx.fill(holes);
+  const mode = doc.relief.mode;
+  // Raised shapes cast a shadow, recessed ones get an inner shadow.
+  if (mode === 'emboss') {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = dpr;
+    ctx.shadowOffsetX = dpr;
+    ctx.shadowOffsetY = dpr;
+    ctx.fill(holes);
+    ctx.restore();
+  } else {
+    ctx.fill(holes);
+  }
+  if (mode === 'deboss') {
+    ctx.save();
+    ctx.clip(holes);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 1.5 * dpr;
+    ctx.shadowOffsetX = dpr;
+    ctx.shadowOffsetY = dpr;
+    const frame = new Path2D();
+    frame.rect(-doc.canvas.width, -doc.canvas.height, doc.canvas.width * 2, doc.canvas.height * 2);
+    frame.addPath(holes);
+    ctx.fill(frame, 'evenodd');
+    ctx.restore();
+  }
 }
 
 /** Scales positions/radii of modifiers when a preset is fitted to another canvas. */

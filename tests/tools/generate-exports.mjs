@@ -33,6 +33,12 @@ for (const [name, doc] of Object.entries(cases)) {
   fs.writeFileSync(`${OUT}/${name}.fusion.json`, exportFusionJSON(r, doc, { includeBoundary: true }));
   const mesh = buildPlateMesh(r.boundary.outline, r.holes.map(h => h.outline), 3, 0.015);
   fs.writeFileSync(`${OUT}/${name}.stl`, toBinarySTL(mesh.positions));
+  // Relief: shapes 1 mm raised / recessed on a 3 mm plate.
+  for (const mode of ['emboss', 'deboss']) {
+    fs.writeFileSync(`${OUT}/${name}_${mode}.step`, exportSTEP(r, doc, { mode: 'plate', thickness: 3, relief: { mode, height: 1 }, name }));
+    const relief = buildPlateMesh(r.boundary.outline, r.holes.map(h => h.outline), 3, 0.015, { relief: { mode, height: 1, taper: mode === 'deboss' ? 30 : 0 } });
+    fs.writeFileSync(`${OUT}/${name}_${mode}.stl`, toBinarySTL(relief.positions));
+  }
   const perimeter = (o) => { const p = polygonize(o, 0.015); return p.reduce((acc, q, i) => acc + Math.hypot(p[(i + 1) % p.length][0] - q[0], p[(i + 1) % p.length][1] - q[1]), 0); };
   summary[name] = { holes: r.holes.length, holeArea: expectedArea, plateArea: r.boundary.area, perimeter: perimeter(r.boundary.outline) + r.holes.reduce((acc, h) => acc + perimeter(h.outline), 0), kinds: [...new Set(r.holes.map(h => h.outline.kind))] };
 }

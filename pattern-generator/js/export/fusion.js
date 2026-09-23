@@ -7,8 +7,11 @@
 //   { "c": [x, y], "r": r }                          circle
 //   { "e": [x, y, rx, ry, rot] }                     ellipse (rot in radians)
 //   { "p": [["A", cx, cy, r, a0, sweep], ["L", x0, y0, x1, y1], ...] }
+// relief tells the script which operation to preselect:
+//   { "mode": "cut" | "emboss" | "deboss", "height": mm, "taper": degrees }
 
 import { exportGeometry } from './common.js';
+import { RELIEF_MODES } from '../core/relief.js';
 
 const R = (v) => Math.round(v * 1e5) / 1e5 || 0;
 const A = (v) => Math.round(v * 1e8) / 1e8 || 0;
@@ -35,6 +38,11 @@ export function exportFusionJSON(result, doc, opts = {}) {
       holes: result.holes.length,
       openArea: R(result.stats.openArea),
       openRatio: R(result.stats.ratio),
+    },
+    relief: {
+      mode: RELIEF_MODES.includes(doc.relief?.mode) ? doc.relief.mode : 'cut',
+      height: R(doc.relief?.height || 0),
+      taper: R(doc.relief?.taper || 0),
     },
     boundary: geo.boundary ? encode(geo.boundary) : null,
     holes: geo.holes.map(encode),

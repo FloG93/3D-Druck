@@ -208,27 +208,31 @@ class ExtrudeInput:
     def __init__(self, profiles, op):
         self.profiles, self.op = profiles, op
         self.participantBodies = None
+        self.taper = None
 
-    def setOneSideExtent(self, extent, direction):
-        self.extent, self.direction = extent, direction
+    def setOneSideExtent(self, extent, direction, taper=None):
+        self.extent, self.direction, self.taper = extent, direction, taper
 
 
 class Extrudes:
-    def __init__(self):
+    def __init__(self, reject_taper=False):
         self.added = []
+        self.reject_taper = reject_taper
 
     def createInput(self, profiles, op):
         return ExtrudeInput(profiles, op)
 
     def add(self, inp):
+        if self.reject_taper and inp.taper is not None:
+            raise RuntimeError('taper too steep')
         self.added.append(inp)
         return types.SimpleNamespace(name='')
 
 
 class Component:
-    def __init__(self):
+    def __init__(self, reject_taper=False):
         self.sketch_list = []
-        self.features = types.SimpleNamespace(extrudeFeatures=Extrudes())
+        self.features = types.SimpleNamespace(extrudeFeatures=Extrudes(reject_taper))
         self.sketches = types.SimpleNamespace(add=self.add_sketch)
 
     def add_sketch(self, entity, occurrence=None):
@@ -254,7 +258,8 @@ def install_fake_adsk():
         setattr(core, name, type(name, (), {}))
     fusion.Design = types.SimpleNamespace(cast=lambda x: x)
     fusion.BRepFace = types.SimpleNamespace(cast=lambda x: x if isinstance(x, Face) else None)
-    fusion.FeatureOperations = types.SimpleNamespace(CutFeatureOperation='cut', NewBodyFeatureOperation='new')
+    fusion.FeatureOperations = types.SimpleNamespace(CutFeatureOperation='cut', NewBodyFeatureOperation='new',
+                                                     JoinFeatureOperation='join')
     fusion.ExtentDirections = types.SimpleNamespace(PositiveExtentDirection='+', NegativeExtentDirection='-')
     fusion.DistanceExtentDefinition = types.SimpleNamespace(create=lambda v: ('distance', v))
     fusion.ThroughAllExtentDefinition = types.SimpleNamespace(create=lambda: ('all',))
@@ -287,6 +292,8 @@ const cases = {
   hexagon: normalizeDoc({ canvas: {width: 60, height: 50}, boundary: {type: 'polygon', sides: 6}, shape: {type: 'polygon', sides: 6, width: 7, height: 7, round: 0.25}, pattern: {type: 'hex', spacingX: 8.5, spacingY: 7.36} }),
   sharp: normalizeDoc({ canvas: {width: 50, height: 30}, shape: {type: 'rect', width: 5, height: 3, round: 0}, pattern: {type: 'grid', spacingX: 7, spacingY: 5} }),
   stretched: normalizeDoc({ canvas: {width: 50, height: 30}, shape: {type: 'polygon', sides: 5, width: 6, height: 3, round: 1}, pattern: {type: 'grid', spacingX: 9, spacingY: 6} }),
+  ribs: normalizeDoc({ canvas: {width: 60, height: 40}, boundary: {type: 'rect', cornerRadius: 2, margin: 3}, shape: {type: 'rect', width: 46, height: 2, round: 1}, pattern: {type: 'grid', spacingX: 60, spacingY: 5}, relief: {mode: 'emboss', height: 0.8, taper: 30} }),
+  pockets: normalizeDoc({ canvas: {width: 60, height: 40}, shape: {type: 'polygon', sides: 6, width: 5, height: 5}, pattern: {type: 'hex', spacingX: 7, spacingY: 6.06}, relief: {mode: 'deboss', height: 1.2, taper: 0} }),
 };
 const out = process.argv[1];
 for (const [name, doc] of Object.entries(cases)) fs.writeFileSync(`${out}/${name}.fusion.json`, exportFusionJSON(generate(doc), doc, { includeBoundary: true }));
@@ -305,10 +312,10 @@ class FusionScriptTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_case(self, name, **overrides):
+    def run_case(self, name, reject_taper=False, **overrides):
         mod = self.mod
         data = mod.load_pattern(os.path.join(self.tmp.name, name + '.fusion.json'))
-        comp = Component()
+        comp = Component(reject_taper)
         messages = []
         progress = types.SimpleNamespace(show=lambda *a: None, hide=lambda: None, progressValue=0, wasCancelled=False,
                                          cancelButtonText='', isBackgroundTranslucent=False)
@@ -359,14 +366,15 @@ class FusionScriptTest(unittest.TestCase):
                 self.assertEqual(ext[0].op, 'cut')
                 self.assertEqual(ext[0].direction, '-')
                 self.assertEqual(ext[0].extent, ('distance', ('real', 0.2)))
-                self.assertIn('{} Löcher'.format(len(data['holes'])), summary)
+                self.assertIn('{} Formen'.format(len(data['holes'])), summary)
+                self.assertIsNone(ext[0].taper)
                 self.assertTrue(all(p.deleted for p in sketch.projected), 'projected face edges are removed')
                 construction = [c for c in sketch.curves if c.isConstruction]
                 self.assertTrue(construction, 'boundary is drawn as construction geometry')
 
     def test_rotation_offset_and_options(self):
         data, comp, sketch, _ = self.run_case('circle', rotation=math.pi / 2, dx=0.5, dy=-0.5,
-                                              operation=self.mod.OPERATIONS[1], flip=True, boundary=False,
+                                              operation=self.mod.OP_TOOLS, flip=True, boundary=False,
                                               placement=self.mod.PLACEMENTS[1])
         hole = data['holes'][0]
         c = sketch.curves[0].geo['center']
@@ -381,9 +389,58 @@ class FusionScriptTest(unittest.TestCase):
     def test_through_all_and_sketch_only(self):
         _, comp, _, _ = self.run_case('sharp', through_all=True)
         self.assertEqual(comp.features.extrudeFeatures.added[0].extent, ('all',))
-        _, comp, _, summary = self.run_case('sharp', operation=self.mod.OPERATIONS[2])
+        _, comp, _, summary = self.run_case('sharp', operation=self.mod.OP_SKETCH)
         self.assertEqual(comp.features.extrudeFeatures.added, [])
         self.assertIn('Skizze', summary)
+
+    def test_emboss_joins_outwards_with_taper(self):
+        mod = self.mod
+        data, comp, _, summary = self.run_case('ribs', operation=mod.OP_EMBOSS, depth=0.08, taper=math.radians(30))
+        ext = comp.features.extrudeFeatures.added[0]
+        self.assertEqual(ext.op, 'join')
+        self.assertEqual(ext.direction, '+', 'relief grows out of the face')
+        self.assertEqual(ext.extent, ('distance', ('real', 0.08)))
+        self.assertEqual(ext.taper[0], 'real')
+        self.assertAlmostEqual(ext.taper[1], -math.radians(30), msg='negative taper narrows the ribs')
+        self.assertIsNotNone(ext.participantBodies)
+        self.assertIn('erhaben aufgesetzt', summary)
+
+    def test_deboss_cuts_to_depth(self):
+        mod = self.mod
+        _, comp, _, summary = self.run_case('pockets', operation=mod.OP_DEBOSS, depth=0.12, through_all=True,
+                                            taper=math.radians(10), flip=True)
+        ext = comp.features.extrudeFeatures.added[0]
+        self.assertEqual(ext.op, 'cut')
+        self.assertEqual(ext.extent, ('distance', ('real', 0.12)), 'pockets never cut through')
+        self.assertEqual(ext.direction, '+')
+        self.assertAlmostEqual(ext.taper[1], -math.radians(10))
+        self.assertIn('vertieft', summary)
+
+    def test_taper_falls_back_to_straight_walls(self):
+        mod = self.mod
+        _, comp, _, summary = self.run_case('ribs', reject_taper=True, operation=mod.OP_EMBOSS, taper=math.radians(60))
+        ext = comp.features.extrudeFeatures.added
+        self.assertEqual(len(ext), 1)
+        self.assertIsNone(ext[0].taper)
+        self.assertIn('senkrechten Wänden', summary)
+
+    def test_dialog_defaults_follow_relief(self):
+        mod = self.mod
+        load = lambda name: mod.load_pattern(os.path.join(self.tmp.name, name + '.fusion.json'))
+        saved = {'operation': mod.OP_TOOLS, 'depth': '3 mm', 'taper': '5 deg', 'through_all': True}
+        ribs = mod.dialog_defaults(load('ribs'), saved)
+        self.assertEqual(ribs['operation'], mod.OP_EMBOSS)
+        self.assertEqual(ribs['depth'], '0.8 mm')
+        self.assertEqual(ribs['taper'], '30 deg')
+        pockets = mod.dialog_defaults(load('pockets'), {})
+        self.assertEqual(pockets['operation'], mod.OP_DEBOSS)
+        self.assertEqual(pockets['depth'], '1.2 mm')
+        plain = mod.dialog_defaults(load('sharp'), saved)
+        self.assertEqual(plain['operation'], mod.OP_TOOLS, 'a hole pattern keeps the last operation')
+        self.assertEqual(plain['depth'], '3 mm')
+        self.assertTrue(plain['through_all'])
+        self.assertEqual(mod.dialog_defaults(load('sharp'), {'operation': mod.OP_EMBOSS})['operation'], mod.OP_CUT)
+        self.assertEqual(mod.dialog_defaults({'holes': [1]}, {'operation': 'gibt es nicht'})['operation'], mod.OP_CUT)
 
     def test_rejects_foreign_files(self):
         path = os.path.join(self.tmp.name, 'other.json')

@@ -177,4 +177,60 @@ export const BUILTIN_PRESETS = [
       modifiers: [mod('line', { x1: -85, y1: 0, x2: 85, y2: 0, curve: false, radius: 16, falloff: 'step', angle: 0, rotateMode: 'add', scale: 1, remove: true })],
     }),
   },
+  // Relief presets: the shapes stand on the plate or are sunk into it.
+  {
+    name: 'Griffrillen',
+    doc: () => ({
+      canvas: { width: 80, height: 50 },
+      boundary: { type: 'rect', cornerRadius: 6, margin: 4 },
+      shape: { type: 'rect', width: 68, height: 1.6, round: 1, color: '#e07a5f' },
+      pattern: { type: 'grid', spacingX: 80, spacingY: 3.6 },
+      relief: { mode: 'emboss', height: 0.8, taper: 30 },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Kühlrippen',
+    doc: () => ({
+      canvas: { width: 60, height: 60 },
+      boundary: { type: 'rect', cornerRadius: 3, margin: 2 },
+      shape: { type: 'rect', width: 56, height: 1.6, round: 1, color: '#aab7c4' },
+      pattern: { type: 'grid', spacingX: 60, spacingY: 5 },
+      relief: { mode: 'emboss', height: 15, taper: 0 },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Kühlstifte',
+    doc: () => ({
+      canvas: { width: 60, height: 60 },
+      boundary: { type: 'rect', cornerRadius: 3, margin: 3 },
+      shape: { type: 'ellipse', width: 3, height: 3, color: '#8fa3b8' },
+      pattern: { type: 'hex', spacingX: 6, spacingY: 5.196, rowShift: 0.5 },
+      relief: { mode: 'emboss', height: 12, taper: 3 },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Noppen',
+    doc: () => ({
+      canvas: { width: 100, height: 60 },
+      boundary: { type: 'rect', cornerRadius: 8, margin: 4 },
+      shape: { type: 'ellipse', width: 3.5, height: 3.5, color: '#7bc47f' },
+      pattern: { type: 'hex', spacingX: 6, spacingY: 5.196, rowShift: 0.5 },
+      relief: { mode: 'emboss', height: 1, taper: 40 },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Wabenprägung',
+    doc: () => ({
+      canvas: { width: 120, height: 80 },
+      boundary: { type: 'rect', cornerRadius: 8, margin: 5 },
+      shape: { type: 'polygon', sides: 6, width: 9, height: 9, round: 0.1, color: '#f2c14e' },
+      pattern: { type: 'hex', spacingX: 9.2, spacingY: 7.967, rowShift: 0.5 },
+      relief: { mode: 'deboss', height: 0.8, taper: 20 },
+      modifiers: [],
+    }),
+  },
 ];

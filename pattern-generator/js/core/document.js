@@ -1,6 +1,8 @@
 // The document is plain JSON: it is autosaved, put into share links,
 // stored as presets and loaded back from project files.
 
+import { RELIEF_MODES } from './relief.js';
+
 export const DOC_VERSION = 1;
 
 export const DEFAULTS = {
@@ -38,6 +40,8 @@ export const DEFAULTS = {
     minDistance: 8,
     seed: 1,
   },
+  // cut: holes through the plate · emboss: raised ribs/bumps · deboss: grooves/pockets
+  relief: { mode: 'cut', height: 1, taper: 0 },
   check: { minWeb: 0.8, show: true },
   background: { opacity: 0.45, fit: 'cover', visible: true },
   export: {
@@ -146,6 +150,7 @@ export function normalizeDoc(input) {
     seen.add(mod.id);
     doc.modifiers.push(mod);
   }
+  if (!RELIEF_MODES.includes(doc.relief.mode)) doc.relief.mode = 'cut';
   doc.canvas.width = Math.min(Math.max(doc.canvas.width, 1), 5000);
   doc.canvas.height = Math.min(Math.max(doc.canvas.height, 1), 5000);
   return doc;
