@@ -106,4 +106,75 @@ export const BUILTIN_PRESETS = [
       modifiers: [mod('noise', { mode: 'smooth', size: 45, seed: 3, amount: 1, angle: 0, scale: 0.35, jitter: 0, dropout: 0 })],
     }),
   },
+  {
+    name: 'Zahnrad',
+    doc: () => ({
+      canvas: { width: 160, height: 160 },
+      boundary: { type: 'ellipse', margin: 6 },
+      // width is the long axis for align "radial" (points outward like turbine blades).
+      shape: { type: 'rect', width: 12, height: 2.8, round: 1, color: '#7d92a8' },
+      pattern: { type: 'radial', ringSpacing: 13.5, itemSpacing: 9, align: 'radial', centerHole: false },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Fokus',
+    doc: () => ({
+      canvas: { width: 200, height: 140 },
+      boundary: { type: 'rect', cornerRadius: 10, margin: 6 },
+      shape: { type: 'ellipse', width: 4.5, height: 4.5, color: '#ffd166' },
+      pattern: { type: 'hex', spacingX: 8.5, spacingY: 7.361, rowShift: 0.5 },
+      modifiers: [mod('point', { x: 0, y: 0, radius: 80, falloff: 'smooth', angle: 0, rotateMode: 'add', scale: 1.6, scaleAxis: 'both' })],
+    }),
+  },
+  {
+    name: 'Lamellen',
+    doc: () => ({
+      canvas: { width: 200, height: 130 },
+      boundary: { type: 'rect', cornerRadius: 10, margin: 8 },
+      shape: { type: 'rect', width: 22, height: 4, round: 0.25, color: '#5aa9a3' },
+      pattern: { type: 'grid', spacingX: 24, spacingY: 10 },
+      modifiers: [mod('linear', { x1: -95, y1: 0, x2: 95, y2: 0, falloff: 'linear', angleFrom: 65, angleTo: 0, scaleFrom: 1, scaleTo: 1 })],
+    }),
+  },
+  {
+    name: 'Kristall',
+    doc: () => ({
+      canvas: { width: 200, height: 140 },
+      boundary: { type: 'rect', cornerRadius: 8, margin: 6 },
+      shape: { type: 'polygon', sides: 6, width: 8, height: 8, round: 0.1, color: '#9fd8e8' },
+      pattern: { type: 'hex', spacingX: 10, spacingY: 8.66, rowShift: 0.5 },
+      modifiers: [mod('noise', { mode: 'random', seed: 5, amount: 1, angle: 60, scale: 0.1, jitter: 0, dropout: 0 })],
+    }),
+  },
+  {
+    name: 'Kiesel',
+    doc: () => ({
+      canvas: { width: 200, height: 140 },
+      boundary: { type: 'rect', cornerRadius: 10, margin: 6 },
+      shape: { type: 'polygon', sides: 7, width: 7, height: 7, round: 0.6, minSize: 1, color: '#b8a888' },
+      pattern: { type: 'random', minDistance: 9, seed: 3 },
+      modifiers: [mod('noise', { mode: 'random', seed: 4, amount: 1, angle: 180, scale: 0.3, jitter: 0, dropout: 0 })],
+    }),
+  },
+  {
+    name: 'Regen',
+    doc: () => ({
+      canvas: { width: 160, height: 130 },
+      boundary: { type: 'rect', cornerRadius: 8, margin: 6 },
+      shape: { type: 'rect', width: 1.8, height: 8, round: 1, color: '#4d7ea8' },
+      pattern: { type: 'grid', spacingX: 4, spacingY: 13 },
+      modifiers: [mod('noise', { mode: 'random', seed: 4, amount: 0.4, angle: 0, scale: 1, scaleAxis: 'y', jitter: 0.4, dropout: 0.15 })],
+    }),
+  },
+  {
+    name: 'Namensschild',
+    doc: () => ({
+      canvas: { width: 200, height: 130 },
+      boundary: { type: 'rect', cornerRadius: 10, margin: 6 },
+      shape: { type: 'rect', width: 9, height: 2.4, round: 1, color: '#d1b26f' },
+      pattern: { type: 'hex', spacingX: 11, spacingY: 7, rowShift: 0.5 },
+      modifiers: [mod('line', { x1: -85, y1: 0, x2: 85, y2: 0, curve: false, radius: 16, falloff: 'step', angle: 0, rotateMode: 'add', scale: 1, remove: true })],
+    }),
+  },
 ];

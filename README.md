@@ -18,7 +18,7 @@ Parametrischer Generator für **Lochmuster** – Lüftungsschlitze, Waben, Lauts
 - **Direkt im Canvas bearbeiten:** Attraktoren ziehen, Radius per Ring oder Mausrad, Doppelklick setzt einen neuen Attraktor, Zoom/Verschieben, Touch-Bedienung.
 - **Prüfung für den 3D-Druck:** Lochanzahl, offene Fläche in %, **schmalster Steg** und kleinster Randabstand. Zu dünne Stege werden orange, Überlappungen rot markiert.
 - **3D-Vorschau** der Lochplatte (three.js).
-- **Vorlagen** (Wirbel, Wabe, Fischgrät, Sonnenblume, Verlauf, Strömung, Lautsprecher, Ringe, Rauten, Organisch), eigene Vorlagen, Projektdateien (JSON), **Teilen-Link**, Rückgängig/Wiederholen, automatisches Speichern im Browser, helles und dunkles Design.
+- **17 Vorlagen** (Wirbel, Wabe, Fischgrät, Sonnenblume, Verlauf, Strömung, Lautsprecher, Ringe, Rauten, Organisch, Zahnrad, Fokus, Lamellen, Kristall, Kiesel, Regen, Namensschild), eigene Vorlagen, Projektdateien (JSON), **Teilen-Link**, Rückgängig/Wiederholen, automatisches Speichern im Browser, helles und dunkles Design.
 
 ![3D-Vorschau der Lochplatte](docs/screenshot-3d.png)
 
