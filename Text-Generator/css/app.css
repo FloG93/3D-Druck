@@ -102,7 +102,7 @@
 /* The built-in symbol outlines, so the palette shows what gets printed. */
 @font-face {
   font-family: "TG Symbols";
-  src: url("../fonts/noto-emoji-symbols-700.ttf") format("truetype");
+  src: url("../fonts/tg-symbols.otf") format("opentype");
   font-display: swap;
 }
 

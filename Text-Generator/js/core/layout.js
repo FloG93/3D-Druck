@@ -120,6 +120,7 @@ function kerningLookups(font) {
 /**
  * Places the glyphs of one line on a straight baseline starting at x = 0.
  * Returns { items: [{ glyph, font, x, dy, advance, scale, ch }], width, missing }.
+ * Symbols get a little space on both sides (their icons fill the advance).
  */
 export function shapeLine(line, face, fontSize, spacing = 0, kerning = true) {
   const missing = new Set();
@@ -141,15 +142,16 @@ export function shapeLine(line, face, fontSize, spacing = 0, kerning = true) {
   let x = 0;
   for (const run of runs) {
     const { font } = run;
-    const { scale, dy } = face.metricsFor(font, fontSize);
+    const { scale, dy, pad } = face.metricsFor(font, fontSize);
     const glyphs = glyphsOf(font, run.text);
     const lookups = kerning ? kerningLookups(font) : null;
     const chars = [...run.text];
     for (let i = 0; i < glyphs.length; i++) {
       const g = glyphs[i];
       const advance = (g.advanceWidth || 0) * scale;
+      x += pad;
       items.push({ glyph: g, font, x, dy, advance, scale, ch: chars[i] ?? '' });
-      x += advance;
+      x += advance + pad;
       if (kerning && i < glyphs.length - 1) {
         const k = lookups
           ? font.position.getKerningValue(lookups, g.index, glyphs[i + 1].index)

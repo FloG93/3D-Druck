@@ -83,8 +83,8 @@ test('text on arcs sits on the circle', () => {
 });
 
 test('missing characters are reported', () => {
-  const m = model({ texts: [{ text: 'A☃B', font: font('bebas-neue') }] });
-  assert.ok(m.warnings.some((w) => w.includes('☃')));
+  const m = model({ texts: [{ text: 'A♜B', font: font('bebas-neue') }] });
+  assert.ok(m.warnings.some((w) => w.includes('♜')));
 });
 
 test('contour key ring: one piece, text inside, eyelet hole', () => {

@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { regionArea, regionBounds, pointInRing } from '../js/core/geometry.js';
+import { regionArea, regionBounds, pointInRing, thinParts } from '../js/core/geometry.js';
 import { layoutBlock } from '../js/core/layout.js';
 import { defaultDoc, normalizeDoc } from '../js/core/document.js';
 import { buildModel, countersinkSegments, MIN_FLOOR } from '../js/core/model.js';
@@ -195,13 +195,13 @@ test('every text can have its own colour (AMS filament)', () => {
   assertSolid(flush, 'colour groups flush');
 });
 
-test('symbols come from the built-in emoji outlines', async () => {
+test('symbols come from the built-in solid icons', async () => {
   const m = build({ base: { shape: 'rect' }, texts: [{ text: 'Anna ♥', font: font('montserrat'), size: 10 }] });
   assert.equal(m.missing.size, 0);
   assert.ok(!m.warnings.length, m.warnings.join(' | '));
   assertSolid(m, 'heart');
-  // Every symbol of the palette has an outline, about 1.1 cap heights tall,
-  // centred on the capital letters.
+  // Every symbol of the palette has an outline about as tall as a capital
+  // letter, centred on it, with strokes thick enough to print.
   const face = lib.peek(font('roboto'));
   for (const ch of SYMBOLS) {
     const lay = layoutBlock({ text: `H${ch}`, size: 10, letterSpacing: 0, lineSpacing: 1.2, align: 'center', layout: 'line' }, face);
@@ -210,9 +210,20 @@ test('symbols come from the built-in emoji outlines', async () => {
     assert.ok(sym, `${ch} has an outline`);
     const b = regionBounds(sym.rings.map((r) => ({ outer: r, holes: [] })));
     const H = regionBounds(lay.glyphs[0].rings.map((r) => ({ outer: r, holes: [] })));
-    assert.ok(b.maxY - b.minY <= 11.5 && b.maxY - b.minY >= 6, `${ch} height ${b.maxY - b.minY}`);
+    assert.ok(b.maxY - b.minY <= 12 && b.maxY - b.minY >= 5, `${ch} height ${b.maxY - b.minY}`);
     near((b.minY + b.maxY) / 2, (H.minY + H.maxY) / 2, 1.3, `${ch} centred`);
+    assert.ok(b.minX > H.maxX + 0.3, `${ch}: space after the H`);
+    assert.equal(thinParts(lay.region, 0.8).length, 0, `${ch}: thin strokes at 10 mm`);
   }
+  // Pasted emoji use the same icons (🐕 like 🐶, ❤ like ♥).
+  const same = (a, b) => {
+    const ga = layoutBlock({ text: a, size: 10 }, face).glyphs[0].rings;
+    const gb = layoutBlock({ text: b, size: 10 }, face).glyphs[0].rings;
+    assert.deepEqual(ga, gb, `${a} = ${b}`);
+  };
+  same('🐶', '🐕');
+  same('♥', '❤');
+  same('🌲', '🎄');
   // Without the symbol font: reported as missing, not as a font problem.
   const bare = await loadFonts({ symbols: false });
   const m2 = buildModel(doc({ texts: [{ text: 'Anna ♥', font: font('montserrat') }] }), (r) => bare.peek(r));

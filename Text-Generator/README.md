@@ -9,7 +9,7 @@ Schlüsselanhänger, Namens-, Tür- und Kofferschilder mit Text für den 3D-Druc
 ## Funktionen
 
 - **Text:** mehrzeilig, beliebig viele Textblöcke mit eigener Schrift, Größe (Höhe der Großbuchstaben in mm), Zeichen- und Zeilenabstand, Ausrichtung, Position und Drehung. Texte lassen sich in der Vorschau mit der Maus verschieben.
-- **Symbole:** 45 Symbole eingebaut (Herz, Stern, Pfote, Tiere, Blumen, Sport, Musik …) über den Knopf *♥ Symbol*, dazu jedes andere Emoji als Umriss (Noto Emoji, lädt bei Bedarf). Symbole werden so hoch wie die Großbuchstaben gesetzt.
+- **Symbole:** 66 flächige, gut druckbare Symbole eingebaut (Herz, Stern, Pfote, Hund, Katze, Pferd, Kleeblatt, Sonne, Schneeflocke, Fußball, Note, Krone, Haus, Anker, Auto, Traktor, WLAN …) über den Knopf *♥ Symbol* – ab 10 mm Höhe ohne zu dünne Linien. Eingefügte Emoji wie 🐕 oder ❤ nutzen dieselben Symbole; alle anderen Emoji kommen als Strichzeichnung aus Noto Emoji (lädt bei Bedarf). Symbole werden so hoch wie die Großbuchstaben gesetzt.
 - **Schriften:** sechs eingebaut (Montserrat, Pacifico, Lobster, Roboto, Bebas Neue, Black Ops One – funktionieren offline), dazu **alle Google Fonts** mit Suche, Kategorien, Live-Vorschau und Auswahl der Strichstärke. **Fettung** macht dünne Schriften druckbar (Striche dicker oder dünner in mm).
 - **Grundform:** Kontur (folgt der Schrift, getrennte Wörter werden automatisch verbunden), Rechteck mit Eckenradius, Kapsel, Oval, Kreis – automatisch um die Schrift oder mit festen Maßen – oder ganz ohne Platte (nur Buchstaben).
 - **Befestigung:** Öse außen, Loch in der Platte oder **Schlitz** für Band, Lanyard oder Clip – links, rechts oder oben; **zwei Schraublöcher** mit 90°-**Senkung** für Senkkopfschrauben (Kopf-Ø einstellbar). Bei der Kontur werden Laschen angesetzt, die Übergänge verrundet.
@@ -62,6 +62,7 @@ Text-Generator/
   js/ui/                    Oberfläche, 2D-Ansicht, 3D-Vorschau, Schriftauswahl, Dialoge
                             (Design und Bedienelemente aus ../shared/)
   fonts/                    eingebaute Schriften und Symbole (SIL OFL 1.1)
+  tests/tools/              Export-Prüfung, Bau der Symbol-Schrift (build_symbols.py)
   vendor/                   opentype.js, Clipper
   tests/                    Tests (Node) und Export-Prüfung (Python + lib3mf)
   docs/                     Bilder für diese Anleitung

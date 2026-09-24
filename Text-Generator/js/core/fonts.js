@@ -16,16 +16,20 @@ export const BUILTIN_FONTS = [
 
 export const DEFAULT_FONT = { id: 'montserrat', family: 'Montserrat', weight: 800, style: 'normal' };
 
-// Symbols (hearts, paws, stars …) come from Noto Emoji (bold, monochrome
-// outlines). A small selection is built in; other emoji load on demand.
-export const SYMBOL_FONT_FILE = 'noto-emoji-symbols-700.ttf';
-export const SYMBOLS = '♥⭐✨🐾🐶🐱🐴🦄🦋🐞🐢🐟🌸🌻🍀🌈☀🌙⚡❄⚽🏀🎵🎸👑🎂🎄🎁🏠⚓✈🚗🔑☕🍺😊👍✔♻🍓🍕🎮🔥💎🚀';
+// Symbols (hearts, paws, stars …): solid icons built in (fonts/tg-symbols.otf,
+// from Font Awesome Free, under their emoji code points – see
+// tests/tools/build_symbols.py); other emoji load on demand from Noto Emoji
+// (monochrome line art).
+export const SYMBOL_FONT_FILE = 'tg-symbols.otf';
+export const SYMBOLS = '♥⭐😊😍👍✔☮🐾🐶🐱🐴🐉🕊🐸🐟🐞🦴🌱🍃🌲🍀☀🌙☁❄⚡🌈🔥⛰⚽🏀🚲🏆🏅🎵🎸👑🎂🎁⛄🎓🏠⚓✈🚗🚜⛵🚀🔑☕🍺🍎🍕🍦🍪🎮💎👻💀📶💡🔧⚙✂♻🎲';
 const EMOJI_ID = 'noto-emoji';
 const EMOJI_WEIGHT = 700;
 // Symbols are centred on the capital letters; the symbol font's box
 // (ascender to descender) is this many cap heights tall, so the symbols
 // themselves come out about 1.1 times as tall as an "H".
 export const SYMBOL_BOX = 1.25;
+// Space on both sides of a symbol, in cap heights.
+export const SYMBOL_PAD = 0.06;
 
 /** Characters that only modify emoji (variation selectors, zero-width joiner). */
 export const isModifier = (ch) => /[\uFE0E\uFE0F\u200D]/.test(ch);
@@ -92,15 +96,20 @@ export class FontFace {
    * at the given em size. Symbols are sized by the cap height instead.
    */
   metricsFor(f, fontSize) {
-    if (!this.fallbacks.includes(f)) return { scale: fontSize / f.unitsPerEm, dy: 0 };
+    if (!this.fallbacks.includes(f)) return { scale: fontSize / f.unitsPerEm, dy: 0, pad: 0 };
     const size = fontSize * this.capRatio;
     const box = f.ascender - f.descender || f.unitsPerEm;
     const scale = (SYMBOL_BOX * size) / box;
-    return { scale, dy: size / 2 - ((f.ascender + f.descender) / 2) * scale };
+    return { scale, dy: size / 2 - ((f.ascender + f.descender) / 2) * scale, pad: SYMBOL_PAD * size };
   }
 
-  /** The font that has a glyph for the character, or null. */
+  /**
+   * The font that has a glyph for the character, or null. Symbols of the
+   * built-in selection always come from the symbol font (as in the palette).
+   */
   fontFor(ch) {
+    const symbols = this.fallbacks[0];
+    if (symbols && symbols.tgSymbols && isSymbolLike(ch) && symbols.charToGlyphIndex(ch) > 0) return symbols;
     for (const f of this.fonts) {
       if (f.charToGlyphIndex(ch) > 0) return f;
     }
@@ -138,7 +147,10 @@ export class FontLibrary {
   loadSymbols() {
     if (!this.symbolsPromise) {
       this.symbolsPromise = this.fetchBytes(this.builtinBase + SYMBOL_FONT_FILE).then((bytes) => {
-        this.fallbacks.push(parseFont(bytes));
+        const font = parseFont(bytes);
+        font.tgSymbols = true;
+        // First, so the built-in symbols win over emoji loaded later.
+        this.fallbacks.unshift(font);
       });
     }
     return this.symbolsPromise;
