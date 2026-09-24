@@ -249,13 +249,14 @@ export function offset(region, delta, { join = 'round', tolerance = TOLERANCE } 
 
 /**
  * Parts of the region narrower than width (morphological opening). Used to
- * find strokes too thin to print. Tiny leftovers at sharp corners (which an
- * opening always rounds off) are ignored.
+ * find strokes too thin to print. Leftovers smaller than a width × width
+ * square are ignored: corners and pointed stroke ends (which an opening
+ * always rounds off) print fine, a thin stroke is longer than that.
  */
 export function thinParts(region, width) {
   if (!region.length || width <= 0) return [];
   const opened = offset(offset(region, -width / 2), width / 2 + TOLERANCE);
-  return difference(region, opened).filter((s) => regionArea([s]) > 0.5 * width * width);
+  return difference(region, opened).filter((s) => regionArea([s]) > width * width);
 }
 
 export function pointInRing(r, x, y) {

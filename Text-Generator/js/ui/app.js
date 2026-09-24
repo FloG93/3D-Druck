@@ -8,7 +8,7 @@
 
 import { defaultDoc, normalizeDoc, createText } from '../core/document.js';
 import { buildModel } from '../core/model.js';
-import { FontLibrary, fontKey } from '../core/fonts.js';
+import { FontLibrary, fontKey, isSymbolLike } from '../core/fonts.js';
 import { History } from '../../../shared/js/history.js';
 import { safeStorage } from '../../../shared/js/util.js';
 
@@ -43,6 +43,13 @@ export class App {
     this.loading = new Set();
     this.fontErrors = new Map();
     this._frame = 0;
+    // Symbols: the built-in selection first, other emoji on demand.
+    this.symbolsLoading = 1;
+    this.symbolTried = new Set();
+    this.fonts.loadSymbols().catch(() => {}).then(() => {
+      this.symbolsLoading--;
+      this.scheduleBuild();
+    });
   }
 
   on(event, fn) {
@@ -88,11 +95,20 @@ export class App {
 
   addText(overrides = {}) {
     const last = this.doc.texts[this.doc.texts.length - 1];
+    const size = last ? Math.max(3, Math.round(last.size * 0.6)) : 8;
+    let y = 0;
+    if (last) {
+      // Below the last text (its lines about lineSpacing × size / 0.7 apart),
+      // with a gap of 30 % of its size.
+      const lines = last.text.split('\n').length;
+      const half = ((lines - 1) * last.lineSpacing * (last.size / 0.7) + last.size) / 2;
+      y = Math.round((last.y - half - Math.max(2, last.size * 0.3) - size / 2) * 2) / 2;
+    }
     const t = createText({
       text: 'Text',
       font: last ? { ...last.font } : undefined,
-      size: last ? Math.max(3, Math.round(last.size * 0.6)) : 8,
-      y: last ? last.y - (last.size * 1.6 + 2) : 0,
+      size,
+      y,
       ...overrides,
     });
     this.doc.texts.push(t);
@@ -129,9 +145,30 @@ export class App {
   /** Builds the model now; missing fonts are loaded and trigger a rebuild. */
   build() {
     for (const t of this.doc.texts) this.ensureFont(t.font);
-    this.model = buildModel(this.doc, (ref) => this.fonts.peek(ref));
+    this.loadSymbolsFor(this.doc);
+    this.model = buildModel(this.doc, (ref) => this.fonts.peek(ref), { symbolsLoading: this.symbolsLoading > 0 });
     this.emit('model', this.model);
     return this.model;
+  }
+
+  /** Loads emoji outlines for symbols that no loaded font has (once per character). */
+  loadSymbolsFor(doc) {
+    if (this.symbolsLoading) return;
+    const wanted = new Set();
+    for (const t of doc.texts) {
+      const face = this.fonts.peek(t.font);
+      if (!face) continue;
+      for (const ch of t.text) {
+        if (isSymbolLike(ch) && !this.symbolTried.has(ch) && !face.fontFor(ch)) wanted.add(ch);
+      }
+    }
+    if (!wanted.size) return;
+    for (const ch of wanted) this.symbolTried.add(ch);
+    this.symbolsLoading++;
+    this.fonts.loadEmojiFor([...wanted]).catch(() => false).then(() => {
+      this.symbolsLoading--;
+      this.scheduleBuild();
+    });
   }
 
   ensureFont(ref) {

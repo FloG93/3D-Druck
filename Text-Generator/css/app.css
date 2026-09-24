@@ -96,3 +96,41 @@
 
 .help ol { margin: 0; padding-left: 18px; }
 .help li + li { margin-top: 3px; }
+
+/* ---------- symbols ---------- */
+
+/* The built-in symbol outlines, so the palette shows what gets printed. */
+@font-face {
+  font-family: "TG Symbols";
+  src: url("../fonts/noto-emoji-symbols-700.ttf") format("truetype");
+  font-display: swap;
+}
+
+.symbol-bar { display: flex; gap: 6px; }
+.symbol-btn { height: 28px; font-size: 12px; }
+.symbol-btn.active { border-color: var(--accent); color: var(--text); }
+.symbol-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.symbol-grid[hidden] { display: none; }
+.symbol {
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 17px;
+  line-height: 1;
+  font-family: "TG Symbols", "Noto Emoji", "Segoe UI Symbol", system-ui, sans-serif;
+  color: var(--text);
+  cursor: pointer;
+}
+.symbol:hover { background: var(--card); }
+
+.seg-btn:disabled { opacity: 0.4; cursor: default; }
+.seg-btn:disabled:hover { color: var(--text-muted); }

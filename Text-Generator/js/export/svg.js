@@ -54,8 +54,11 @@ export function exportSVG(model, { style = 'color', margin = 2, title = '' } = {
   } else {
     layer('platte', model.plate, `fill="${esc(colors.base)}" stroke="#00000040" stroke-width="0.15"`);
     layer('rand', model.border, `fill="${esc(colors.border)}"`);
+    layer('kontur', model.outline, `fill="${esc(colors.outline)}"`);
     if (model.relief === 'engraved') layer('schrift', model.text, 'fill="#00000038"');
-    else if (model.relief !== 'cut') layer('schrift', model.text, `fill="${esc(colors.text)}"`);
+    else if (model.relief !== 'cut') {
+      model.textGroups.forEach((g, i) => layer(i ? `schrift-${i + 1}` : 'schrift', g.region, `fill="${esc(g.color)}"`));
+    }
   }
   lines.push('</svg>', '');
   return lines.join('\n');

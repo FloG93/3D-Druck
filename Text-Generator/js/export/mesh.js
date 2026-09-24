@@ -4,7 +4,8 @@
 // and walls share the ring vertices and edges exactly, so each shell is
 // watertight.
 
-import { subtractInterior } from '../core/geometry.js';
+import { subtractInterior, pointInRing, reverseRing } from '../core/geometry.js';
+import { countersinkSegments } from '../core/model.js';
 import { triangulateShape } from './triangulate.js';
 
 export class TriangleBuffer {
@@ -72,21 +73,78 @@ function ringsOf(region) {
   return out;
 }
 
-/** Adds the closed body of one solid (see model.js). */
-export function addSolid(buf, solid) {
-  const { region, z0, z1, pockets, depth } = solid;
-  for (const s of region) cap(buf, s, z0, false);
-  for (const r of ringsOf(region)) walls(buf, r, z0, z1);
+/** Regular polygon, counter-clockwise, corner i at angle 2πi/n. */
+function polygonRing(cx, cy, r, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n;
+    out.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  }
+  return out;
+}
+
+/** The region with extra holes (rings lying inside one of its shapes). */
+function withHoles(region, rings) {
+  if (!rings.length) return region;
+  const out = region.map((s) => ({ outer: s.outer, holes: [...s.holes] }));
+  for (const ring of rings) {
+    const s = out.find((x) => pointInRing(x.outer, ring[0], ring[1]));
+    if (s) s.holes.push(reverseRing(ring));
+  }
+  return out;
+}
+
+/** Bottom or top face, with pockets sunk into it (walls + floors). */
+function face(buf, region, pockets, z, depth, up) {
   if (!pockets || !pockets.length || !(depth > 0)) {
-    for (const s of region) cap(buf, s, z1, true);
+    for (const s of region) cap(buf, s, z, up);
     return;
   }
-  // One watertight body: top with the pocket outlines cut out, pocket walls
-  // and pocket floors all built from the same rings.
-  const zf = z1 - depth;
-  for (const s of subtractInterior(region, pockets)) cap(buf, s, z1, true);
-  for (const r of ringsOf(pockets)) walls(buf, r, zf, z1, true);
-  for (const s of pockets) cap(buf, s, zf, true);
+  const zf = up ? z - depth : z + depth;
+  for (const s of subtractInterior(region, pockets)) cap(buf, s, z, up);
+  for (const r of ringsOf(pockets)) {
+    if (up) walls(buf, r, zf, z, true);
+    else walls(buf, r, z, zf, true);
+  }
+  for (const s of pockets) cap(buf, s, zf, up);
+}
+
+/**
+ * Adds the closed body of one solid:
+ *   region z0..z1               plate outline (outer rings and holes)
+ *   pockets, depth              sunk into the top (engraved or inlaid text)
+ *   bottomPockets, bottomDepth  sunk into the bottom (magnets)
+ *   step { region, z }          above z only this smaller region remains
+ *   countersinks [{cx, cy, r, R, depth}]  screw holes with a 90° cone
+ * All faces share their rings, so the body is watertight.
+ */
+export function addSolid(buf, solid) {
+  const { region, z0, z1, pockets, depth, bottomPockets, bottomDepth, step, countersinks = [] } = solid;
+  const upper = step ? step.region : region;
+  const rings = countersinks.map((c) => {
+    const n = countersinkSegments(c.R);
+    return { c, n, inner: polygonRing(c.cx, c.cy, c.r, n), outer: polygonRing(c.cx, c.cy, c.R, n) };
+  });
+  face(buf, withHoles(region, rings.map((k) => k.inner)), bottomPockets, z0, bottomDepth, false);
+  const zs = step ? step.z : z1;
+  for (const r of ringsOf(region)) walls(buf, r, z0, zs);
+  if (step) {
+    for (const s of subtractInterior(region, upper)) cap(buf, s, zs, true);
+    for (const r of ringsOf(upper)) walls(buf, r, zs, z1);
+  }
+  // Countersunk holes: cylinder up to the cone, then the cone to the top.
+  for (const { c, n, inner, outer } of rings) {
+    const zc = z1 - c.depth;
+    const hole = reverseRing(inner);
+    walls(buf, hole, z0, zc);
+    const top = reverseRing(outer);
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      buf.push(hole[2 * i], hole[2 * i + 1], zc, hole[2 * j], hole[2 * j + 1], zc, top[2 * j], top[2 * j + 1], z1);
+      buf.push(hole[2 * i], hole[2 * i + 1], zc, top[2 * j], top[2 * j + 1], z1, top[2 * i], top[2 * i + 1], z1);
+    }
+  }
+  face(buf, withHoles(upper, rings.map((k) => k.outer)), pockets, z1, depth, true);
 }
 
 export function extrudeRegion(buf, region, z0, z1) {
@@ -103,6 +161,23 @@ export function partMesh(part) {
 /** Meshes of all parts, in model order. */
 export function modelMeshes(model) {
   return model.parts.map((part) => ({ part, ...partMesh(part) }));
+}
+
+/**
+ * Meshes turned upside down for printing with the lettering on the bed:
+ * rotated 180° about the X axis (keeps the winding) and lifted to z = 0.
+ */
+export function flipMeshes(meshes, top) {
+  return meshes.map((m) => {
+    const n = m.triangles * 9;
+    const p = new Float32Array(n);
+    for (let i = 0; i < n; i += 3) {
+      p[i] = m.positions[i];
+      p[i + 1] = -m.positions[i + 1];
+      p[i + 2] = top - m.positions[i + 2];
+    }
+    return { ...m, positions: p };
+  });
 }
 
 /** Binary STL of the given meshes (merged into one file). */

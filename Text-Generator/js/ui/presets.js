@@ -53,8 +53,9 @@ export function drawThumbnail(canvas, model, { width, height, pixelRatio, pad = 
   };
   fill(model.plate, colors.base);
   fill(model.border, colors.border);
+  fill(model.outline, colors.outline);
   if (model.relief === 'engraved') fill(model.text, 'rgba(0,0,0,0.3)');
-  else if (model.relief !== 'cut') fill(model.text, colors.text);
+  else if (model.relief !== 'cut') for (const g of model.textGroups) fill(g.region, g.color);
 }
 
 export class PresetsView {

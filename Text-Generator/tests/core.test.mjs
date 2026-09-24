@@ -142,7 +142,8 @@ test('every preset builds without surprises', () => {
     assert.ok(m.parts.length >= 1, p.name);
     assert.ok(m.base.length <= 1, `${p.name}: plate in one piece`);
     assert.equal(m.pending, false, p.name);
-    assert.deepEqual(m.warnings.filter((w) => w.includes('ragt')), [], p.name);
+    assert.deepEqual(m.warnings, [], p.name);
+    assert.equal(m.stats.thinCount, 0, `${p.name}: thin strokes`);
   }
 });
 

@@ -5,6 +5,7 @@
 // letters upright). The block's size is the cap height (height of "H").
 
 import { TOLERANCE, union, regionBounds, emptyBounds } from './geometry.js';
+import { isModifier } from './fonts.js';
 
 const DEG = Math.PI / 180;
 
@@ -118,12 +119,14 @@ function kerningLookups(font) {
 
 /**
  * Places the glyphs of one line on a straight baseline starting at x = 0.
- * Returns { items: [{ glyph, font, x, advance, scale, ch }], width, missing }.
+ * Returns { items: [{ glyph, font, x, dy, advance, scale, ch }], width, missing }.
  */
 export function shapeLine(line, face, fontSize, spacing = 0, kerning = true) {
   const missing = new Set();
   const runs = [];
   for (const ch of line) {
+    // Emoji variation selectors and joiners have no shape of their own.
+    if (isModifier(ch)) continue;
     let f = face.fontFor(ch);
     if (!f && /\s/.test(ch)) f = face.fonts[0];
     if (!f) {
@@ -138,14 +141,14 @@ export function shapeLine(line, face, fontSize, spacing = 0, kerning = true) {
   let x = 0;
   for (const run of runs) {
     const { font } = run;
-    const scale = fontSize / font.unitsPerEm;
+    const { scale, dy } = face.metricsFor(font, fontSize);
     const glyphs = glyphsOf(font, run.text);
     const lookups = kerning ? kerningLookups(font) : null;
     const chars = [...run.text];
     for (let i = 0; i < glyphs.length; i++) {
       const g = glyphs[i];
       const advance = (g.advanceWidth || 0) * scale;
-      items.push({ glyph: g, font, x, advance, scale, ch: chars[i] ?? '' });
+      items.push({ glyph: g, font, x, dy, advance, scale, ch: chars[i] ?? '' });
       x += advance;
       if (kerning && i < glyphs.length - 1) {
         const k = lookups
@@ -212,7 +215,7 @@ export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false }
       const k = it.scale;
       let m;
       if (layout === 'line') {
-        m = [k, 0, 0, k, start + it.x, baseline];
+        m = [k, 0, 0, k, start + it.x, baseline + it.dy];
       } else {
         // Glyph centre on the arc, letters upright towards the outside (top)
         // or the inside (bottom).
@@ -224,7 +227,7 @@ export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false }
         const ty = top ? -Math.cos(theta) : Math.cos(theta);
         const ax = Math.cos(theta) * rLine;
         const ay = Math.sin(theta) * rLine;
-        m = [k * tx, k * ty, k * nx, k * ny, ax - (it.advance / 2) * tx, ay - (it.advance / 2) * ty];
+        m = [k * tx, k * ty, k * nx, k * ny, ax - (it.advance / 2) * tx + it.dy * nx, ay - (it.advance / 2) * ty + it.dy * ny];
       }
       m = toWorld(m);
       const rings = flattenCommands(cmds, m, tol);

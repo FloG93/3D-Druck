@@ -6,7 +6,7 @@ import { FontLibrary, BUILTIN_FONTS } from '../js/core/fonts.js';
 
 export const FONT_DIR = fileURLToPath(new URL('../fonts/', import.meta.url));
 
-export async function loadFonts() {
+export async function loadFonts({ symbols = true } = {}) {
   const lib = new FontLibrary({
     builtinBase: FONT_DIR,
     fetchBytes: async (p) => {
@@ -15,6 +15,7 @@ export async function loadFonts() {
     },
   });
   for (const f of BUILTIN_FONTS) await lib.load(f);
+  if (symbols) await lib.loadSymbols();
   return lib;
 }
 

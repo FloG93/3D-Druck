@@ -6,7 +6,7 @@ export const DOC_VERSION = 1;
 
 export const BASE_SHAPES = ['contour', 'rect', 'capsule', 'oval', 'circle', 'none'];
 export const RELIEF_MODES = ['raised', 'engraved', 'flush', 'cut'];
-export const MOUNT_TYPES = ['none', 'eyelet', 'hole'];
+export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws'];
 export const MOUNT_POSITIONS = ['left', 'right', 'top'];
 export const ALIGNS = ['left', 'center', 'right'];
 export const LAYOUTS = ['line', 'arcTop', 'arcBottom'];
@@ -24,6 +24,9 @@ export const TEXT_DEFAULTS = {
   rotation: 0,
   layout: 'line',
   radius: 30,
+  // Own colour and AMS filament for this text ('' / 0: like "Schrift").
+  color: '',
+  slot: 0,
 };
 
 export const DEFAULTS = {
@@ -36,10 +39,19 @@ export const DEFAULTS = {
     height: 30,
   },
   mount: {
-    type: 'eyelet', // ring outside the plate for a key ring
+    type: 'eyelet', // eyelet outside, hole, slot (band/clip), screws (two holes)
     position: 'left',
-    diameter: 4.5,
-    ring: 2,
+    diameter: 4.5, // hole diameter, slot width, screw hole
+    ring: 2, // material around the hole
+    length: 14, // slot length
+    countersink: true, // screws: 90° countersink
+    head: 8.5, // screw head diameter (countersink)
+  },
+  magnets: {
+    enabled: false, // round pockets on the back
+    count: 2,
+    diameter: 6.2, // 6 mm magnet + clearance
+    depth: 2.2, // 2 mm magnet + clearance
   },
   body: {
     relief: 'raised',
@@ -48,13 +60,16 @@ export const DEFAULTS = {
     border: false,
     borderWidth: 1.2,
     borderHeight: 1.2,
+    outline: false, // outline around the lettering (third colour)
+    outlineWidth: 1.2,
+    outlineHeight: 0.6,
   },
-  colors: { base: '#f2f2ef', text: '#1f6feb', border: '#1f6feb' },
+  colors: { base: '#f2f2ef', text: '#1f6feb', border: '#1f6feb', outline: '#ffffff' },
   // AMS filament slot per part (Bambu Studio "Filament 1, 2, …").
-  slots: { base: 1, text: 2, border: 2 },
+  slots: { base: 1, text: 2, border: 2, outline: 3 },
   mirror: false,
-  check: { minStroke: 0.8 },
-  export: { filename: 'text' },
+  check: { minStroke: 0.8, bed: 256 },
+  export: { filename: 'text', flip: false },
 };
 
 let idCounter = 0;
@@ -122,6 +137,8 @@ export function normalizeText(t) {
   out.align = oneOf(ALIGNS, out.align, 'center');
   out.layout = oneOf(LAYOUTS, out.layout, 'line');
   out.radius = clamp(out.radius, 1, 2000);
+  if (!/^#[0-9a-f]{6}$/i.test(out.color)) out.color = '';
+  out.slot = Math.round(clamp(out.slot, 0, 16));
   return out;
 }
 
@@ -144,6 +161,14 @@ export function normalizeDoc(input) {
   out.mount.position = oneOf(MOUNT_POSITIONS, out.mount.position, 'left');
   out.mount.diameter = clamp(out.mount.diameter, 0.5, 200);
   out.mount.ring = clamp(out.mount.ring, 0.4, 100);
+  out.mount.length = clamp(out.mount.length, 1, 500);
+  out.mount.head = clamp(out.mount.head, 1, 100);
+  out.magnets.count = Math.round(clamp(out.magnets.count, 1, 12));
+  out.magnets.diameter = clamp(out.magnets.diameter, 1, 100);
+  out.magnets.depth = clamp(out.magnets.depth, 0.2, 50);
+  out.body.outlineWidth = clamp(out.body.outlineWidth, 0.2, 20);
+  out.body.outlineHeight = clamp(out.body.outlineHeight, 0.1, 20);
+  out.check.bed = clamp(out.check.bed, 50, 2000);
   out.body.relief = oneOf(RELIEF_MODES, out.body.relief, 'raised');
   out.body.thickness = clamp(out.body.thickness, 0.2, 200);
   out.body.height = clamp(out.body.height, 0.1, 200);

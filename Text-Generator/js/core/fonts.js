@@ -16,6 +16,26 @@ export const BUILTIN_FONTS = [
 
 export const DEFAULT_FONT = { id: 'montserrat', family: 'Montserrat', weight: 800, style: 'normal' };
 
+// Symbols (hearts, paws, stars …) come from Noto Emoji (bold, monochrome
+// outlines). A small selection is built in; other emoji load on demand.
+export const SYMBOL_FONT_FILE = 'noto-emoji-symbols-700.ttf';
+export const SYMBOLS = '♥⭐✨🐾🐶🐱🐴🦄🦋🐞🐢🐟🌸🌻🍀🌈☀🌙⚡❄⚽🏀🎵🎸👑🎂🎄🎁🏠⚓✈🚗🔑☕🍺😊👍✔♻🍓🍕🎮🔥💎🚀';
+const EMOJI_ID = 'noto-emoji';
+const EMOJI_WEIGHT = 700;
+// Symbols are centred on the capital letters; the symbol font's box
+// (ascender to descender) is this many cap heights tall, so the symbols
+// themselves come out about 1.1 times as tall as an "H".
+export const SYMBOL_BOX = 1.25;
+
+/** Characters that only modify emoji (variation selectors, zero-width joiner). */
+export const isModifier = (ch) => /[\uFE0E\uFE0F\u200D]/.test(ch);
+
+/**
+ * Could this character come from the emoji font? Symbols start at U+2100
+ * (punctuation like „ “ – … and € below that belong to the text font).
+ */
+export const isSymbolLike = (ch) => ch.codePointAt(0) >= 0x2100 && !isModifier(ch);
+
 export const FONTSOURCE_API = 'https://api.fontsource.org/v1/fonts';
 export const FONTSOURCE_CDN = 'https://cdn.jsdelivr.net/fontsource/fonts';
 
@@ -47,9 +67,11 @@ export function fontsourceUrls(ref, subsets = ['latin', 'latin-ext']) {
  * order for each character.
  */
 export class FontFace {
-  constructor(ref, fonts) {
+  constructor(ref, fonts, fallbacks = []) {
     this.ref = ref;
     this.fonts = fonts;
+    // Shared list of symbol fonts, searched after the font's own subsets.
+    this.fallbacks = fallbacks;
     const main = fonts[0];
     this.unitsPerEm = main.unitsPerEm;
     const os2 = main.tables.os2;
@@ -65,9 +87,24 @@ export class FontFace {
     this.descender = main.descender / main.unitsPerEm;
   }
 
+  /**
+   * Scale (font units to mm) and vertical shift in mm for glyphs of font f
+   * at the given em size. Symbols are sized by the cap height instead.
+   */
+  metricsFor(f, fontSize) {
+    if (!this.fallbacks.includes(f)) return { scale: fontSize / f.unitsPerEm, dy: 0 };
+    const size = fontSize * this.capRatio;
+    const box = f.ascender - f.descender || f.unitsPerEm;
+    const scale = (SYMBOL_BOX * size) / box;
+    return { scale, dy: size / 2 - ((f.ascender + f.descender) / 2) * scale };
+  }
+
   /** The font that has a glyph for the character, or null. */
   fontFor(ch) {
     for (const f of this.fonts) {
+      if (f.charToGlyphIndex(ch) > 0) return f;
+    }
+    for (const f of this.fallbacks) {
       if (f.charToGlyphIndex(ch) > 0) return f;
     }
     return null;
@@ -92,6 +129,54 @@ export class FontLibrary {
     });
     this.cache = new Map();
     this.catalogPromise = null;
+    this.fallbacks = [];
+    this.emojiChunks = new Map();
+    this.emojiRanges = null;
+  }
+
+  /** Loads the built-in symbol selection (once). */
+  loadSymbols() {
+    if (!this.symbolsPromise) {
+      this.symbolsPromise = this.fetchBytes(this.builtinBase + SYMBOL_FONT_FILE).then((bytes) => {
+        this.fallbacks.push(parseFont(bytes));
+      });
+    }
+    return this.symbolsPromise;
+  }
+
+  /**
+   * Loads the Noto Emoji parts (Fontsource splits the font by Unicode range)
+   * that contain the given characters. Resolves to true if something new
+   * was loaded.
+   */
+  async loadEmojiFor(chars) {
+    if (!this.emojiRanges) {
+      const res = await fetch(`${FONTSOURCE_API}/${EMOJI_ID}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const info = await res.json();
+      this.emojiRanges = Object.entries(info.unicodeRange || {}).map(([key, spec]) => ({
+        chunk: key.replace(/[[\]]/g, ''),
+        ranges: spec.split(',').map((r) => {
+          const [a, b] = r.trim().replace(/^U\+/i, '').split('-');
+          return [parseInt(a, 16), parseInt(b || a, 16)];
+        }),
+      }));
+    }
+    const wanted = new Set();
+    for (const ch of chars) {
+      const cp = ch.codePointAt(0);
+      const hit = this.emojiRanges.find((r) => r.ranges.some(([a, b]) => cp >= a && cp <= b));
+      if (hit && !this.emojiChunks.has(hit.chunk)) wanted.add(hit.chunk);
+    }
+    let added = false;
+    for (const chunk of wanted) {
+      const promise = this.fetchBytes(`${FONTSOURCE_CDN}/${EMOJI_ID}@latest/${chunk}-${EMOJI_WEIGHT}-normal.ttf`)
+        .then((bytes) => this.fallbacks.push(parseFont(bytes)));
+      this.emojiChunks.set(chunk, promise);
+      await promise;
+      added = true;
+    }
+    return added;
   }
 
   /** Loaded face if available right now (no waiting), else null. */
@@ -122,7 +207,7 @@ export class FontLibrary {
     const builtin = builtinFont(ref);
     if (builtin) {
       const font = parseFont(await this.fetchBytes(this.builtinBase + builtin.file));
-      return new FontFace({ ...ref, family: builtin.family }, [font]);
+      return new FontFace({ ...ref, family: builtin.family }, [font], this.fallbacks);
     }
     const urls = fontsourceUrls(ref);
     const results = await Promise.allSettled(urls.map((u) => this.fetchBytes(u)));
@@ -140,7 +225,7 @@ export class FontLibrary {
       const reason = results.find((r) => r.status === 'rejected');
       throw new Error(`Schrift „${ref.family || ref.id}“ konnte nicht geladen werden${reason ? ` (${reason.reason.message})` : ''}.`);
     }
-    return new FontFace(ref, fonts);
+    return new FontFace(ref, fonts, this.fallbacks);
   }
 
   /** Adds a font file chosen by the user (TTF/OTF/WOFF). */
@@ -148,7 +233,7 @@ export class FontLibrary {
     const font = parseFont(buffer);
     const family = font.getEnglishName('fontFamily') || name.replace(/\.[^.]+$/, '');
     const ref = { id: `datei:${family}`, family, weight: 400, style: 'normal', file: true };
-    const face = new FontFace(ref, [font]);
+    const face = new FontFace(ref, [font], this.fallbacks);
     this.cache.set(fontKey(ref), { face, promise: Promise.resolve(face) });
     return ref;
   }

@@ -224,8 +224,37 @@ export class Renderer {
     ctx.restore();
     fill(m.plate, colors.base, 'rgba(0,0,0,0.28)');
     fill(m.border, colors.border);
+    // Countersinks: the cone seen from above.
+    for (const c of m.countersinks) {
+      const [x, y] = S(c.cx, c.cy);
+      const g = ctx.createRadialGradient(x, y, c.r * this.scale, x, y, c.R * this.scale);
+      g.addColorStop(0, 'rgba(0,0,0,0.45)');
+      g.addColorStop(1, 'rgba(0,0,0,0.12)');
+      ctx.beginPath();
+      ctx.arc(x, y, c.R * this.scale, 0, Math.PI * 2);
+      ctx.arc(x, y, c.r * this.scale, 0, Math.PI * 2, true);
+      ctx.fillStyle = g;
+      ctx.fill('evenodd');
+    }
+    // Magnet pockets on the back: dashed.
+    if (m.magnets.length) {
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1.2;
+      for (const c of m.magnets) {
+        const [x, y] = S(c.cx, c.cy);
+        ctx.beginPath();
+        ctx.arc(x, y, c.r * this.scale, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    fill(m.outline, colors.outline, m.relief === 'flush' ? null : 'rgba(0,0,0,0.2)');
     if (m.relief === 'engraved') fill(m.text, 'rgba(0,0,0,0.30)');
-    else if (m.relief !== 'cut') fill(m.text, colors.text, m.relief === 'flush' ? null : 'rgba(0,0,0,0.25)');
+    else if (m.relief !== 'cut') {
+      for (const g of m.textGroups) fill(g.region, g.color, m.relief === 'flush' ? null : 'rgba(0,0,0,0.25)');
+    }
     // Thin strokes: orange outline.
     if (m.thin.length) {
       ctx.beginPath();

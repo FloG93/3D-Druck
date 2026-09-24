@@ -32,6 +32,10 @@ export class View3D {
     const fill = new THREE.DirectionalLight(0xbfd4ff, 0.8);
     fill.position.set(0.9, 0.5, -0.7);
     this.scene.add(fill);
+    // From below, so magnet pockets and countersinks show on the back.
+    const under = new THREE.DirectionalLight(0xffffff, 1.4);
+    under.position.set(0.25, -1, 0.35);
+    this.scene.add(under);
 
     this.group = new THREE.Group();
     // CAD is Z-up, three.js is Y-up.
