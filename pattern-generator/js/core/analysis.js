@@ -100,9 +100,26 @@ export function holeGap(a, b) {
 
 /**
  * Checks all neighbouring hole pairs.
+ * ghosts: copies of holes across a cylinder seam ({ src } = index of the
+ * original); their findings count for the original hole.
  * Returns { minWeb, pair, thin, overlap, flags, threshold }.
  */
-export function analyzeWebs(holes, threshold = 0.8) {
+export function analyzeWebs(holes, threshold = 0.8, ghosts = []) {
+  if (ghosts.length) {
+    const all = analyzeWebs(holes.concat(ghosts), threshold);
+    const count = holes.length;
+    const flags = all.flags.slice(0, count);
+    ghosts.forEach((g, k) => {
+      flags[g.src] = Math.max(flags[g.src], all.flags[count + k]);
+    });
+    const home = (i) => (i < count ? i : ghosts[i - count].src);
+    const result = { minWeb: all.minWeb, pair: all.pair && all.pair.map(home), thin: 0, overlap: 0, flags, threshold };
+    for (const f of flags) {
+      if (f === FLAG_OVERLAP) result.overlap++;
+      else if (f === FLAG_THIN) result.thin++;
+    }
+    return result;
+  }
   const n = holes.length;
   const flags = new Uint8Array(n);
   const result = { minWeb: Infinity, pair: null, thin: 0, overlap: 0, flags, threshold };

@@ -28,6 +28,15 @@ Das Skript holt ein Muster aus dem [Muster-Generator](../README.md) direkt in Fu
 
 4. **OK** – die Skizze „Muster … (N Formen)“ und die Extrusion („Muster Ausschnitt“, „Muster Vertiefung“ oder „Muster Relief“) erscheinen in der Zeitleiste.
 
+## Zylinder (Abwicklung)
+
+Ist im Generator unter **Körper (3D)** die Form **Zylinder** gewählt, enthält die JSON-Datei die **Abwicklung** der Mantelfläche (Breite = Umfang = π × Durchmesser). Das Skript wählt dann den Vorgang *Nur Skizze* vor und nennt den Durchmesser in der Meldung:
+
+1. Eine Konstruktionsebene **tangential zur Zylinderfläche** anlegen und die Skizze darauf einfügen.
+2. **Erstellen → Prägen** (Emboss): die Profile der Skizze wählen, als Fläche die Zylinder-Mantelfläche, *Prägen* (erhaben) oder *Gravieren* (vertieft/durch) mit der Tiefe aus dem Generator.
+
+Direkt druckbar ist der Zylinder auch als **STL** aus dem Generator – geschlossenes Rohr, optional mit Boden.
+
 ## Tipps
 
 - Gib im Muster-Generator als **Arbeitsfläche** die Maße der Fusion-Fläche ein (z. B. 150 × 100 mm). Das Skript meldet die gemessene Flächengröße und schlägt eine Drehung um 90° vor, wenn Breite und Höhe vertauscht wirken.

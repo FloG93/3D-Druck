@@ -46,6 +46,18 @@ export function renderThumbnail(canvas, docInput, colors) {
   ctx.fill(plate);
   const holes = new Path2D();
   for (const hole of res.holes) addOutlineToPath(holes, hole.outline);
+  if (res.wrap) {
+    // Cylinder: shade the band like a curved surface and show one turn only.
+    const W = doc.canvas.width;
+    const shade = ctx.createLinearGradient(-W / 2, 0, W / 2, 0);
+    shade.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
+    shade.addColorStop(0.45, 'rgba(255, 255, 255, 0.12)');
+    shade.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+    ctx.fillStyle = shade;
+    ctx.fill(plate);
+    for (const ghost of res.ghosts) addOutlineToPath(holes, ghost.outline);
+    ctx.clip(plate);
+  }
   ctx.fillStyle = doc.shape.color;
   const mode = doc.relief.mode;
   // Raised shapes cast a shadow, recessed ones get an inner shadow.

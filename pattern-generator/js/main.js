@@ -111,7 +111,9 @@ async function main() {
     const { width: W, height: H } = app.doc.canvas;
     const mode = app.doc.relief.mode;
     const parts = [
-      `<span title="Arbeitsfläche">Fläche <b>${de(W, 2)} × ${de(H, 2)} mm</b></span>`,
+      r.wrap
+        ? `<span title="Außendurchmesser × Höhe, Umfang ${de(W, 1)} mm">Zylinder <b>Ø ${de(W / Math.PI, 1)} × ${de(H, 1)} mm</b></span>`
+        : `<span title="Arbeitsfläche">Fläche <b>${de(W, 2)} × ${de(H, 2)} mm</b></span>`,
       `<span>${featureNames(mode)[1]} <b>${r.stats.count.toLocaleString('de-DE')}</b></span>`,
       mode === 'cut'
         ? `<span title="Anteil der Lochfläche an der Plattenfläche">Offene Fläche <b>${de(r.stats.ratio * 100, 1)} %</b></span>`

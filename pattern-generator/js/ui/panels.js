@@ -21,12 +21,19 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
   root.append(presets.el);
   onPresetsSection(presets.body);
 
-  // Canvas
+  // Canvas (for a cylinder: the unrolled surface, width = circumference)
   const canvas = section('Arbeitsfläche', { id: 'canvas', icon: 'square' });
+  const cyl = () => doc().form.type === 'cylinder';
+  const diameter = {
+    get: () => doc().canvas.width / Math.PI,
+    set: (v) => app.set('canvas.width', Math.min(Math.max(v * Math.PI, 1), 5000)),
+  };
   canvas.body.append(
     grid(
-      numberField(panel, { label: 'Breite', unit: 'mm', bind: P('canvas.width'), min: 1, max: 5000, step: 1, title: 'Breite der Fläche, z. B. des Deckels in Fusion 360' }),
+      numberField(panel, { label: 'Breite', unit: 'mm', bind: P('canvas.width'), min: 1, max: 5000, step: 1, visible: () => !cyl(), title: 'Breite der Fläche, z. B. des Deckels in Fusion 360' }),
+      numberField(panel, { label: 'Durchmesser', unit: 'mm', bind: diameter, min: 0.5, max: 1590, step: 0.5, visible: cyl, title: 'Außendurchmesser des Zylinders – das Muster sitzt auf der Mantelfläche' }),
       numberField(panel, { label: 'Höhe', unit: 'mm', bind: P('canvas.height'), min: 1, max: 5000, step: 1 }),
+      numberField(panel, { label: 'Umfang', unit: 'mm', bind: P('canvas.width'), min: 1, max: 5000, step: 1, visible: cyl, title: 'Breite der Abwicklung = π × Durchmesser' }),
     ),
     buttonRow(panel, [
       {
@@ -42,22 +49,26 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
         },
       },
       { label: 'Ansicht einpassen', icon: 'fit', onClick: () => app.emit('fit') },
-    ]),
+    ], () => !cyl()),
+    buttonRow(panel, [{ label: 'Ansicht einpassen', icon: 'fit', onClick: () => app.emit('fit') }], cyl),
   );
   root.append(canvas.el);
 
   // Boundary
   const bnd = section('Begrenzung', { id: 'boundary', icon: 'edge' });
-  const isPoly = () => ['rect', 'polygon'].includes(doc().boundary.type);
+  const isPoly = () => !cyl() && ['rect', 'polygon'].includes(doc().boundary.type);
+  const isPolygon = () => !cyl() && doc().boundary.type === 'polygon';
   bnd.body.append(
     segmented(panel, {
       bind: P('boundary.type'),
       options: [['none', 'Keine'], ['rect', 'Rechteck'], ['ellipse', 'Ellipse'], ['polygon', 'Polygon']],
+      visible: () => !cyl(),
     }),
+    note(panel, 'Zylinder: Der Randabstand gilt oben und unten (bzw. über dem Boden) – rundherum läuft das Muster ohne Naht weiter.', cyl),
     grid(
       numberField(panel, { label: 'Eckenradius', unit: 'mm', bind: P('boundary.cornerRadius'), min: 0, max: 5000, step: 0.5, visible: isPoly }),
-      numberField(panel, { label: 'Ecken', bind: P('boundary.sides'), min: 3, max: 64, step: 1, digits: 0, visible: () => doc().boundary.type === 'polygon' }),
-      numberField(panel, { label: 'Drehung', unit: '°', bind: P('boundary.rotation'), min: -360, max: 360, step: 1, visible: () => doc().boundary.type === 'polygon' }),
+      numberField(panel, { label: 'Ecken', bind: P('boundary.sides'), min: 3, max: 64, step: 1, digits: 0, visible: isPolygon }),
+      numberField(panel, { label: 'Drehung', unit: '°', bind: P('boundary.rotation'), min: -360, max: 360, step: 1, visible: isPolygon }),
       numberField(panel, { label: 'Randabstand', unit: 'mm', bind: P('boundary.margin'), min: 0, max: 1000, step: 0.5, title: 'Mindestabstand der Löcher zum Rand der Begrenzung' }),
     ),
     buttonRow(panel, [{
@@ -69,7 +80,7 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
         app.changed();
         app.commit();
       },
-    }], () => doc().boundary.type === 'polygon'),
+    }], isPolygon),
     segmented(panel, {
       label: 'Löcher müssen …',
       bind: P('boundary.fit'),
@@ -83,6 +94,16 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
   const relief = () => doc().relief.mode;
   body.body.append(
     segmented(panel, {
+      label: 'Form',
+      bind: P('form.type'),
+      onChange: () => app.emit('fit'),
+      options: [
+        ['plate', 'Platte', null, 'Ebene Platte, Deckel, Blende'],
+        ['cylinder', 'Zylinder', null, 'Muster rundherum auf einem Rohr, Becher, Griff oder Lampenschirm'],
+      ],
+    }),
+    segmented(panel, {
+      label: 'Muster',
       bind: P('relief.mode'),
       options: [
         ['cut', 'Durchbrüche', null, 'Die Formen werden als Löcher durch die Platte geschnitten'],
@@ -91,7 +112,9 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
       ],
     }),
     grid(
-      numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: P('export.thickness'), min: 0.1, max: 1000, step: 0.1, title: 'Dicke der Grundplatte (3D-Vorschau, STL, STEP)' }),
+      numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: P('export.thickness'), min: 0.1, max: 1000, step: 0.1, visible: () => !cyl(), title: 'Dicke der Grundplatte (3D-Vorschau, STL, STEP)' }),
+      numberField(panel, { label: 'Wandstärke', unit: 'mm', bind: P('export.thickness'), min: 0.1, max: 1000, step: 0.1, visible: cyl, title: 'Die Wand geht vom Außendurchmesser nach innen' }),
+      numberField(panel, { label: 'Boden', unit: 'mm', bind: P('form.bottom'), min: 0, max: 1000, step: 0.5, visible: cyl, title: '0 = offen (Rohr, Hülse) · sonst geschlossener Boden, z. B. Becher oder Stifthalter' }),
       numberField(panel, { label: 'Höhe', unit: 'mm', bind: P('relief.height'), min: 0.05, max: 1000, step: 0.1, visible: () => relief() === 'emboss', title: 'So weit ragen die Formen über die Platte hinaus' }),
       numberField(panel, { label: 'Tiefe', unit: 'mm', bind: P('relief.height'), min: 0.05, max: 1000, step: 0.1, visible: () => relief() === 'deboss', title: 'So tief werden die Formen in die Platte eingelassen' }),
       numberField(panel, {
@@ -109,13 +132,31 @@ export function buildLeftPanel(root, app, { onPresetsSection }) {
     note(panel, () => {
       const t = doc().export.thickness;
       const { mode, height, taper } = doc().relief;
-      if (mode === 'cut') return 'Die Formen werden als <b>Löcher</b> durch die Platte geschnitten.';
-      const parts = [mode === 'emboss'
-        ? `Die Formen stehen als <b>Rippen/Noppen</b> ${fmt(height)} mm auf der Platte – gesamt ${fmt(t + height)} mm hoch.`
-        : `Die Formen werden als <b>Nuten/Mulden</b> ${fmt(height)} mm tief eingelassen.`];
-      if (mode === 'deboss' && height >= t) parts.push(`<span class="warn">Tiefer als die Platte: es bleibt ein Boden von ${fmt(t * 0.05)} mm. Für Löcher „Durchbrüche“ wählen.</span>`);
-      if (taper > 0) parts.push(`Flanken um ${fmt(taper, 1)}° geneigt – schmale Formen laufen spitz zu und werden dann ${mode === 'emboss' ? 'niedriger' : 'flacher'}.`);
-      parts.push('Wirkt auf 3D-Vorschau, STL und STEP; DXF/SVG enthalten die Konturen.');
+      const parts = [];
+      if (cyl()) {
+        const d = doc().canvas.width / Math.PI;
+        parts.push(`Zylinder Ø ${fmt(d, 1)} mm außen (innen ${fmt(Math.max(d - 2 * t, 0), 1)} mm), Umfang ${fmt(doc().canvas.width, 1)} mm.`);
+        const wrap = app.result && app.result.wrap;
+        if (wrap && wrap.seamless) {
+          parts.push(wrap.columns ? `Nahtlos rundherum: ${wrap.columns} Spalten à ${fmt(wrap.spacingX)} mm.` : 'Nahtlos rundherum.');
+        } else if (wrap) {
+          parts.push('<span class="warn">Diese Anordnung (gedrehtes Raster, Ringe, Spirale) schließt an der Naht nicht exakt – für nahtlose Muster Raster/Versetzt ohne Drehung oder Zufällig wählen.</span>');
+        }
+        if (doc().form.bottom > 0) parts.push(`Boden ${fmt(doc().form.bottom)} mm – das Muster hält den Randabstand darüber ein.`);
+      }
+      const where = cyl() ? 'die Wand' : 'die Platte';
+      if (mode === 'cut') {
+        parts.push(`Die Formen werden als <b>Löcher</b> durch ${where} geschnitten.`);
+      } else {
+        parts.push(mode === 'emboss'
+          ? `Die Formen stehen als <b>Rippen/Noppen</b> ${fmt(height)} mm auf ${cyl() ? 'der Wand' : `der Platte – gesamt ${fmt(t + height)} mm hoch`}.`
+          : `Die Formen werden als <b>Nuten/Mulden</b> ${fmt(height)} mm tief eingelassen.`);
+        if (mode === 'deboss' && height >= t) parts.push(`<span class="warn">Tiefer als ${where}: es bleibt ${fmt(t * 0.05)} mm stehen. Für Löcher „Durchbrüche“ wählen.</span>`);
+        if (taper > 0) parts.push(`Flanken um ${fmt(taper, 1)}° geneigt – schmale Formen laufen spitz zu und werden dann ${mode === 'emboss' ? 'niedriger' : 'flacher'}.`);
+      }
+      parts.push(cyl()
+        ? 'Die 3D-Vorschau und das STL zeigen den fertigen Zylinder; DXF, SVG und Fusion-Skript enthalten die Abwicklung.'
+        : 'Wirkt auf 3D-Vorschau, STL und STEP; DXF/SVG enthalten die Konturen.');
       return parts.join(' ');
     }),
     buttonRow(panel, [{ label: '3D-Vorschau', icon: 'cube', title: 'Platte in 3D ansehen', onClick: () => app.emit('view', '3d') }]),

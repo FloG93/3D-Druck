@@ -208,6 +208,32 @@ export function makeBoundary(cfg, canvas) {
   };
 }
 
+/**
+ * Boundary of a cylinder surface unrolled into the canvas: a band that is
+ * closed on itself in x (period = canvas width), limited only at the top and
+ * bottom edge. floor: height of a closed bottom, the pattern stays above it.
+ */
+export function makeBandBoundary(canvas, floor = 0) {
+  const W = Math.max(canvas.width, 1);
+  const H = Math.max(canvas.height, 1);
+  const lo = -H / 2 + clamp(floor || 0, 0, H);
+  const rect = (y0, y1) => filletPolygon([[-W / 2, y0], [W / 2, y0], [W / 2, y1], [-W / 2, y1]], 0).outline;
+  return {
+    type: 'band',
+    outline: rect(-H / 2, H / 2),
+    area: W * H,
+    sdf: (x, y) => Math.max(y - H / 2, lo - y),
+    halfW: W / 2,
+    halfH: H / 2,
+    period: W,
+    offsetOutline(m) {
+      const y0 = lo + Math.max(m, 0);
+      const y1 = H / 2 - Math.max(m, 0);
+      return y1 > y0 ? rect(y0, y1) : null;
+    },
+  };
+}
+
 function polylineOutline(pts) {
   const segs = [];
   for (let i = 0; i < pts.length; i++) {

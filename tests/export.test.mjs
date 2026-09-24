@@ -7,7 +7,7 @@ import { exportDXF } from '../pattern-generator/js/export/dxf.js';
 import { exportSVG } from '../pattern-generator/js/export/svg.js';
 import { exportSTEP } from '../pattern-generator/js/export/step.js';
 import { exportFusionJSON } from '../pattern-generator/js/export/fusion.js';
-import { buildPlateMesh, toBinarySTL, insetConvex } from '../pattern-generator/js/export/mesh.js';
+import { buildPlateMesh, buildTubeMesh, toBinarySTL, insetConvex } from '../pattern-generator/js/export/mesh.js';
 import { polygonize } from '../pattern-generator/js/core/shapes.js';
 import { encodeDoc, decodeHash } from '../pattern-generator/js/ui/share.js';
 
@@ -322,6 +322,68 @@ test('STEP relief: raised and recessed plates are closed B-reps', () => {
       assert.ok(faces > r.holes.length * 2, `${name}/${mode}: every shape has walls and a top or floor`);
     }
   }
+});
+
+test('tube: a plain cylinder wall is closed with the exact volume', () => {
+  const U = Math.PI * 40;
+  const R = 20;
+  const n = 90;
+  const mesh = buildTubeMesh([], U, 30, 2, 0.01, { segments: n });
+  const volume = closedVolume(mesh.positions, 'plain tube');
+  // Every ring is a regular n-gon through the exact circle.
+  const exact = (n / 2) * Math.sin((2 * Math.PI) / n) * (R * R - 18 * 18) * 30;
+  assert.ok(Math.abs(volume - exact) < 1e-6 * exact, `${volume} vs ${exact}`);
+  assert.equal(mesh.radius, R);
+});
+
+test('tube: holes across the seam, relief and flanks give closed tubes', () => {
+  const U = Math.PI * 36;
+  const doc = normalizeDoc({
+    canvas: { width: U, height: 40 },
+    form: { type: 'cylinder' },
+    boundary: { margin: 3 },
+    shape: { type: 'polygon', sides: 6, width: 6, height: 6, round: 0.2 },
+    pattern: { type: 'hex', spacingX: 9, spacingY: 7.8, offsetX: U / 2 },
+  });
+  const r = generate(doc);
+  assert.ok(r.holes.some((h) => Math.abs(h.x) + h.R > U / 2 + 1), 'holes on the seam');
+  const outlines = [...r.holes, ...r.ghosts].map((h) => h.outline);
+  const R = U / (2 * Math.PI);
+  const t = 2;
+  const A = r.stats.openArea;
+  // Bent plate: an area element at depth z below the surface shrinks by (R - z) / R.
+  const layer = (z0, z1) => (z1 - z0) - (z1 * z1 - z0 * z0) / (2 * R);
+  const cases = [
+    [{ mode: 'cut' }, (U * 40 - A) * layer(0, t)],
+    [{ mode: 'emboss', height: 1, taper: 0 }, U * 40 * layer(0, t) + A * layer(-1, 0)],
+    [{ mode: 'deboss', height: 1, taper: 0 }, U * 40 * layer(0, t) - A * layer(0, 1)],
+    [{ mode: 'emboss', height: 1, taper: 45 }, null],
+    [{ mode: 'deboss', height: 1.5, taper: 70 }, null],
+  ];
+  for (const [relief, expected] of cases) {
+    const mesh = buildTubeMesh(outlines, U, 40, t, 0.01, { segments: 160, relief });
+    const volume = closedVolume(mesh.positions, `tube ${relief.mode} ${relief.taper || 0}`);
+    if (expected) assert.ok(Math.abs(volume - expected) < 2e-3 * expected, `${relief.mode}: ${volume} vs ${expected}`);
+    assert.ok(mesh.featureStart <= mesh.triangles);
+  }
+  // A closed bottom is an extra shell reaching into the wall.
+  const cup = buildTubeMesh(outlines, U, 40, t, 0.01, { segments: 120, bottom: 3 });
+  const plain = buildTubeMesh(outlines, U, 40, t, 0.01, { segments: 120 });
+  const floor = closedVolume(cup.positions, 'cup', { strict: false }) - closedVolume(plain.positions, 'tube');
+  const rd = R - t / 2;
+  const disc = 60 * Math.sin(Math.PI / 60) * rd * rd * 3;
+  assert.ok(Math.abs(floor - disc) < 1e-5 * disc, `floor ${floor} vs ${disc}`);
+});
+
+test('cylinder exports are the unrolled surface', () => {
+  const U = Math.PI * 30;
+  const doc = normalizeDoc({ canvas: { width: U, height: 20 }, form: { type: 'cylinder', bottom: 2 }, shape: { type: 'ellipse', width: 3, height: 3 }, pattern: { type: 'grid', spacingX: 6, spacingY: 6 } });
+  const r = generate(doc);
+  const pairs = dxfPairs(exportDXF(r, doc, { origin: 'center', includeBoundary: true }));
+  const xs = pairs.filter(([c]) => c === 10 || c === 11).map(([, v]) => Number(v));
+  assert.ok(Math.max(...xs) >= U / 2 - 1e-3, 'boundary spans the circumference');
+  const data = JSON.parse(exportFusionJSON(r, doc, { includeBoundary: true }));
+  assert.deepEqual(data.form, { type: 'cylinder', diameter: 30, bottom: 2 });
 });
 
 test('share links round-trip the document', async () => {

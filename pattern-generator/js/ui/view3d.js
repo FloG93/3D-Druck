@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildPlateMesh } from '../export/mesh.js';
+import { buildPlateMesh, buildTubeMesh } from '../export/mesh.js';
 import { reliefParams } from '../core/relief.js';
 
 export class View3D {
@@ -65,7 +65,12 @@ export class View3D {
     if (!result) return;
     const t = Math.max(doc.export.thickness || 2, 0.1);
     const tol = Math.max(0.02, Math.min(doc.canvas.width, doc.canvas.height) / 4000);
-    const mesh = buildPlateMesh(result.boundary.outline, result.holes.map((h) => h.outline), t, tol, { watertight: false, relief: doc.relief });
+    const outlines = result.holes.map((h) => h.outline);
+    const cylinder = !!result.wrap;
+    const mesh = cylinder
+      ? buildTubeMesh([...outlines, ...result.ghosts.map((g) => g.outline)], doc.canvas.width, doc.canvas.height, t, tol,
+        { watertight: false, relief: doc.relief, segments: 120, bottom: doc.form.bottom })
+      : buildPlateMesh(result.boundary.outline, outlines, t, tol, { watertight: false, relief: doc.relief });
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(mesh.positions.slice(), 3));
     geom.computeVertexNormals();
@@ -81,7 +86,8 @@ export class View3D {
     this.group.add(this.mesh);
     const de = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
     const relief = reliefParams(doc.relief, t);
-    let body = `Platte ${de(t)} mm`;
+    let body = cylinder ? `Zylinder Ø ${de(doc.canvas.width / Math.PI)} mm · Wand ${de(t)} mm` : `Platte ${de(t)} mm`;
+    if (cylinder && doc.form.bottom > 0) body += ` · Boden ${de(doc.form.bottom)} mm`;
     if (relief.mode === 'emboss') body += ` · erhaben ${de(relief.height)} mm`;
     if (relief.mode === 'deboss') body += ` · vertieft ${de(relief.height)} mm`;
     if (relief.taper > 0) body += ` · Flanken ${de(relief.taper)}°`;
@@ -91,12 +97,19 @@ export class View3D {
 
   resetCamera() {
     const { doc } = this.app;
-    const { width: W, height: H } = doc.canvas;
     const t = Math.max(doc.export.thickness || 2, 0.1);
     const relief = reliefParams(doc.relief, t);
-    const top = t + (relief.mode === 'emboss' ? relief.height : 0);
+    const raised = relief.mode === 'emboss' ? relief.height : 0;
+    let { width: W, height: H } = doc.canvas;
+    let top = t + raised;
+    if (doc.form.type === 'cylinder') {
+      // Standing tube: footprint is the outer diameter, height along the axis.
+      W = doc.canvas.width / Math.PI + 2 * raised;
+      top = H;
+      H = W;
+    }
     const size = Math.max(W, H, top);
-    // Fit the bounding sphere of the plate (with raised relief) into the narrower field of view.
+    // Fit the bounding sphere of the body into the narrower field of view.
     const radius = Math.hypot(W, H, top) / 2;
     const vHalf = (this.camera.fov * Math.PI) / 360;
     const hHalf = Math.atan(Math.tan(vHalf) * (this.camera.aspect || 1));

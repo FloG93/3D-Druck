@@ -246,6 +246,25 @@ function flatten(points) {
   return out;
 }
 
+/** Translates an outline by (dx, dy), returning a new outline. */
+export function translateOutline(o, dx, dy) {
+  if (!dx && !dy) return o;
+  if (o.kind === 'circle' || o.kind === 'ellipse') return { ...o, cx: o.cx + dx, cy: o.cy + dy };
+  return {
+    kind: 'path',
+    segs: o.segs.map((s) => (s.type === 'line'
+      ? { ...s, x0: s.x0 + dx, y0: s.y0 + dy, x1: s.x1 + dx, y1: s.y1 + dy }
+      : { ...s, cx: s.cx + dx, cy: s.cy + dy, x0: s.x0 + dx, y0: s.y0 + dy, x1: s.x1 + dx, y1: s.y1 + dy })),
+  };
+}
+
+/** Copy of a hole moved by dx along x (the other side of a cylinder seam). */
+export function shiftHole(hole, dx) {
+  const pts = hole.core.pts.slice();
+  for (let i = 0; i < pts.length; i += 2) pts[i] += dx;
+  return { ...hole, x: hole.x + dx, outline: translateOutline(hole.outline, dx, 0), core: { pts, r: hole.core.r } };
+}
+
 /** Signed area of an outline (positive for CCW outlines). */
 export function outlineArea(o) {
   if (o.kind === 'circle') return Math.PI * o.r * o.r;

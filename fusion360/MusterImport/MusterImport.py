@@ -79,6 +79,10 @@ def load_pattern(path):
     return data
 
 
+def is_cylinder(data):
+    return (data.get('form') or {}).get('type') == 'cylinder'
+
+
 def dialog_defaults(data, settings):
     """Initial dialog values. A relief chosen in the web app (raised or
     recessed) wins over the options used last time."""
@@ -91,7 +95,13 @@ def dialog_defaults(data, settings):
     }
     relief = data.get('relief') or {}
     mode = relief.get('mode')
-    if mode in ('emboss', 'deboss'):
+    if is_cylinder(data):
+        # The unrolled surface of a cylinder goes onto a curved face with
+        # Fusion's Emboss command, not with an extrusion.
+        defaults['operation'] = OP_SKETCH
+        if float(relief.get('height') or 0) > 0 and mode in ('emboss', 'deboss'):
+            defaults['depth'] = '{:g} mm'.format(float(relief['height']))
+    elif mode in ('emboss', 'deboss'):
         defaults['operation'] = RELIEF_OPERATIONS[mode]
         height = float(relief.get('height') or 0)
         if height > 0:
@@ -317,7 +327,11 @@ def create_pattern(data, entity, options):
 
     canvas = data.get('canvas') or {}
     cw, ch = canvas.get('width', 0), canvas.get('height', 0)
-    if face_w > 0 and cw and ch:
+    if is_cylinder(data):
+        lines.append('Zylinder-Abwicklung für Ø {:g} mm (Umfang {:.1f} mm): Zum Aufbringen auf die Mantelfläche '
+                     '„Erstellen → Prägen“ wählen, die Profile dieser Skizze und die Zylinderfläche angeben.'
+                     .format(float(data['form'].get('diameter') or 0), float(cw or 0)))
+    elif face_w > 0 and cw and ch:
         fw, fh = face_w / CM_PER_MM, face_h / CM_PER_MM
         straight = abs(fw - cw) + abs(fh - ch)
         turned = abs(fw - ch) + abs(fh - cw)

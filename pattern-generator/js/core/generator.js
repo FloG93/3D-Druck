@@ -1,10 +1,15 @@
 // Turns a document (the JSON state) into a list of holes.
+//
+// On a cylinder (doc.form.type 'cylinder') the canvas is the unrolled
+// surface: its width is the circumference, the pattern repeats seamlessly in
+// x, and holes near the seam get "ghost" copies on the other side (for
+// drawing, the web check and the 3D mesh).
 
 import { DEG } from './math.js';
-import { makeBoundary, rimDistance } from './boundary.js';
-import { makeLattice } from './lattice.js';
+import { makeBoundary, makeBandBoundary, rimDistance } from './boundary.js';
+import { makeLattice, wrapX } from './lattice.js';
 import { prepareModifiers, maxDisplacement } from './modifiers.js';
-import { buildHole, circumradius, shapePeriod } from './shapes.js';
+import { buildHole, circumradius, shapePeriod, shiftHole } from './shapes.js';
 
 const mod2 = (n) => ((n % 2) + 2) % 2;
 
@@ -16,28 +21,48 @@ function spinAmount(pattern, p) {
   return (mod2(idx) === 1 ? 0.5 : -0.5) * spin;
 }
 
+export const isCylinder = (doc) => !!doc.form && doc.form.type === 'cylinder';
+
 /**
- * generate(doc, env) -> { holes, boundary, overflow, stats }
+ * Copies of the holes near the seam, moved by one circumference to the other
+ * side. reach: how far beyond the seam copies are needed.
+ */
+export function seamGhosts(holes, period, reach) {
+  const ghosts = [];
+  holes.forEach((hole, src) => {
+    if (hole.x + hole.R > period / 2 - reach) ghosts.push({ ...shiftHole(hole, -period), ghost: true, src });
+    if (hole.x - hole.R < -period / 2 + reach) ghosts.push({ ...shiftHole(hole, period), ghost: true, src });
+  });
+  return ghosts;
+}
+
+/**
+ * generate(doc, env) -> { holes, ghosts, boundary, overflow, stats, wrap }
  * env.sampleImage(x, y) -> brightness 0..1 (optional)
+ * wrap: null for a flat plate, else { period, seamless, columns, spacingX }.
  */
 export function generate(doc, env = {}) {
   const { canvas, shape, pattern } = doc;
-  const boundary = makeBoundary(doc.boundary, canvas);
+  const cylinder = isCylinder(doc);
+  const period = cylinder ? Math.max(canvas.width, 1) : 0;
+  const boundary = cylinder ? makeBandBoundary(canvas, doc.form.bottom) : makeBoundary(doc.boundary, canvas);
   const margin = Math.max(doc.boundary.margin || 0, 0);
   const centerOnly = doc.boundary.fit === 'center';
   const baseR = circumradius(shape.type, shape.width, shape.height);
   const pad = baseR * 2 + maxDisplacement(doc.modifiers);
-  const lattice = makeLattice(pattern, canvas, pad);
+  const lattice = makeLattice(pattern, canvas, pad, period);
   const result = {
     holes: [],
+    ghosts: [],
     boundary,
     overflow: lattice.overflow ? lattice.estimate : 0,
     stats: { count: 0, openArea: 0, ratio: 0, minRim: Infinity },
+    wrap: cylinder ? { period, seamless: !!lattice.seamless, columns: lattice.columns || 0, spacingX: lattice.spacingX || 0 } : null,
   };
   if (lattice.overflow) return result;
 
-  const period = shapePeriod(shape);
-  const mods = prepareModifiers(doc.modifiers, { boundary, period, sampleImage: env.sampleImage });
+  const shapeSymmetry = shapePeriod(shape);
+  const mods = prepareModifiers(doc.modifiers, { boundary, period: shapeSymmetry, sampleImage: env.sampleImage, wrap: period });
   const shapeRot = (shape.rotation || 0) * DEG;
   const minSize = Math.max(shape.minSize || 0, 0.01);
   const el = { x: 0, y: 0, rot: 0, sx: 1, sy: 1, i: 0, j: 0, R: baseR, removed: false };
@@ -59,6 +84,7 @@ export function generate(doc, env = {}) {
       if (el.removed) break;
     }
     if (el.removed) continue;
+    if (cylinder) el.x = wrapX(el.x, period);
     const w = shape.width * el.sx;
     const h = shape.height * el.sy;
     if (w < minSize || h < minSize) continue;
@@ -76,6 +102,11 @@ export function generate(doc, env = {}) {
     if (rim < minRim) minRim = rim;
   }
 
+  if (cylinder) {
+    let maxR = 0;
+    for (const h of holes) maxR = Math.max(maxR, h.R);
+    result.ghosts = seamGhosts(holes, period, 2 * maxR + Math.max(doc.check.minWeb || 0, 2) + 1);
+  }
   result.stats = {
     count: holes.length,
     openArea,

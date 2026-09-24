@@ -233,4 +233,50 @@ export const BUILTIN_PRESETS = [
       modifiers: [],
     }),
   },
+  // Cylinder presets: the canvas is the unrolled surface (width = π × diameter).
+  {
+    name: 'Stifthalter',
+    doc: () => ({
+      canvas: { width: Math.PI * 70, height: 100 },
+      form: { type: 'cylinder', bottom: 3 },
+      boundary: { margin: 8 },
+      shape: { type: 'polygon', sides: 6, width: 11, height: 11, round: 0.15, color: '#f4a261' },
+      pattern: { type: 'hex', spacingX: 12, spacingY: 10.58, rowShift: 0.5 },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Griffhülse',
+    doc: () => ({
+      canvas: { width: Math.PI * 30, height: 50 },
+      form: { type: 'cylinder', bottom: 0 },
+      boundary: { margin: 4 },
+      shape: { type: 'rect', width: 1.6, height: 40, round: 1, color: '#e76f51' },
+      pattern: { type: 'grid', spacingX: 4, spacingY: 100 },
+      relief: { mode: 'emboss', height: 1, taper: 30 },
+      modifiers: [],
+    }),
+  },
+  {
+    name: 'Lampenschirm',
+    doc: () => ({
+      canvas: { width: Math.PI * 120, height: 140 },
+      form: { type: 'cylinder', bottom: 0 },
+      boundary: { margin: 6 },
+      shape: { type: 'ellipse', width: 7, height: 7, minSize: 1, color: '#ffd166' },
+      pattern: { type: 'hex', spacingX: 10, spacingY: 8.66, rowShift: 0.5 },
+      modifiers: [mod('linear', { x1: 0, y1: -64, x2: 0, y2: 64, falloff: 'linear', scaleFrom: 1.1, scaleTo: 0.25, angleFrom: 0, angleTo: 0 })],
+    }),
+  },
+  {
+    name: 'Wirbelvase',
+    doc: () => ({
+      canvas: { width: Math.PI * 80, height: 120 },
+      form: { type: 'cylinder', bottom: 2 },
+      boundary: { margin: 8 },
+      shape: { type: 'rect', width: 9, height: 2.6, round: 1, color: '#8ecae6' },
+      pattern: { type: 'hex', spacingX: 12, spacingY: 8, rowShift: 0.5 },
+      modifiers: [mod('point', { x: 0, y: 0, radius: 60, falloff: 'smooth', angle: 90, rotateMode: 'add', scale: 1 })],
+    }),
+  },
 ];

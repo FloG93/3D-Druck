@@ -9,6 +9,8 @@
 //   { "p": [["A", cx, cy, r, a0, sweep], ["L", x0, y0, x1, y1], ...] }
 // relief tells the script which operation to preselect:
 //   { "mode": "cut" | "emboss" | "deboss", "height": mm, "taper": degrees }
+// form: { "type": "plate" } or { "type": "cylinder", "diameter": mm, "bottom": mm }
+// (for a cylinder the pattern is the unrolled surface, width = circumference)
 
 import { exportGeometry } from './common.js';
 import { RELIEF_MODES } from '../core/relief.js';
@@ -44,6 +46,9 @@ export function exportFusionJSON(result, doc, opts = {}) {
       height: R(doc.relief?.height || 0),
       taper: R(doc.relief?.taper || 0),
     },
+    form: doc.form && doc.form.type === 'cylinder'
+      ? { type: 'cylinder', diameter: R(doc.canvas.width / Math.PI), bottom: R(doc.form.bottom || 0) }
+      : { type: 'plate' },
     boundary: geo.boundary ? encode(geo.boundary) : null,
     holes: geo.holes.map(encode),
   };

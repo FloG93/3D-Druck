@@ -12,23 +12,75 @@ const mod2 = (n) => ((n % 2) + 2) % 2;
 
 /**
  * Generates lattice points that cover the canvas (plus padding).
- * Returns { points, overflow, estimate }.
+ * wrap > 0: the canvas is the unrolled surface of a cylinder with this
+ * circumference. Points are then generated once, with x in [-wrap/2, wrap/2),
+ * and grids get a column spacing that divides the circumference, so the
+ * pattern closes without a seam.
+ * Returns { points, overflow, estimate, seamless, columns, spacingX }.
  */
-export function makeLattice(pattern, canvas, pad = 0) {
-  const halfW = canvas.width / 2 + pad;
+export function makeLattice(pattern, canvas, pad = 0, wrap = 0) {
+  const halfW = wrap > 0 ? wrap / 2 : canvas.width / 2 + pad;
   const halfH = canvas.height / 2 + pad;
   switch (pattern.type) {
     case 'radial':
-      return radialLattice(pattern, halfW, halfH);
+      return wrapFilter(radialLattice(pattern, halfW, halfH), wrap);
     case 'spiral':
-      return spiralLattice(pattern, halfW, halfH);
+      return wrapFilter(spiralLattice(pattern, halfW, halfH), wrap);
     case 'random':
-      return randomLattice(pattern, halfW, halfH);
+      return randomLattice(pattern, halfW, halfH, wrap);
     case 'hex':
-      return gridLattice(pattern, halfW, halfH, true);
+      return gridLattice(pattern, halfW, halfH, true, wrap);
     default:
-      return gridLattice(pattern, halfW, halfH, false);
+      return gridLattice(pattern, halfW, halfH, false, wrap);
   }
+}
+
+/** x moved by whole periods into [-period/2, period/2). */
+export function wrapX(x, period) {
+  return x - period * Math.floor((x + period / 2) / period);
+}
+
+/** Keeps one copy of every point of a non-periodic lattice on a cylinder. */
+function wrapFilter(lattice, wrap) {
+  if (!(wrap > 0) || lattice.overflow) return lattice;
+  const points = lattice.points.filter((p) => p.x < wrap / 2);
+  return { ...lattice, points, estimate: points.length, seamless: false };
+}
+
+const isHalfTurn = (deg) => {
+  const r = (((deg || 0) % 180) + 180) % 180;
+  return r < 1e-9 || r > 180 - 1e-9;
+};
+
+/**
+ * Grid closed around a cylinder: n columns with spacing wrap / n. Turning
+ * holes alternately by column needs an even column count to meet at the seam.
+ */
+function periodicGrid(pattern, wrap, halfH, staggered) {
+  const want = wrap / Math.max(pattern.spacingX, 0.05);
+  const alternating = pattern.spin && pattern.spinMode !== 'progressive' && pattern.spinBy !== 'row';
+  const n = alternating ? 2 * Math.max(1, Math.round(want / 2)) : Math.max(1, Math.round(want));
+  const sx = wrap / n;
+  const sy = Math.max(pattern.spacingY, 0.05);
+  const estimate = n * ((2 * halfH) / sy);
+  if (estimate > MAX_POINTS) return overflow(estimate);
+  const c = Math.cos((pattern.rotation || 0) * DEG) < 0 ? -1 : 1;
+  const ox = pattern.offsetX || 0;
+  const oy = pattern.offsetY || 0;
+  const shift = staggered ? (pattern.rowShift ?? 0.5) : 0;
+  const nj = Math.ceil((halfH + Math.abs(oy)) / sy) + 1;
+  const i0 = -Math.floor(n / 2);
+  const rot = pattern.rotateHoles && c < 0 ? Math.PI : 0;
+  const points = [];
+  for (let j = -nj; j <= nj; j++) {
+    const rowOffset = shift * sx * mod2(j);
+    const y = c * j * sy + oy;
+    if (Math.abs(y) > halfH) continue;
+    for (let i = i0; i < i0 + n; i++) {
+      points.push({ x: wrapX(c * (i * sx + rowOffset) + ox, wrap), y, i, j, rot });
+    }
+  }
+  return { points, overflow: false, estimate: points.length, seamless: true, columns: n, spacingX: sx };
 }
 
 function overflow(estimate) {
@@ -47,7 +99,9 @@ function baseRotation(pattern, angle) {
   }
 }
 
-function gridLattice(pattern, halfW, halfH, staggered) {
+function gridLattice(pattern, halfW, halfH, staggered, wrap = 0) {
+  if (wrap > 0 && isHalfTurn(pattern.rotation)) return periodicGrid(pattern, wrap, halfH, staggered);
+  if (wrap > 0) return wrapFilter(gridLattice(pattern, halfW, halfH, staggered), wrap);
   const sx = Math.max(pattern.spacingX, 0.05);
   const sy = Math.max(pattern.spacingY, 0.05);
   const estimate = ((2 * halfW) / sx) * ((2 * halfH) / sy);
@@ -132,35 +186,47 @@ function spiralLattice(pattern, halfW, halfH) {
   return { points, overflow: false, estimate: points.length };
 }
 
-/** Poisson disk sampling (Bridson) inside the padded canvas rectangle. */
-function randomLattice(pattern, halfW, halfH) {
+/**
+ * Poisson disk sampling (Bridson) inside the padded canvas rectangle; with
+ * wrap > 0 distances are measured around the cylinder, so it has no seam.
+ */
+function randomLattice(pattern, halfW, halfH, wrap = 0) {
   const r = Math.max(pattern.minDistance, 0.1);
   const estimate = (4 * halfW * halfH) / (0.7 * r * r);
   if (estimate > MAX_POINTS) return overflow(estimate);
+  const periodic = wrap > 0;
   const rand = mulberry32((pattern.seed || 1) * 7919);
-  const cell = r / Math.SQRT2;
-  const gw = Math.ceil((2 * halfW) / cell) + 1;
-  const gh = Math.ceil((2 * halfH) / cell) + 1;
+  const cellY = r / Math.SQRT2;
+  // On a cylinder the columns must tile the circumference exactly.
+  const gw = periodic ? Math.max(1, Math.ceil((2 * halfW) / cellY)) : Math.ceil((2 * halfW) / cellY) + 1;
+  const cellX = periodic ? (2 * halfW) / gw : cellY;
+  const gh = Math.ceil((2 * halfH) / cellY) + 1;
+  const kx = Math.ceil(r / cellX);
   const grid = new Int32Array(gw * gh).fill(-1);
   const pts = [];
   const active = [];
   const rot = pattern.rotateHoles ? (pattern.rotation || 0) * DEG : 0;
+  const column = (x) => Math.min(gw - 1, Math.floor((x + halfW) / cellX));
   const insert = (x, y) => {
     const idx = pts.length;
     pts.push({ x, y, i: idx, j: 0, rot });
     active.push(idx);
-    grid[Math.floor((y + halfH) / cell) * gw + Math.floor((x + halfW) / cell)] = idx;
+    grid[Math.floor((y + halfH) / cellY) * gw + column(x)] = idx;
   };
   const fits = (x, y) => {
     if (x < -halfW || x > halfW || y < -halfH || y > halfH) return false;
-    const gx = Math.floor((x + halfW) / cell);
-    const gy = Math.floor((y + halfH) / cell);
+    const gx = column(x);
+    const gy = Math.floor((y + halfH) / cellY);
     for (let yy = Math.max(0, gy - 2); yy <= Math.min(gh - 1, gy + 2); yy++) {
-      for (let xx = Math.max(0, gx - 2); xx <= Math.min(gw - 1, gx + 2); xx++) {
-        const k = grid[yy * gw + xx];
-        if (k >= 0) {
-          const p = pts[k];
-          if ((p.x - x) ** 2 + (p.y - y) ** 2 < r * r) return false;
+      for (let k = -kx; k <= kx; k++) {
+        let xx = gx + k;
+        if (periodic) xx = ((xx % gw) + gw) % gw;
+        else if (xx < 0 || xx >= gw) continue;
+        const idx = grid[yy * gw + xx];
+        if (idx >= 0) {
+          const p = pts[idx];
+          const dx = periodic ? wrapX(p.x - x, wrap) : p.x - x;
+          if (dx * dx + (p.y - y) ** 2 < r * r) return false;
         }
       }
     }
@@ -174,8 +240,9 @@ function randomLattice(pattern, halfW, halfH) {
     for (let k = 0; k < 30; k++) {
       const a = rand() * TAU;
       const d = r * (1 + rand());
-      const x = p.x + Math.cos(a) * d;
+      let x = p.x + Math.cos(a) * d;
       const y = p.y + Math.sin(a) * d;
+      if (periodic) x = wrapX(x, wrap);
       if (fits(x, y)) {
         insert(x, y);
         placed = true;
@@ -187,5 +254,5 @@ function randomLattice(pattern, halfW, halfH) {
       active.pop();
     }
   }
-  return { points: pts, overflow: false, estimate: pts.length };
+  return { points: pts, overflow: false, estimate: pts.length, seamless: periodic };
 }

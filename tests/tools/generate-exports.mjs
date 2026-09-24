@@ -8,7 +8,7 @@ import { exportDXF } from '../../pattern-generator/js/export/dxf.js';
 import { exportSVG } from '../../pattern-generator/js/export/svg.js';
 import { exportSTEP } from '../../pattern-generator/js/export/step.js';
 import { exportFusionJSON } from '../../pattern-generator/js/export/fusion.js';
-import { buildPlateMesh, toBinarySTL } from '../../pattern-generator/js/export/mesh.js';
+import { buildPlateMesh, buildTubeMesh, toBinarySTL } from '../../pattern-generator/js/export/mesh.js';
 import { polygonize } from '../../pattern-generator/js/core/shapes.js';
 const OUT = process.argv[2] || 'build/exports';
 fs.mkdirSync(OUT, { recursive: true });
@@ -43,4 +43,19 @@ for (const [name, doc] of Object.entries(cases)) {
   summary[name] = { holes: r.holes.length, holeArea: expectedArea, plateArea: r.boundary.area, perimeter: perimeter(r.boundary.outline) + r.holes.reduce((acc, h) => acc + perimeter(h.outline), 0), kinds: [...new Set(r.holes.map(h => h.outline.kind))] };
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));
+
+// Cylinder Ø 36 x 40 mm, 3 mm wall, hexagons across the seam: a closed tube.
+{
+  const U = Math.PI * 36;
+  const H = 40;
+  const t = 3;
+  const doc = normalizeDoc({ canvas: { width: U, height: H }, form: { type: 'cylinder' }, boundary: { margin: 3 }, shape: { type: 'polygon', sides: 6, width: 6, height: 6, round: 0.2 }, pattern: { type: 'hex', spacingX: 9, spacingY: 7.8, offsetX: U / 2 } });
+  const r = generate(doc);
+  const mesh = buildTubeMesh([...r.holes, ...r.ghosts].map(h => h.outline), U, H, t, 0.015, { segments: 360 });
+  fs.writeFileSync(`${OUT}/tube.stl`, toBinarySTL(mesh.positions));
+  const R = U / (2 * Math.PI);
+  // Bent plate: an area element at depth z below the surface shrinks by (R - z) / R.
+  const volume = (U * H - r.stats.openArea) * (t - (t * t) / (2 * R));
+  fs.writeFileSync(`${OUT}/tube.json`, JSON.stringify({ volume, holes: r.holes.length }));
+}
 console.log(JSON.stringify(summary));

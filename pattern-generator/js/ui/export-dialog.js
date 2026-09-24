@@ -7,7 +7,7 @@ import { exportSVG } from '../export/svg.js';
 import { exportDXF } from '../export/dxf.js';
 import { exportSTEP } from '../export/step.js';
 import { exportFusionJSON } from '../export/fusion.js';
-import { buildPlateMesh, toBinarySTL } from '../export/mesh.js';
+import { buildPlateMesh, buildTubeMesh, toBinarySTL } from '../export/mesh.js';
 import { exportPNG } from '../export/png.js';
 import { translateOutline, originOffset } from '../export/common.js';
 import { featureNames, reliefParams, MAX_TAPER } from '../core/relief.js';
@@ -113,7 +113,12 @@ export class ExportDialog {
     const options = h('div', { class: 'export-options' },
       h('div', { class: 'ctl wide' }, h('label', { class: 'ctl-label' }, 'Dateiname'),
         h('div', { class: 'ctl-field' }, filename, this.ext)),
-      segmented(P, { label: 'Ursprung (0,0)', bind: X('origin'), options: [['center', 'Mustermitte'], ['corner', 'Ecke unten links']], visible: is('dxf', 'step', 'stl') }),
+      segmented(P, {
+        label: 'Ursprung (0,0)',
+        bind: X('origin'),
+        options: [['center', 'Mustermitte'], ['corner', 'Ecke unten links']],
+        visible: () => ['dxf', 'step'].includes(this.format) || (this.format === 'stl' && app.doc.form.type !== 'cylinder'),
+      }),
       segmented(P, { label: 'SVG-Stil', bind: X('svgStyle'), options: [['fill', 'Gefüllt'], ['stroke', 'Nur Kontur (Laser)'], ['plate', 'Platte mit Löchern']], visible: is('svg') }),
       segmented(P, { label: 'STEP-Inhalt', bind: X('stepMode'), options: [['tools', 'Werkzeugkörper'], ['plate', 'Platte']], visible: is('step') }),
       segmented(P, {
@@ -129,8 +134,17 @@ export class ExportDialog {
         min: 0.1,
         max: 1000,
         step: 0.1,
-        visible: () => solid() && !(tools() && mode() !== 'cut'),
+        visible: () => solid() && !(tools() && mode() !== 'cut') && app.doc.form.type !== 'cylinder',
         title: 'Bei Werkzeugkörpern für Durchbrüche: deren Höhe',
+      }),
+      numberField(P, {
+        label: 'Wandstärke',
+        unit: 'mm',
+        bind: X('thickness'),
+        min: 0.1,
+        max: 1000,
+        step: 0.1,
+        visible: () => solid() && !(tools() && mode() !== 'cut') && app.doc.form.type === 'cylinder',
       }),
       numberField(P, { label: 'Höhe (erhaben)', unit: 'mm', bind: R('height'), min: 0.05, max: 1000, step: 0.1, visible: () => solid() && mode() === 'emboss' }),
       numberField(P, { label: 'Tiefe (vertieft)', unit: 'mm', bind: R('height'), min: 0.05, max: 1000, step: 0.1, visible: () => solid() && mode() === 'deboss' }),
@@ -181,7 +195,14 @@ export class ExportDialog {
     this.panel.refresh();
     if (document.activeElement !== this.filenameInput) this.filenameInput.value = app.doc.export.filename || 'muster';
     this.ext.textContent = this.extension();
-    this.info.innerHTML = INFO[this.format];
+    const cylinder = app.doc.form.type === 'cylinder';
+    let info = INFO[this.format];
+    if (cylinder && ['dxf', 'svg', 'fusion', 'png'].includes(this.format)) {
+      info = `<b>Zylinder:</b> Die Datei enthält die <b>Abwicklung</b> – Breite = Umfang (π × Ø). In Fusion 360 die Skizze auf eine Ebene tangential zur Mantelfläche legen und mit <i>Erstellen → Prägen</i> auf die Zylinderfläche bringen (Tiefe/Höhe wie unter „Körper (3D)“).<br>${info}`;
+    } else if (cylinder && this.format === 'stl') {
+      info = 'Der fertige <b>Zylinder</b> als geschlossenes Dreiecksnetz – steht mit der Unterkante auf Z = 0, Achse = Z. Mit Boden, wenn unter „Körper (3D)“ eingestellt.';
+    }
+    this.info.innerHTML = info;
     const r = app.result;
     const a = app.analysis;
     const W = app.doc.canvas.width;
@@ -189,8 +210,11 @@ export class ExportDialog {
     const relief = reliefParams(app.doc.relief, app.doc.export.thickness);
     const names = featureNames(relief.mode);
     const pct = r ? (r.stats.ratio * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '';
+    const size = cylinder
+      ? `Zylinder Ø ${(W / Math.PI).toLocaleString('de-DE', { maximumFractionDigits: 1 })} × ${H} mm`
+      : `${W} × ${H} mm`;
     this.summary.textContent = r
-      ? `${r.holes.length.toLocaleString('de-DE')} ${names[1]} · ${W} × ${H} mm · ${relief.mode === 'cut' ? 'offene Fläche' : 'Flächenanteil'} ${pct} %`
+      ? `${r.holes.length.toLocaleString('de-DE')} ${names[1]} · ${size} · ${relief.mode === 'cut' ? 'offene Fläche' : 'Flächenanteil'} ${pct} %`
       : '';
     const warn = [];
     const tools = this.format === 'step' && app.doc.export.stepMode !== 'plate';
@@ -206,6 +230,12 @@ export class ExportDialog {
     }
     if (['stl', 'step'].includes(this.format) && !tools && app.doc.relief.mode === 'deboss' && app.doc.relief.height >= app.doc.export.thickness) {
       warn.push('Die Tiefe ist größer als die Plattendicke – es bleibt ein dünner Boden stehen. Für Löcher „Durchbrüche“ wählen.');
+    }
+    if (cylinder && this.format === 'step') {
+      warn.push('STEP enthält die flache <b>Abwicklung</b> (Umfang × Höhe). Den fertigen Zylinder liefert das STL; in Fusion 360 die Abwicklung mit <i>Prägen</i> auf die Mantelfläche bringen.');
+    }
+    if (cylinder && r && r.wrap && !r.wrap.seamless) {
+      warn.push('Diese Anordnung schließt an der Zylinder-Naht nicht exakt.');
     }
     if (r && tools && r.holes.length > 3000) {
       warn.push(`${r.holes.length} Einzelkörper sind für Fusion 360 recht viel – für große Muster ist DXF oder das Fusion-Skript schneller.`);
@@ -254,6 +284,10 @@ export class ExportDialog {
         blob = new Blob([text], { type: 'application/step' });
       } else if (this.format === 'fusion') {
         blob = new Blob([exportFusionJSON(r, doc, { includeBoundary: ex.includeBoundary })], { type: 'application/json' });
+      } else if (this.format === 'stl' && r.wrap) {
+        const mesh = buildTubeMesh([...r.holes, ...r.ghosts].map((hole) => hole.outline), doc.canvas.width, doc.canvas.height,
+          ex.thickness, 0.015, { relief: doc.relief, segments: 360, bottom: doc.form.bottom });
+        blob = new Blob([toBinarySTL(mesh.positions, `Muster-Generator ${base}`)], { type: 'model/stl' });
       } else if (this.format === 'stl') {
         const [dx, dy] = originOffset(doc, ex.origin);
         const mesh = buildPlateMesh(

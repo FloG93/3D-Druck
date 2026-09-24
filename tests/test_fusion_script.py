@@ -294,6 +294,7 @@ const cases = {
   stretched: normalizeDoc({ canvas: {width: 50, height: 30}, shape: {type: 'polygon', sides: 5, width: 6, height: 3, round: 1}, pattern: {type: 'grid', spacingX: 9, spacingY: 6} }),
   ribs: normalizeDoc({ canvas: {width: 60, height: 40}, boundary: {type: 'rect', cornerRadius: 2, margin: 3}, shape: {type: 'rect', width: 46, height: 2, round: 1}, pattern: {type: 'grid', spacingX: 60, spacingY: 5}, relief: {mode: 'emboss', height: 0.8, taper: 30} }),
   pockets: normalizeDoc({ canvas: {width: 60, height: 40}, shape: {type: 'polygon', sides: 6, width: 5, height: 5}, pattern: {type: 'hex', spacingX: 7, spacingY: 6.06}, relief: {mode: 'deboss', height: 1.2, taper: 0} }),
+  tube: normalizeDoc({ canvas: {width: Math.PI * 30, height: 40}, form: {type: 'cylinder'}, boundary: {margin: 3}, shape: {type: 'ellipse', width: 4, height: 4}, pattern: {type: 'hex', spacingX: 7, spacingY: 6.06}, relief: {mode: 'emboss', height: 0.8} }),
 };
 const out = process.argv[1];
 for (const [name, doc] of Object.entries(cases)) fs.writeFileSync(`${out}/${name}.fusion.json`, exportFusionJSON(generate(doc), doc, { includeBoundary: true }));
@@ -441,6 +442,16 @@ class FusionScriptTest(unittest.TestCase):
         self.assertTrue(plain['through_all'])
         self.assertEqual(mod.dialog_defaults(load('sharp'), {'operation': mod.OP_EMBOSS})['operation'], mod.OP_CUT)
         self.assertEqual(mod.dialog_defaults({'holes': [1]}, {'operation': 'gibt es nicht'})['operation'], mod.OP_CUT)
+        tube = mod.dialog_defaults(load('tube'), saved)
+        self.assertEqual(tube['operation'], mod.OP_SKETCH, 'a cylinder pattern is embossed, not extruded')
+        self.assertEqual(tube['depth'], '0.8 mm')
+
+    def test_cylinder_summary_explains_emboss(self):
+        data, comp, _, summary = self.run_case('tube', operation=self.mod.OP_SKETCH)
+        self.assertEqual(comp.features.extrudeFeatures.added, [])
+        self.assertEqual(data['form']['type'], 'cylinder')
+        self.assertAlmostEqual(data['form']['diameter'], 30, places=3)
+        self.assertIn('Prägen', summary)
 
     def test_rejects_foreign_files(self):
         path = os.path.join(self.tmp.name, 'other.json')

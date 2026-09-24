@@ -152,6 +152,11 @@ export class Renderer {
       const f = flags ? flags[i] : 0;
       addOutlineToPath(f === FLAG_OVERLAP ? overlap : f === FLAG_THIN ? thin : normal, hole.outline);
     });
+    // Cylinder: copies across the seam, marked like the hole they copy.
+    for (const ghost of result.ghosts || []) {
+      const f = flags ? flags[ghost.src] : 0;
+      addOutlineToPath(f === FLAG_OVERLAP ? overlap : f === FLAG_THIN ? thin : normal, ghost.outline);
+    }
     const boundary = new Path2D();
     addOutlineToPath(boundary, result.boundary.outline);
     let margin = null;
@@ -229,12 +234,54 @@ export class Renderer {
 
     // Holes
     world();
-    ctx.fillStyle = doc.shape.color || '#68a6f8';
-    ctx.fill(paths.normal);
-    ctx.fillStyle = col.warn;
-    ctx.fill(paths.thin);
-    ctx.fillStyle = col.danger;
-    ctx.fill(paths.overlap);
+    const fillHoles = () => {
+      ctx.fillStyle = doc.shape.color || '#68a6f8';
+      ctx.fill(paths.normal);
+      ctx.fillStyle = col.warn;
+      ctx.fill(paths.thin);
+      ctx.fillStyle = col.danger;
+      ctx.fill(paths.overlap);
+    };
+    if (result.wrap) {
+      // Cylinder: the band shows one turn; beyond the seams the pattern
+      // continues faintly, as it does around the cylinder.
+      const band = new Path2D();
+      band.rect(-W / 2, -H / 2, W, H);
+      ctx.save();
+      ctx.clip(band);
+      fillHoles();
+      ctx.restore();
+      const outside = new Path2D();
+      outside.rect(-W / 2 - W, -H / 2 - H, W, 3 * H);
+      outside.rect(W / 2, -H / 2 - H, W, 3 * H);
+      ctx.save();
+      ctx.clip(outside);
+      ctx.globalAlpha = 0.28;
+      fillHoles();
+      ctx.restore();
+      screen();
+      ctx.save();
+      ctx.strokeStyle = col.accent;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.font = '600 11px system-ui, sans-serif';
+      ctx.fillStyle = col.accent;
+      ctx.textBaseline = 'bottom';
+      for (const sx of [-W / 2, W / 2]) {
+        const [x0, y0] = this.toScreen(sx, H / 2);
+        const [, y1] = this.toScreen(sx, -H / 2);
+        ctx.beginPath();
+        ctx.moveTo(Math.round(x0) + 0.5, y0 - 10);
+        ctx.lineTo(Math.round(x0) + 0.5, y1 + 10);
+        ctx.stroke();
+        ctx.textAlign = sx < 0 ? 'left' : 'right';
+        ctx.fillText('Naht', x0 + (sx < 0 ? 4 : -4), y0 - 12);
+      }
+      ctx.restore();
+      ctx.textAlign = 'start';
+    } else {
+      fillHoles();
+    }
 
     screen();
     this.handles = [];

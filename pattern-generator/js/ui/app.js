@@ -285,7 +285,7 @@ export class App {
       if (!this.result) return;
       const holes = this.result.holes;
       if (holes.length > 40000) return;
-      this.analysis = analyzeWebs(holes, this.doc.check.minWeb);
+      this.analysis = analyzeWebs(holes, this.doc.check.minWeb, this.result.ghosts);
       this.emit('analysis');
     }, delay);
   }

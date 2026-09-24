@@ -83,6 +83,21 @@ def step_check(name, exp, mode):
     whole_valid = BRepCheck_Analyzer(shape).IsValid()
     report(ok and whole_valid, f"STEP {name:9s} {mode:6s} solids={solids} invalid={invalid} faces={faces} volume={vol:.3f} (exp {expv:.3f})")
 
+def stl_edges(path):
+    """Triangle count, unmatched/non-manifold edges and volume of a binary STL."""
+    data = open(path, 'rb').read()
+    n = struct.unpack('<I', data[80:84])[0]
+    assert len(data) == 84 + 50 * n
+    edges = Counter(); vol = 0.0
+    for i in range(n):
+        v = struct.unpack('<12f', data[84 + 50 * i:84 + 50 * i + 48])
+        a, b, c = v[3:6], v[6:9], v[9:12]
+        vol += (a[0]*(b[1]*c[2]-b[2]*c[1]) - a[1]*(b[0]*c[2]-b[2]*c[0]) + a[2]*(b[0]*c[1]-b[1]*c[0])) / 6
+        for p, q in ((a, b), (b, c), (c, a)):
+            edges[(p, q)] += 1
+    bad = sum(1 for (p, q), k in edges.items() if edges.get((q, p), 0) != k or k != 1)
+    return n, bad, vol
+
 def stl_check(name, exp, relief=''):
     data = open(f'{OUT}/{name}{relief}.stl', 'rb').read()
     n = struct.unpack('<I', data[80:84])[0]
@@ -121,6 +136,10 @@ for name, exp in summary.items():
     for f in (f'{name}.svg', f'{name}_plate.svg'):
         ET.parse(f'{OUT}/{f}')
 print('SVG files parsed')
+tube = json.load(open(f'{OUT}/tube.json'))
+n, bad, vol = stl_edges(f'{OUT}/tube.stl')
+report(bad == 0 and abs(vol - tube['volume']) < 2e-3 * tube['volume'],
+       f"STL  tube (Zylinder) triangles={n} open/non-manifold edges={bad} volume={vol:.2f} (exp {tube['volume']:.2f})")
 if FAILURES:
     print(f'{len(FAILURES)} check(s) failed')
     sys.exit(1)

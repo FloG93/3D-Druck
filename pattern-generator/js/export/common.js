@@ -1,16 +1,8 @@
 // Helpers shared by the exporters.
 
-/** Translates an outline by (dx, dy), returning a new outline. */
-export function translateOutline(o, dx, dy) {
-  if (!dx && !dy) return o;
-  if (o.kind === 'circle' || o.kind === 'ellipse') return { ...o, cx: o.cx + dx, cy: o.cy + dy };
-  return {
-    kind: 'path',
-    segs: o.segs.map((s) => (s.type === 'line'
-      ? { ...s, x0: s.x0 + dx, y0: s.y0 + dy, x1: s.x1 + dx, y1: s.y1 + dy }
-      : { ...s, cx: s.cx + dx, cy: s.cy + dy, x0: s.x0 + dx, y0: s.y0 + dy, x1: s.x1 + dx, y1: s.y1 + dy })),
-  };
-}
+import { translateOutline } from '../core/shapes.js';
+
+export { translateOutline };
 
 /** Offset applied for the chosen origin ('center' or 'corner' = bottom left). */
 export function originOffset(doc, origin) {

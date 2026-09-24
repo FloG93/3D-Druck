@@ -42,6 +42,8 @@ export const DEFAULTS = {
   },
   // cut: holes through the plate · emboss: raised ribs/bumps · deboss: grooves/pockets
   relief: { mode: 'cut', height: 1, taper: 0 },
+  // plate, or a cylinder whose circumference is the canvas width (bottom: closed end in mm, 0 = open)
+  form: { type: 'plate', bottom: 0 },
   check: { minWeb: 0.8, show: true },
   background: { opacity: 0.45, fit: 'cover', visible: true },
   export: {
@@ -151,6 +153,8 @@ export function normalizeDoc(input) {
     doc.modifiers.push(mod);
   }
   if (!RELIEF_MODES.includes(doc.relief.mode)) doc.relief.mode = 'cut';
+  if (doc.form.type !== 'cylinder') doc.form.type = 'plate';
+  doc.form.bottom = Math.max(doc.form.bottom, 0);
   doc.canvas.width = Math.min(Math.max(doc.canvas.width, 1), 5000);
   doc.canvas.height = Math.min(Math.max(doc.canvas.height, 1), 5000);
   return doc;

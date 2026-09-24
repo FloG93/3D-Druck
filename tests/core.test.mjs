@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildHole, outlineArea, polygonize, shapePeriod } from '../pattern-generator/js/core/shapes.js';
-import { makeBoundary, ellipseSdf } from '../pattern-generator/js/core/boundary.js';
-import { makeLattice } from '../pattern-generator/js/core/lattice.js';
+import { makeBoundary, makeBandBoundary, ellipseSdf } from '../pattern-generator/js/core/boundary.js';
+import { makeLattice, wrapX } from '../pattern-generator/js/core/lattice.js';
 import { prepareModifiers } from '../pattern-generator/js/core/modifiers.js';
-import { generate } from '../pattern-generator/js/core/generator.js';
+import { generate, seamGhosts } from '../pattern-generator/js/core/generator.js';
 import { analyzeWebs, holeGap } from '../pattern-generator/js/core/analysis.js';
 import { defaultDoc, normalizeDoc, createModifier } from '../pattern-generator/js/core/document.js';
 import { BUILTIN_PRESETS } from '../pattern-generator/js/core/preset-library.js';
@@ -199,8 +199,9 @@ test('built-in presets generate holes without overlaps', () => {
     const res = generate(doc);
     // Rib presets have few, long shapes.
     assert.ok(res.holes.length >= 10, `${name}: ${res.holes.length} holes`);
-    const a = analyzeWebs(res.holes, doc.check.minWeb);
+    const a = analyzeWebs(res.holes, doc.check.minWeb, res.ghosts);
     assert.equal(a.overlap, 0, `${name} has overlapping holes`);
+    if (res.wrap) assert.ok(res.wrap.seamless, `${name} closes seamlessly around the cylinder`);
   }
 });
 
@@ -224,4 +225,86 @@ test('normalizeDoc completes and sanitises documents', () => {
   assert.equal(doc.modifiers[0].radius, 12);
   assert.equal(doc.modifiers[0].angle, 90);
   assert.equal(normalizeDoc(null).pattern.type, 'hex');
+});
+
+test('cylinder lattice: grid columns divide the circumference', () => {
+  const canvas = { width: 100, height: 50 };
+  const grid = makeLattice({ type: 'grid', spacingX: 12, spacingY: 10, rotation: 0 }, canvas, 0, 100);
+  assert.equal(grid.columns, 8);
+  close(grid.spacingX, 12.5);
+  assert.ok(grid.seamless);
+  const rows = new Map();
+  for (const p of grid.points) {
+    assert.ok(p.x >= -50 && p.x < 50, `x ${p.x} inside one turn`);
+    rows.set(p.j, (rows.get(p.j) || 0) + 1);
+  }
+  for (const n of rows.values()) assert.equal(n, 8);
+  // Alternating turns by column need an even number of columns.
+  const fish = makeLattice({ type: 'grid', spacingX: 14.3, spacingY: 10, spin: 90, spinMode: 'alternate', spinBy: 'column' }, canvas, 0, 100);
+  assert.equal(fish.columns % 2, 0);
+  // A rotated grid cannot close exactly.
+  assert.equal(makeLattice({ type: 'grid', spacingX: 12, spacingY: 10, rotation: 20 }, canvas, 0, 100).seamless, false);
+  close(wrapX(50, 100), -50);
+  close(wrapX(-50, 100), -50);
+  close(wrapX(149, 100), 49);
+});
+
+test('cylinder lattice: Poisson disk keeps its distance across the seam', () => {
+  const r = 7;
+  const lat = makeLattice({ type: 'random', minDistance: r, seed: 5 }, { width: 90, height: 40 }, 0, 90);
+  assert.ok(lat.seamless);
+  const pts = lat.points;
+  assert.ok(pts.length > 30);
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = wrapX(pts[i].x - pts[j].x, 90);
+      assert.ok(Math.hypot(dx, pts[i].y - pts[j].y) >= r - 1e-9, 'distance measured around the cylinder');
+    }
+  }
+});
+
+test('cylinder: attractors act across the seam', () => {
+  const boundary = makeBandBoundary({ width: 100, height: 40 });
+  const m = { type: 'point', x: 49, y: 0, radius: 10, falloff: 'linear', angle: 90, rotateMode: 'add', scale: 1 };
+  const el = () => ({ x: -49, y: 0, rot: 0, sx: 1, sy: 1, i: 0, j: 0, R: 1, removed: false });
+  const [wrapped] = prepareModifiers([m], { boundary, period: Math.PI, wrap: 100 });
+  const a = el();
+  wrapped(a);
+  close(a.rot, (Math.PI / 2) * 0.8, 1e-9, 'distance 2 across the seam');
+  const [flat] = prepareModifiers([m], { boundary, period: Math.PI });
+  const b = el();
+  flat(b);
+  assert.equal(b.rot, 0);
+  // Band boundary: only top and bottom (above an optional floor) limit the pattern.
+  close(boundary.sdf(1000, 0), -20);
+  close(makeBandBoundary({ width: 100, height: 40 }, 5).sdf(0, -16), 1);
+});
+
+test('cylinder: holes cross the seam, ghosts complete them and the check sees across', () => {
+  const doc = normalizeDoc({
+    canvas: { width: 100, height: 40 },
+    form: { type: 'cylinder' },
+    boundary: { margin: 3 },
+    shape: { type: 'ellipse', width: 5, height: 5 },
+    pattern: { type: 'hex', spacingX: 10, spacingY: 8.66, offsetX: 50 },
+  });
+  const res = generate(doc);
+  assert.ok(res.wrap && res.wrap.seamless);
+  assert.equal(res.wrap.columns, 10);
+  const crossing = res.holes.filter((h) => Math.abs(h.x) + h.R > 50);
+  assert.ok(crossing.length > 0, 'some holes sit on the seam');
+  for (const h of crossing) {
+    assert.ok(res.ghosts.some((g) => res.holes[g.src] === h && Math.abs(Math.abs(g.x - h.x) - 100) < 1e-9));
+  }
+  const a = analyzeWebs(res.holes, 0.8, res.ghosts);
+  assert.equal(a.overlap, 0);
+  close(a.minWeb, 5, 1e-3, 'hexagonal gap 10 - 5');
+  // Two holes that only touch around the back of the cylinder.
+  const holes = [buildHole({ type: 'ellipse' }, -49.5, 0, 0, 2, 2), buildHole({ type: 'ellipse' }, 49.5, 0, 0, 2, 2)];
+  assert.equal(analyzeWebs(holes, 0.8).overlap, 0);
+  assert.equal(analyzeWebs(holes, 0.8, seamGhosts(holes, 100, 5)).overlap, 2);
+  assert.equal(generate(normalizeDoc({ form: { type: 'cylinder' } })).boundary.type, 'band');
+  const bad = normalizeDoc({ form: { type: 'kegel', bottom: -3 } });
+  assert.equal(bad.form.type, 'plate');
+  assert.equal(bad.form.bottom, 0);
 });

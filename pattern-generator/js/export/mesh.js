@@ -132,10 +132,10 @@ function splitTJunctions(coords, tris) {
  * hole. Runs in O(n log n), unlike ear clipping with many holes.
  * ringOf[i] = 0 for the outline, k >= 1 for the k-th hole.
  */
-function triangulateCDT(coords, ringStarts) {
+function triangulateCDT(coords, ringStarts, extraEdges = []) {
   const n = coords.length / 2;
   const ringOf = new Int32Array(n);
-  const edges = [];
+  const edges = [...extraEdges];
   for (let r = 0; r < ringStarts.length; r++) {
     const start = ringStarts[r];
     const end = r + 1 < ringStarts.length ? ringStarts[r + 1] : n;
@@ -307,16 +307,17 @@ export function insetConvex(ring, s) {
   return { s: T, alive, end, apex, top: list.map((e) => [e.x, e.y]) };
 }
 
-/** Growable float32 buffer of triangles (x, y, z per corner). */
+/** Growable buffer of triangles (x, y, z per corner), float32 unless stated. */
 class TriangleBuffer {
-  constructor(estimate) {
-    this.pos = new Float32Array(Math.max(estimate, 64) * 9);
+  constructor(estimate, Type = Float32Array) {
+    this.Type = Type;
+    this.pos = new Type(Math.max(estimate, 64) * 9);
     this.k = 0;
   }
 
   tri(ax, ay, az, bx, by, bz, cx, cy, cz) {
     if (this.k + 9 > this.pos.length) {
-      const grown = new Float32Array(this.pos.length * 2);
+      const grown = new this.Type(this.pos.length * 2);
       grown.set(this.pos);
       this.pos = grown;
     }
@@ -497,6 +498,288 @@ export function buildPlateMesh(boundaryOutline, holeOutlines, thickness, tol = 0
     else feature(buf, P, t, height, taper, mode === 'emboss' ? 1 : -1);
   }
   return { positions: buf.pos.subarray(0, buf.k), triangles: buf.count, featureStart: Math.min(featureStart, buf.count) };
+}
+
+/** Polygonized outlines as CCW rings without duplicate points. */
+function ringsOf(outlines, tol) {
+  return outlines.map((o) => {
+    const p = clean(polygonize(o, tol));
+    if (signedArea(p) < 0) p.reverse();
+    return p;
+  }).filter((p) => p.length >= 3);
+}
+
+/** Inserts the points where a ring crosses the vertical line x = X. */
+function withSeamPoints(ring, X) {
+  const out = [];
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const p = ring[i];
+    const q = ring[(i + 1) % n];
+    out.push(p);
+    if ((p[0] - X) * (q[0] - X) < 0) out.push([X, p[1] + ((X - p[0]) / (q[0] - p[0])) * (q[1] - p[1])]);
+  }
+  return out;
+}
+
+/** Point on segment a-b at x = X, computed the same way from either end. */
+function crossAt(a, b, X) {
+  const swap = a[0] > b[0] || (a[0] === b[0] && (a[1] > b[1] || (a[1] === b[1] && a[2] > b[2])));
+  const p = swap ? b : a;
+  const q = swap ? a : b;
+  const t = (X - p[0]) / (q[0] - p[0]);
+  return [X, p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])];
+}
+
+/**
+ * Cuts every triangle into the strips between the planes x = planes[k] and
+ * keeps the pieces inside [planes[0], planes[last]]. Crossing points depend
+ * only on the edge, so neighbouring triangles stay conforming.
+ * emit(polygon) receives each convex piece as a list of [x, y, z].
+ */
+function splitIntoStrips(pos, from, to, planes, emit) {
+  const last = planes.length - 1;
+  const x0 = planes[0];
+  const step = (planes[last] - x0) / last;
+  // Points this close to a plane are moved onto it; otherwise they would
+  // create slivers that collapse in the float32 output.
+  const snapTol = 1e-6 * (planes[last] - x0);
+  const snap = (x) => {
+    const j = Math.round((x - x0) / step);
+    return j >= 0 && j <= last && Math.abs(x - planes[j]) <= snapTol ? planes[j] : x;
+  };
+  const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let t = from; t < to; t++) {
+    const k = t * 9;
+    for (let c = 0; c < 3; c++) {
+      tri[c][0] = snap(pos[k + 3 * c]);
+      tri[c][1] = pos[k + 3 * c + 1];
+      tri[c][2] = pos[k + 3 * c + 2];
+    }
+    const minX = Math.min(tri[0][0], tri[1][0], tri[2][0]);
+    const maxX = Math.max(tri[0][0], tri[1][0], tri[2][0]);
+    if (maxX < x0 || minX > planes[last]) continue;
+    let j0;
+    let j1;
+    if (minX === maxX) {
+      // Lies in a plane x = const: belongs to exactly one strip.
+      j0 = Math.min(Math.max(Math.floor((minX - x0) / step), 0), last - 1);
+      while (j0 > 0 && planes[j0] > minX) j0 -= 1;
+      while (j0 < last - 1 && planes[j0 + 1] <= minX) j0 += 1;
+      if (minX === planes[last]) continue;
+      j1 = j0;
+    } else {
+      j0 = Math.max(0, Math.floor((minX - x0) / step) - 1);
+      j1 = Math.min(last - 1, Math.floor((maxX - x0) / step) + 1);
+    }
+    for (let j = j0; j <= j1; j++) {
+      const lo = planes[j];
+      const hi = planes[j + 1];
+      if (minX !== maxX && (hi <= minX || lo >= maxX)) continue;
+      const poly = [];
+      for (let c = 0; c < 3; c++) {
+        const a = tri[c];
+        const b = tri[(c + 1) % 3];
+        if (a[0] >= lo && a[0] <= hi) poly.push([a[0], a[1], a[2]]);
+        const cuts = [];
+        for (const X of [lo, hi]) if ((a[0] - X) * (b[0] - X) < 0) cuts.push(X);
+        if (cuts.length === 2 && (cuts[0] - a[0]) * (cuts[1] - cuts[0]) < 0) cuts.reverse();
+        for (const X of cuts) poly.push(crossAt(a, b, X));
+      }
+      if (poly.length >= 3) emit(poly);
+    }
+  }
+}
+
+/**
+ * Closed tube for a cylinder whose circumference is `period`: the plate is
+ * built flat (the band plus the seam copies of the holes, with the seams as
+ * constraint lines), cut into narrow strips, trimmed at the seams and bent
+ * around the Z axis. The pattern surface is the outside (radius period / 2π),
+ * the wall thickness goes inwards, Z runs from 0 to height.
+ * holeOutlines must include the ghost copies at the seams.
+ * bottom > 0 adds a closed floor of that thickness (a separate, overlapping shell).
+ * Returns { positions, triangles, featureStart, radius }.
+ */
+export function buildTubeMesh(holeOutlines, period, height, thickness, tol = 0.03, { watertight = true, relief = null, segments = 180, bottom = 0 } = {}) {
+  const U = period;
+  const R = U / (2 * Math.PI);
+  const H = height;
+  const t = Math.min(thickness, R * 0.95);
+  const { mode, height: rh, taper } = reliefParams(relief, t);
+  const XL = -U / 2;
+  const XR = U / 2;
+  const holes = ringsOf(holeOutlines, tol).map((r) => withSeamPoints(withSeamPoints(r, XL), XR));
+  let E = 1;
+  for (const r of holes) for (const p of r) E = Math.max(E, p[0] - XR + 1, XL - p[0] + 1);
+  const outer = [[XL - E, -H / 2], [XL, -H / 2], [XR, -H / 2], [XR + E, -H / 2], [XR + E, H / 2], [XR, H / 2], [XL, H / 2], [XL - E, H / 2]];
+
+  const coords = [];
+  const ringStarts = [0];
+  for (const p of outer) coords.push(p[0], p[1]);
+  for (const r of holes) {
+    ringStarts.push(coords.length / 2);
+    for (const p of r) coords.push(p[0], p[1]);
+  }
+  // Seam lines as constraints, except where they run inside a hole.
+  const seams = [];
+  const ringIndex = (v) => {
+    let r = 0;
+    while (r + 1 < ringStarts.length && ringStarts[r + 1] <= v) r += 1;
+    return r;
+  };
+  for (const X of [XL, XR]) {
+    const on = [];
+    for (let v = 0; v < coords.length / 2; v++) if (coords[2 * v] === X) on.push(v);
+    on.sort((a, b) => coords[2 * a + 1] - coords[2 * b + 1]);
+    for (let k = 0; k + 1 < on.length; k++) {
+      const ra = ringIndex(on[k]);
+      if (ra > 0 && ra === ringIndex(on[k + 1])) continue;
+      seams.push([on[k], on[k + 1]]);
+    }
+  }
+  let tris = null;
+  try {
+    tris = triangulateCDT(Float64Array.from(coords), ringStarts, seams);
+  } catch {
+    tris = null;
+  }
+
+  // Full precision: seam points must stay exactly on the seam planes.
+  const flat = new TriangleBuffer(coords.length * 4, Float64Array);
+  let featureStart;
+  if (!tris && mode === 'emboss') {
+    // Overlapping features: plain band plus one closed shell per feature.
+    const band = [[XL, -H / 2], [XR, -H / 2], [XR, H / 2], [XL, H / 2]];
+    convexCap(flat, band, t, true);
+    convexCap(flat, band, 0, false);
+    for (const [a, b] of [[band[0], band[1]], [band[2], band[3]]]) {
+      flat.tri(a[0], a[1], 0, b[0], b[1], 0, b[0], b[1], t);
+      flat.tri(a[0], a[1], 0, b[0], b[1], t, a[0], a[1], t);
+    }
+    featureStart = flat.count;
+    const zb = t - Math.min(t / 2, 0.5);
+    for (const P of holes) {
+      convexCap(flat, P, zb, false);
+      flank(flat, P, zb, null, t);
+      feature(flat, P, t, rh, taper, 1);
+    }
+  } else {
+    if (!tris) {
+      tris = earcut(coords, ringStarts.slice(1), 2);
+      if (watertight) tris = splitTJunctions(coords, tris);
+    }
+    const cut = mode === 'cut';
+    for (let i = 0; i < tris.length; i += 3) {
+      const a = tris[i];
+      let b = tris[i + 1];
+      let c = tris[i + 2];
+      const ax = coords[2 * a];
+      const ay = coords[2 * a + 1];
+      const cross = (coords[2 * b] - ax) * (coords[2 * c + 1] - ay) - (coords[2 * b + 1] - ay) * (coords[2 * c] - ax);
+      if (cross < 0) [b, c] = [c, b];
+      const bx = coords[2 * b];
+      const by = coords[2 * b + 1];
+      const cx = coords[2 * c];
+      const cy = coords[2 * c + 1];
+      flat.tri(ax, ay, t, bx, by, t, cx, cy, t);
+      if (cut) flat.tri(ax, ay, 0, cx, cy, 0, bx, by, 0);
+    }
+    if (!cut) convexCap(flat, [[XL, -H / 2], [XR, -H / 2], [XR, H / 2], [XL, H / 2]], 0, false);
+    flank(flat, outer, 0, null, t);
+    featureStart = flat.count;
+    for (const P of holes) {
+      if (cut) flank(flat, P, t, null, 0);
+      else feature(flat, P, t, rh, taper, mode === 'emboss' ? 1 : -1);
+    }
+    if (cut) featureStart = flat.count;
+  }
+
+  // Strips of at most 360° / segments, trimmed to one turn.
+  const n = Math.max(12, Math.round(segments));
+  const planes = [];
+  for (let k = 0; k <= n; k++) planes.push(k === n ? XR : XL + (k * U) / n);
+  const pieces = [];
+  const collect = (from, to) => {
+    const list = [];
+    splitIntoStrips(flat.pos, from, to, planes, (poly) => list.push(poly));
+    return list;
+  };
+  const base = collect(0, featureStart);
+  const feats = collect(featureStart, flat.count);
+  pieces.push(...base, ...feats);
+
+  // Weld: points on the left seam take the exact values of the right seam.
+  const key = (y, z) => `${Math.round(y * 1e5)},${Math.round(z * 1e5)}`;
+  const right = new Map();
+  for (const poly of pieces) {
+    for (const p of poly) {
+      if (p[0] !== XR) continue;
+      const k = key(p[1], p[2]);
+      if (!right.has(k)) right.set(k, p);
+    }
+  }
+  const weldTol = 1e-6 * (U + H);
+  for (const poly of pieces) {
+    for (const p of poly) {
+      if (p[0] !== XL) continue;
+      const iy = Math.round(p[1] * 1e5);
+      const iz = Math.round(p[2] * 1e5);
+      let found = null;
+      for (let dy = -1; dy <= 1 && !found; dy++) {
+        for (let dz = -1; dz <= 1 && !found; dz++) {
+          const q = right.get(`${iy + dy},${iz + dz}`);
+          if (q && Math.abs(q[1] - p[1]) <= weldTol && Math.abs(q[2] - p[2]) <= weldTol) found = q;
+        }
+      }
+      if (found) {
+        p[1] = found[1];
+        p[2] = found[2];
+      }
+    }
+  }
+
+  // Bend: x -> angle, z -> radius (the plate top is the outside), y -> Z.
+  const out = new TriangleBuffer(pieces.length * 2 + (bottom > 0 ? n * 4 : 0));
+  const place = (p) => {
+    let k = (p[0] - XL) / U;
+    if (k >= 1) k -= 1;
+    const a = 2 * Math.PI * k - Math.PI;
+    const rho = R - t + p[2];
+    return [rho * Math.cos(a), rho * Math.sin(a), p[1] + H / 2];
+  };
+  if (bottom > 0) {
+    // Floor disc reaching halfway into the wall.
+    const b = Math.min(bottom, H);
+    const rd = R - t / 2;
+    const ring = [];
+    for (let k = 0; k < n; k++) ring.push([rd * Math.cos((2 * Math.PI * k) / n), rd * Math.sin((2 * Math.PI * k) / n)]);
+    for (let k = 1; k + 1 < n; k++) {
+      out.tri(ring[0][0], ring[0][1], b, ring[k][0], ring[k][1], b, ring[k + 1][0], ring[k + 1][1], b);
+      out.tri(ring[0][0], ring[0][1], 0, ring[k + 1][0], ring[k + 1][1], 0, ring[k][0], ring[k][1], 0);
+    }
+    for (let k = 0; k < n; k++) {
+      const p = ring[k];
+      const q = ring[(k + 1) % n];
+      out.tri(p[0], p[1], 0, q[0], q[1], 0, q[0], q[1], b);
+      out.tri(p[0], p[1], 0, q[0], q[1], b, p[0], p[1], b);
+    }
+  }
+  const emitPieces = (list) => {
+    for (const poly of list) {
+      const m = poly.map(place);
+      for (let k = 1; k + 1 < m.length; k++) {
+        const a = m[0];
+        const b = m[k];
+        const c = m[k + 1];
+        out.tri(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+      }
+    }
+  };
+  emitPieces(base);
+  const start = out.count;
+  emitPieces(feats);
+  return { positions: out.pos.subarray(0, out.k), triangles: out.count, featureStart: start, radius: R };
 }
 
 /** Binary STL from a triangle position array. */
