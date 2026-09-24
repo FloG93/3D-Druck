@@ -2,24 +2,28 @@
 
 import { App } from './ui/app.js';
 import { Renderer } from './ui/renderer.js';
-import { Interaction, isTyping } from './ui/interaction.js';
 import { buildLeftPanel, buildRightPanel } from './ui/panels.js';
-import { ModifiersPanel } from './ui/modifiers-panel.js';
 import { PresetsView } from './ui/presets.js';
-import { icon } from '../../shared/js/icons.js';
-import { setStoragePrefix } from '../../shared/js/controls.js';
-import { LOGO } from './ui/logo.js';
-import { encodeDoc, decodeHash } from '../../shared/js/share.js';
-import { createImage } from './ui/image.js';
+import { FontDialog } from './ui/fontpicker.js';
 import { ExportDialog } from './ui/export-dialog.js';
 import { showHelp } from './ui/help.js';
-import { featureNames } from './core/relief.js';
+import { icon } from '../../shared/js/icons.js';
+import { setStoragePrefix } from '../../shared/js/controls.js';
+import { encodeDoc, decodeHash } from '../../shared/js/share.js';
+import { RELIEF_NAMES } from './core/model.js';
+import { BUILTIN_PRESETS } from './core/presets.js';
 
 const $ = (id) => document.getElementById(id);
+const de = (v, digits = 1) => (Number.isFinite(v) ? v.toLocaleString('de-DE', { maximumFractionDigits: digits }) : '–');
 
-export const de = (v, digits = 1) => (Number.isFinite(v)
-  ? v.toLocaleString('de-DE', { maximumFractionDigits: digits, minimumFractionDigits: 0 })
-  : '–');
+const LOGO = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="var(--accent)"/>
+  <g fill="var(--logo-ink)">
+    <rect x="8" y="8" width="16" height="3.6" rx="1.2"/>
+    <rect x="14.2" y="8" width="3.6" height="15.5" rx="1.2"/>
+    <rect x="8" y="21.8" width="16" height="2.2" rx="1.1" opacity=".55"/>
+  </g>
+</svg>`;
 
 function currentTheme() {
   const t = document.documentElement.dataset.theme;
@@ -27,10 +31,15 @@ function currentTheme() {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
+const isTyping = () => {
+  const el = document.activeElement;
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+};
+
 async function main() {
-  setStoragePrefix('muster-generator');
+  setStoragePrefix('text-generator');
   const app = new App();
-  window.musterApp = app; // handy for debugging in the browser console
+  window.textApp = app; // handy for debugging in the browser console
 
   // --- topbar ------------------------------------------------------------
   $('logo').innerHTML = LOGO;
@@ -50,50 +59,48 @@ async function main() {
   // --- views ---------------------------------------------------------------
   const canvas = $('view');
   const renderer = new Renderer(canvas, app);
-  new Interaction(canvas, renderer, app);
   let view3d = null;
   let mode = '2d';
+  let fitPending = true;
 
-  // --- panels --------------------------------------------------------------
-  let presetsView = null;
+  // --- panels & dialogs ------------------------------------------------------
+  const fontDialog = new FontDialog($('font-dialog'), app);
   const left = buildLeftPanel($('panel-left'), app, {
-    onPresetsSection: (body) => {
-      presetsView = new PresetsView(app, body, () => renderer.colors);
-    },
+    onPresetsSection: (body) => new PresetsView(app, body),
+    openFontDialog: (id) => fontDialog.open(id),
   });
-  const mods = new ModifiersPanel(app);
-  const right = buildRightPanel($('panel-right'), app, { modifiersSection: mods.el });
-
-  const refreshPanels = () => {
-    left.refresh();
-    right.refresh();
-    mods.refresh();
-  };
+  const right = buildRightPanel($('panel-right'), app);
+  const exportDialog = new ExportDialog($('export-dialog'), app);
 
   // --- events ----------------------------------------------------------------
-  app.on('doc', refreshPanels);
-  app.on('image', refreshPanels);
-  app.on('analysis', () => {
+  app.on('doc', () => {
+    left.refresh();
     right.refresh();
-    renderer.requestDraw();
-    updateStatus();
   });
-  app.on('result', () => {
+  app.on('model', () => {
+    // Fit views once the new design is complete (fonts loaded).
+    if (fitPending && app.model && !app.model.pending) {
+      fitPending = false;
+      renderer.fit();
+      if (view3d) view3d.resetCamera();
+    }
+    right.refresh();
     renderer.requestDraw();
     updateStatus();
     if (view3d && mode === '3d') view3d.update();
   });
-  app.on('selection', () => {
-    updateHint();
-    renderer.requestDraw();
+  app.on('selection', () => renderer.requestDraw());
+  // A text was added or removed: show the whole design again.
+  app.on('structure', () => {
+    fitPending = true;
   });
+  app.on('fonts', updateStatus);
   app.on('history', () => {
     $('btn-undo').disabled = !app.history.canUndo;
     $('btn-redo').disabled = !app.history.canRedo;
   });
   app.on('fit', () => {
-    renderer.fit();
-    if (view3d) view3d.resetCamera();
+    fitPending = true;
   });
 
   const toastEl = $('toast');
@@ -102,54 +109,37 @@ async function main() {
     toastEl.textContent = msg;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
   });
 
   // --- status bar & hint -------------------------------------------------------
   const statusEl = $('status');
   function updateStatus() {
-    const r = app.result;
-    if (!r) return;
-    const a = app.analysis;
-    const { width: W, height: H } = app.doc.canvas;
-    const mode = app.doc.relief.mode;
-    const parts = [
-      r.wrap
-        ? `<span title="Außendurchmesser × Höhe, Umfang ${de(W, 1)} mm">Zylinder <b>Ø ${de(W / Math.PI, 1)} × ${de(H, 1)} mm</b></span>`
-        : `<span title="Arbeitsfläche">Fläche <b>${de(W, 2)} × ${de(H, 2)} mm</b></span>`,
-      `<span>${featureNames(mode)[1]} <b>${r.stats.count.toLocaleString('de-DE')}</b></span>`,
-      mode === 'cut'
-        ? `<span title="Anteil der Lochfläche an der Plattenfläche">Offene Fläche <b>${de(r.stats.ratio * 100, 1)} %</b></span>`
-        : `<span title="Anteil der Formen an der Plattenfläche">Flächenanteil <b>${de(r.stats.ratio * 100, 1)} %</b></span>`,
-    ];
-    if (a && Number.isFinite(a.minWeb)) {
-      const cls = a.overlap ? 'danger' : a.thin ? 'warn' : 'ok';
-      const txt = a.minWeb < 0 ? 'Überlappung' : `${de(a.minWeb, 2)} mm`;
-      parts.push(`<span class="${cls}" title="Schmalster Abstand zwischen zwei Formen">Steg min <b>${txt}</b></span>`);
-    }
-    if (Number.isFinite(r.stats.minRim)) parts.push(`<span title="Kleinster Abstand zum Rand">Rand min <b>${de(r.stats.minRim, 1)} mm</b></span>`);
-    if (a && a.overlap) parts.push(`<span class="danger">${a.overlap} überlappen</span>`);
-    else if (a && a.thin) parts.push(`<span class="warn">${a.thin} zu dünn</span>`);
+    const m = app.model;
+    if (!m) return;
+    const s = m.stats;
+    const parts = [];
+    if (app.loading.size) parts.push('<span class="warn">Schrift wird geladen …</span>');
+    parts.push(`<span title="Außenmaße">Größe <b>${de(s.width)} × ${de(s.height)} mm</b></span>`);
+    parts.push(`<span title="Gesamthöhe">Höhe <b>${de(s.top, 2)} mm</b></span>`);
+    if (m.base.length) parts.push(`<span>Schrift <b>${RELIEF_NAMES[m.relief]}</b></span>`);
+    parts.push(`<span title="Gewicht bei PLA (1,24 g/cm³), massiv">≈ <b>${de(s.grams)} g</b></span>`);
+    if (s.thinCount) parts.push(`<span class="warn" title="Striche dünner als die Mindest-Strichstärke">${s.thinCount} dünne Stelle${s.thinCount === 1 ? '' : 'n'}</span>`);
+    if (m.warnings.length) parts.push(`<span class="warn" title="${m.warnings.join(' ').replace(/"/g, '&quot;')}">${m.warnings.length} Hinweis${m.warnings.length === 1 ? '' : 'e'}</span>`);
     statusEl.innerHTML = parts.join('');
-    // Narrow screens: the status bar spans the stage width, so fit above it.
     renderer.insetBottom = statusEl.offsetWidth > renderer.width * 0.6 ? statusEl.offsetHeight + 16 : 0;
   }
 
   const hintEl = $('hint');
-  function updateHint() {
-    const m = app.selected;
-    let t = '<b>Tipp</b> Doppelklick setzt einen Punkt-Attraktor · Mausrad zoomt · Ziehen verschiebt die Ansicht';
-    if (m && m.type === 'point') t = '<b>Punkt</b> ziehen: verschieben · Ring ziehen oder Mausrad über dem Punkt: Radius · Entf: löschen';
-    else if (m && m.type === 'line') t = '<b>Linie</b> Punkte ziehen · Mausrad über der Linie: Radius · <b>Rechtsklick</b>: Gerade ⇄ Kurve';
-    else if (m && m.type === 'linear') t = '<b>Verlauf</b> Start- und Endpunkt ziehen, um Richtung und Länge festzulegen';
-    hintEl.innerHTML = t;
-  }
-  updateHint();
+  hintEl.innerHTML = '<b>Tipp</b> Text mit der Maus verschieben · Mausrad zoomt · Ziehen im Leeren verschiebt die Ansicht';
 
   // --- toolbar actions ---------------------------------------------------------
   $('btn-undo').addEventListener('click', () => app.undo());
   $('btn-redo').addEventListener('click', () => app.redo());
-  $('btn-fit').addEventListener('click', () => app.emit('fit'));
+  $('btn-fit').addEventListener('click', () => {
+    renderer.fit();
+    if (view3d) view3d.resetCamera();
+  });
   $('btn-zoom-in').addEventListener('click', () => renderer.zoomAt(renderer.width / 2, renderer.height / 2, 1.25));
   $('btn-zoom-out').addEventListener('click', () => renderer.zoomAt(renderer.width / 2, renderer.height / 2, 0.8));
   $('btn-theme').addEventListener('click', () => {
@@ -157,27 +147,23 @@ async function main() {
     document.documentElement.dataset.theme = next;
     try {
       localStorage.setItem('3d-druck.theme', next);
-      localStorage.removeItem('muster-generator.theme');
     } catch {
       /* ignore */
     }
     setThemeIcon();
     renderer.readColors();
-    renderer._cache = null;
     renderer.draw();
     if (view3d) view3d.updateTheme();
-    if (presetsView) presetsView.drawAll();
   });
   $('btn-help').addEventListener('click', () => showHelp($('help-dialog')));
-  const exportDialog = new ExportDialog($('export-dialog'), app);
   $('btn-export').addEventListener('click', () => exportDialog.open());
 
   $('btn-share').addEventListener('click', async () => {
-    const hash = await encodeDoc(app.doc);
+    const hash = await encodeDoc(app.doc, 't');
     const url = `${location.origin}${location.pathname}#${hash}`;
     try {
       await navigator.clipboard.writeText(url);
-      app.emit('toast', 'Link mit dem aktuellen Muster kopiert.');
+      app.emit('toast', 'Link mit dem aktuellen Design kopiert.');
     } catch {
       window.prompt('Link zum Teilen:', url);
     }
@@ -216,7 +202,6 @@ async function main() {
   };
   $('btn-2d').addEventListener('click', () => setMode('2d'));
   $('btn-3d').addEventListener('click', () => setMode('3d'));
-  app.on('view', (next) => setMode(next));
 
   // Mobile: switch between the two panels.
   const tabs = $('mobile-tabs');
@@ -229,7 +214,7 @@ async function main() {
     const b = e.target.closest('button');
     if (b) showTab(b.dataset.tab);
   });
-  showTab('right');
+  showTab('left');
 
   // --- keyboard ----------------------------------------------------------------
   window.addEventListener('keydown', (e) => {
@@ -246,15 +231,9 @@ async function main() {
     } else if (mod && key === 's') {
       e.preventDefault();
       exportDialog.open();
-    } else if (!mod && !isTyping()) {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && app.selectedId) {
-        e.preventDefault();
-        app.removeModifier(app.selectedId);
-      } else if (key === 'f') {
-        app.emit('fit');
-      } else if (e.key === 'Escape') {
-        app.select(null);
-      }
+    } else if (!mod && !isTyping() && key === 'f') {
+      renderer.fit();
+      if (view3d) view3d.resetCamera();
     }
   });
 
@@ -271,28 +250,17 @@ async function main() {
   });
 
   // --- initial document ------------------------------------------------------------
-  const shared = await decodeHash(location.hash);
+  const shared = await decodeHash(location.hash, 't');
   if (shared) {
     app.load(shared);
     history.replaceState(null, '', location.pathname + location.search);
-    app.emit('toast', 'Geteiltes Muster geladen.');
+    app.emit('toast', 'Geteiltes Design geladen.');
   } else {
     const saved = app.restoreSaved();
-    if (saved) app.load(saved);
+    app.load(saved || structuredClone(BUILTIN_PRESETS[0]));
   }
-  app.flush();
   renderer.resize();
-  renderer.fit();
   app.emit('history');
-
-  const imgUrl = app.savedImageUrl();
-  if (imgUrl) {
-    try {
-      app.setImage(await createImage(imgUrl, () => app.doc, 'Hintergrundbild'), { persist: false });
-    } catch {
-      /* ignore broken image */
-    }
-  }
 }
 
 main().catch((err) => {

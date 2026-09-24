@@ -2,9 +2,9 @@
 // shapes are either cut through the plate or become raised / recessed
 // relief, optionally with sloped flanks.
 
-import earcut from '../../vendor/earcut.js';
-import Delaunator from '../../vendor/delaunator.js';
-import Constrainautor from '../../vendor/constrainautor.js';
+import earcut from '../../../shared/vendor/earcut.js';
+import Delaunator from '../../../shared/vendor/delaunator.js';
+import Constrainautor from '../../../shared/vendor/constrainautor.js';
 import { polygonize } from '../core/shapes.js';
 import { reliefParams } from '../core/relief.js';
 

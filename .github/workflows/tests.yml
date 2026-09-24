@@ -44,3 +44,32 @@ jobs:
         run: node MusterGenerator/tests/tools/generate-exports.mjs build/exports
       - name: DXF, STEP, STL und SVG validieren
         run: python MusterGenerator/tests/tools/validate_exports.py build/exports
+
+  text-unit:
+    name: Text-Generator – Unit-Tests (Schrift, Geometrie, Netze, 3MF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: JavaScript-Tests
+        run: node --test "Text-Generator/tests/*.test.mjs"
+
+  text-exports:
+    name: Text-Generator – 3MF mit lib3mf prüfen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prüfwerkzeug installieren
+        run: pip install lib3mf
+      - name: Beispiel-Exporte erzeugen
+        run: node Text-Generator/tests/tools/generate-exports.mjs build/text-exports
+      - name: 3MF (lib3mf, strikt) und STL prüfen
+        run: python Text-Generator/tests/tools/validate_exports.py build/text-exports

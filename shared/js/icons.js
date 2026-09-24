@@ -39,6 +39,19 @@ const P = {
   shape: '<rect x="3" y="9" width="18" height="6" rx="3"/>',
   grid: '<circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/>',
   fusion: '<path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6"/>',
+  text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+  font: '<path d="M4 19 9.5 5h1L16 19M6.3 14h7.4"/><path d="M17 19v-6.5a2.5 2.5 0 0 1 5 0V19M17 16h5"/>',
+  shapeContour: '<path d="M4 13c0-3 2-5 4.5-5S11 9 12 7s3-3 5-2 3 3 3 5-1 3-1 4 1 2 0 3-3 2-5 1-3-1-5 0-4 1-5-1-1-3-1-4z"/>',
+  shapeRect: '<rect x="3" y="7" width="18" height="10" rx="2.5"/>',
+  shapeCapsule: '<rect x="3" y="7" width="18" height="10" rx="5"/>',
+  shapeOval: '<ellipse cx="12" cy="12" rx="9" ry="6"/>',
+  shapeCircle: '<circle cx="12" cy="12" r="8"/>',
+  shapeNone: '<path d="M6 17 9.5 7h1L14 17M7 14h6"/><path d="M4 4l16 16" opacity=".5"/>',
+  ring: '<circle cx="8" cy="12" r="3.2"/><path d="M11 9.5h9v5h-9"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2s-1-1.5-1-2.5 1-2 2.5-2H18a3 3 0 0 0 3-3c0-4.5-4-8.5-9-8.5z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10" cy="7" r="1.2" fill="currentColor"/><circle cx="15" cy="7.5" r="1.2" fill="currentColor"/>',
+  alignLeft: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+  alignCenter: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
+  alignRight: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
 };
 
 export function icon(name, cls = '') {

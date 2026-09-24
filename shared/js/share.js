@@ -1,4 +1,5 @@
-// Share links: the document is compressed into the URL hash (#m=...).
+// Share links: the document is compressed into the URL hash (#m=… for the
+// Muster-Generator, #t=… for the Text-Generator).
 
 function toBase64Url(bytes) {
   let bin = '';
@@ -20,18 +21,18 @@ async function pipe(bytes, stream) {
 }
 
 /** Document -> URL hash fragment (without '#'). */
-export async function encodeDoc(doc) {
+export async function encodeDoc(doc, key = 'm') {
   const json = new TextEncoder().encode(JSON.stringify(doc));
   if (typeof CompressionStream === 'function') {
     const packed = await pipe(json, new CompressionStream('deflate-raw'));
-    return `m=z${toBase64Url(packed)}`;
+    return `${key}=z${toBase64Url(packed)}`;
   }
-  return `m=j${toBase64Url(json)}`;
+  return `${key}=j${toBase64Url(json)}`;
 }
 
 /** URL hash -> document (or null). */
-export async function decodeHash(hash) {
-  const m = /(?:^#?|&)m=([zj])([A-Za-z0-9_-]+)/.exec(hash || '');
+export async function decodeHash(hash, key = 'm') {
+  const m = new RegExp(`(?:^#?|&)${key}=([zj])([A-Za-z0-9_-]+)`).exec(hash || '');
   if (!m) return null;
   try {
     let bytes = fromBase64Url(m[2]);

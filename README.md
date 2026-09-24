@@ -9,6 +9,7 @@ Web-Tools, die mühsame Handarbeit beim Konstruieren für den 3D-Druck ersetzen 
 | Werkzeug | Was es macht | Online | Anleitung |
 | --- | --- | --- | --- |
 | **Muster-Generator** | Lochmuster, Rippen, Noppen, Rändelungen und QR-Codes – auf Platten oder nahtlos rundherum auf Zylindern. Export als DXF, STEP, STL, SVG, PNG und Fusion-360-Skript. | [Öffnen](https://flog93.github.io/3D-Druck/MusterGenerator/) | [MusterGenerator](MusterGenerator/README.md) |
+| **Text-Generator** | Schlüsselanhänger, Namens-, Tür- und Kofferschilder: jede Google-Schrift, Kontur- oder Rechteckplatte, Öse, Rand, Schrift erhaben, vertieft oder bündig. 3MF für Bambu Studio mit AMS-Zuordnung, STL, SVG. | [Öffnen](https://flog93.github.io/3D-Druck/Text-Generator/) | [Text-Generator](Text-Generator/README.md) |
 
 [![Muster-Generator – 2D-Ansicht mit Wirbel-Muster](MusterGenerator/docs/screenshot.png)](https://flog93.github.io/3D-Druck/MusterGenerator/)
 
@@ -24,7 +25,8 @@ MusterGenerator/        Muster-Generator
   tests/                Tests (Node + Python)
   docs/                 Bilder für die Anleitung
   README.md             Anleitung
-shared/                 Gemeinsamer Code: Design, Bedienelemente, Symbole (→ shared/README.md)
+Text-Generator/         Text-Generator (gleicher Aufbau, Schriften in fonts/)
+shared/                 Gemeinsamer Code: Design, Bedienelemente, Symbole, Triangulierung (→ shared/README.md)
 .github/workflows/      Tests (tests.yml) und Veröffentlichung (pages.yml)
 package.json            npm start / npm test
 ```
@@ -38,10 +40,10 @@ Veröffentlicht wird nach festen Regeln ([`pages.yml`](.github/workflows/pages.y
 
 ### Neues Werkzeug hinzufügen
 
-1. Ordner anlegen, z. B. `TextGenerator/`, mit einer `index.html` (reines HTML/CSS/JavaScript, nur relative Pfade). Design und Bedienelemente kommen aus `shared/` (`../shared/css/ui.css`, `../../shared/js/controls.js` …).
+1. Ordner anlegen, z. B. `Neues-Werkzeug/`, mit einer `index.html` (reines HTML/CSS/JavaScript, nur relative Pfade). Design und Bedienelemente kommen aus `shared/` (`../shared/css/ui.css`, `../../shared/js/controls.js` …).
 2. Auf der Übersichtsseite (`index.html`) eine Karte ergänzen.
-3. Tests in `TextGenerator/tests/` ablegen und in [`tests.yml`](.github/workflows/tests.yml) und `package.json` eintragen.
-4. Alle Werkzeuge teilen sich den Browser-Speicher: eigene Schlüssel mit dem Werkzeugnamen beginnen (`text-generator.…`). Hell/Dunkel steht für alle in `3d-druck.theme`.
+3. Tests in `Neues-Werkzeug/tests/` ablegen und in [`tests.yml`](.github/workflows/tests.yml) und `package.json` eintragen.
+4. Alle Werkzeuge teilen sich den Browser-Speicher: eigene Schlüssel mit dem Werkzeugnamen beginnen (z. B. `text-generator.…`). Hell/Dunkel steht für alle in `3d-druck.theme`.
 
 ## GitHub Pages einrichten (einmalig)
 

@@ -2,12 +2,14 @@
   "name": "3d-druck",
   "private": true,
   "type": "module",
-  "description": "3D-Druck-Werkzeuge: Web-Tools für Fusion 360 und den 3D-Druck (Muster-Generator …)",
+  "description": "3D-Druck-Werkzeuge: Muster-Generator und Text-Generator – Web-Tools für Fusion 360 und den 3D-Druck",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "test": "npm run test:muster",
+    "test": "npm run test:muster && npm run test:text",
     "test:muster": "node --test \"MusterGenerator/tests/*.test.mjs\" && python3 MusterGenerator/tests/test_fusion_script.py",
-    "validate:muster": "node MusterGenerator/tests/tools/generate-exports.mjs build/exports && python3 MusterGenerator/tests/tools/validate_exports.py build/exports"
+    "test:text": "node --test \"Text-Generator/tests/*.test.mjs\"",
+    "validate:muster": "node MusterGenerator/tests/tools/generate-exports.mjs build/exports && python3 MusterGenerator/tests/tools/validate_exports.py build/exports",
+    "validate:text": "node Text-Generator/tests/tools/generate-exports.mjs build/text-exports && python3 Text-Generator/tests/tools/validate_exports.py build/text-exports"
   },
   "engines": {
     "node": ">=22"

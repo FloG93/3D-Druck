@@ -9,7 +9,7 @@ import { exportSTEP } from '../js/export/step.js';
 import { exportFusionJSON } from '../js/export/fusion.js';
 import { buildPlateMesh, buildTubeMesh, toBinarySTL, insetConvex } from '../js/export/mesh.js';
 import { polygonize } from '../js/core/shapes.js';
-import { encodeDoc, decodeHash } from '../js/ui/share.js';
+import { encodeDoc, decodeHash } from '../../shared/js/share.js';
 import { withKnurl } from '../js/core/knurl.js';
 
 const CASES = {

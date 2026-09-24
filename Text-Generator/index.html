@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Text-Generator</title>
+  <meta name="description" content="Schlüsselanhänger, Namens- und Türschilder mit Text für den 3D-Druck: jede Google-Schrift, Kontur- oder Rechteckplatte, Öse, Rand, erhabene, vertiefte oder bündige Schrift. Export als 3MF für Bambu Studio (mehrfarbig mit AMS), STL und SVG.">
+  <meta name="theme-color" content="#121316">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../shared/css/ui.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Apply the saved theme (shared by all tools) before first paint.
+    try {
+      const t = localStorage.getItem('3d-druck.theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) { /* ignore */ }
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <a class="brand" href="../" title="Übersicht aller 3D-Druck-Werkzeuge">
+        <span id="logo"></span>
+        <span class="brand-name">Text-Generator</span>
+        <span class="brand-sub">Schilder &amp; Anhänger für den 3D-Druck</span>
+      </a>
+      <div class="toolbar" role="toolbar" aria-label="Werkzeuge">
+        <button type="button" class="tool" id="btn-undo" title="Rückgängig (Strg+Z)"></button>
+        <button type="button" class="tool" id="btn-redo" title="Wiederholen (Strg+Y)"></button>
+        <span class="sep"></span>
+        <button type="button" class="tool" id="btn-fit" title="Ansicht einpassen (F)"></button>
+        <div class="view-switch" role="group" aria-label="Ansicht">
+          <button type="button" class="tool active" id="btn-2d" title="2D-Ansicht"></button>
+          <button type="button" class="tool" id="btn-3d" title="3D-Vorschau"></button>
+        </div>
+        <span class="sep"></span>
+        <button type="button" class="tool" id="btn-share" title="Link zum Teilen kopieren"></button>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="tool" id="btn-theme" title="Hell/Dunkel umschalten"></button>
+        <button type="button" class="tool" id="btn-help" title="Hilfe"></button>
+        <button type="button" class="btn primary" id="btn-export"></button>
+      </div>
+    </header>
+
+    <aside class="panel panel-left" id="panel-left" aria-label="Text"></aside>
+
+    <main class="stage" id="stage">
+      <canvas id="view" aria-label="Vorschau"></canvas>
+      <div class="view3d" id="view3d" hidden></div>
+      <div class="hint" id="hint"></div>
+      <div class="zoom-tools">
+        <button type="button" class="tool small" id="btn-zoom-in" title="Vergrößern">+</button>
+        <button type="button" class="tool small" id="btn-zoom-out" title="Verkleinern">−</button>
+      </div>
+      <footer class="statusbar" id="status" aria-live="polite"></footer>
+    </main>
+
+    <aside class="panel panel-right" id="panel-right" aria-label="Form und Körper"></aside>
+
+    <nav class="mobile-tabs" id="mobile-tabs" aria-label="Bereiche">
+      <button type="button" data-tab="left" class="active">Text</button>
+      <button type="button" data-tab="right">Form &amp; 3D</button>
+    </nav>
+  </div>
+
+  <dialog id="export-dialog" class="dialog"></dialog>
+  <dialog id="help-dialog" class="dialog help"></dialog>
+  <dialog id="font-dialog" class="dialog font-dialog"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">Der Text-Generator benötigt JavaScript.</p></noscript>
+</body>
+</html>
