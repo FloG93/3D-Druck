@@ -9,9 +9,9 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/app.css">
   <script>
-    // Apply the saved theme before first paint.
+    // Apply the saved theme (shared by all tools) before first paint.
     try {
-      const t = localStorage.getItem('muster-generator.theme');
+      const t = localStorage.getItem('3d-druck.theme') || localStorage.getItem('muster-generator.theme');
       if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
     } catch (e) { /* ignore */ }
   </script>
@@ -28,11 +28,11 @@
 <body>
   <div class="app" id="app">
     <header class="topbar">
-      <div class="brand">
+      <a class="brand" href="../" title="Übersicht aller 3D-Druck-Werkzeuge">
         <span id="logo"></span>
         <span class="brand-name">Muster-Generator</span>
         <span class="brand-sub">für Fusion 360 &amp; 3D-Druck</span>
-      </div>
+      </a>
       <div class="toolbar" role="toolbar" aria-label="Werkzeuge">
         <button type="button" class="tool" id="btn-undo" title="Rückgängig (Strg+Z)"></button>
         <button type="button" class="tool" id="btn-redo" title="Wiederholen (Strg+Y)"></button>

@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { defaultDoc, normalizeDoc } from '../pattern-generator/js/core/document.js';
-import { generate } from '../pattern-generator/js/core/generator.js';
-import { exportDXF } from '../pattern-generator/js/export/dxf.js';
-import { exportSVG } from '../pattern-generator/js/export/svg.js';
-import { exportSTEP } from '../pattern-generator/js/export/step.js';
-import { exportFusionJSON } from '../pattern-generator/js/export/fusion.js';
-import { buildPlateMesh, buildTubeMesh, toBinarySTL, insetConvex } from '../pattern-generator/js/export/mesh.js';
-import { polygonize } from '../pattern-generator/js/core/shapes.js';
-import { encodeDoc, decodeHash } from '../pattern-generator/js/ui/share.js';
-import { withKnurl } from '../pattern-generator/js/core/knurl.js';
+import { defaultDoc, normalizeDoc } from '../js/core/document.js';
+import { generate } from '../js/core/generator.js';
+import { exportDXF } from '../js/export/dxf.js';
+import { exportSVG } from '../js/export/svg.js';
+import { exportSTEP } from '../js/export/step.js';
+import { exportFusionJSON } from '../js/export/fusion.js';
+import { buildPlateMesh, buildTubeMesh, toBinarySTL, insetConvex } from '../js/export/mesh.js';
+import { polygonize } from '../js/core/shapes.js';
+import { encodeDoc, decodeHash } from '../js/ui/share.js';
+import { withKnurl } from '../js/core/knurl.js';
 
 const CASES = {
   slots: defaultDoc(),

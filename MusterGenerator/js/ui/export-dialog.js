@@ -12,7 +12,7 @@ import { exportPNG } from '../export/png.js';
 import { translateOutline, originOffset } from '../export/common.js';
 import { featureNames, reliefParams, MAX_TAPER } from '../core/relief.js';
 
-const REPO = 'https://github.com/FloG93/3D-Druck';
+const SOURCE = 'https://github.com/FloG93/3D-Druck/tree/HEAD/MusterGenerator';
 const SCRIPT_ZIP = 'fusion/MusterImport.zip';
 
 const FORMATS = [
@@ -35,7 +35,7 @@ const INFO = {
     <i>Ändern → Kombinieren</i>: Zielkörper = Platte, Werkzeugkörper = alle Form-Körper, Vorgang <b>Ausschneiden</b> (Durchbrüche, vertieft) bzw. <b>Verbinden</b> (erhaben).<br>
     <b>Platte:</b> die fertige Platte als ein Volumenkörper – mit Löchern oder Relief, wie unter „Körper (3D)“ eingestellt.`,
   fusion: `<b>Einmalig installieren:</b> <a href="${SCRIPT_ZIP}" download>MusterImport.zip herunterladen</a> und entpacken
-    (Quelle: <a href="${REPO}/tree/HEAD/fusion360/MusterImport" target="_blank" rel="noopener">GitHub</a>). In Fusion 360:
+    (Quelle: <a href="${SOURCE}/fusion360/MusterImport" target="_blank" rel="noopener">GitHub</a>). In Fusion 360:
     <i>Dienstprogramme → Add-Ins → Skripte und Add-Ins</i> → „+“ → Ordner <b>MusterImport</b> wählen.<ol>
     <li>Skript ausführen und diese JSON-Datei wählen.</li>
     <li>Ebene Fläche (z. B. Deckel) oder Konstruktionsebene anklicken, Drehung/Versatz und Vorgang wählen.</li>

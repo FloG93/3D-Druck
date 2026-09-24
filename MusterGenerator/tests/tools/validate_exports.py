@@ -7,7 +7,7 @@ plate with raised / recessed relief. STL: closed 2-manifold and plausible
 volume, also for relief (the recessed one with sloped flanks). QR codes: the
 exported module outlines are rendered and must decode to the original text.
 
-Usage: python tests/tools/validate_exports.py <folder>
+Usage: python MusterGenerator/tests/tools/validate_exports.py <folder>
        (pip install ezdxf cadquery-ocp zxing-cpp pillow)
 """
 import json, math, struct, sys, os

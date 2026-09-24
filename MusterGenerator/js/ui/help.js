@@ -2,7 +2,7 @@
 
 import { icon } from './icons.js';
 
-const REPO_URL = 'https://github.com/FloG93/3D-Druck';
+const SOURCE_URL = 'https://github.com/FloG93/3D-Druck/tree/HEAD/MusterGenerator';
 
 const HTML = `
 <div class="dialog-inner">
@@ -53,7 +53,8 @@ const HTML = `
 
     <h3>Speichern</h3>
     <p>Das aktuelle Muster wird automatisch im Browser gespeichert. Eigene Vorlagen, Projektdateien (JSON) und der Teilen-Link <span class="inline-icon">${icon('link')}</span> sichern oder übertragen ein Muster.</p>
-    <p>Quelltext, Fusion-Skript und Anleitung: <a href="${REPO_URL}" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}</a></p>
+    <p>Quelltext, Fusion-Skript und Anleitung: <a href="${SOURCE_URL}" target="_blank" rel="noopener">github.com/FloG93/3D-Druck</a> (Ordner <i>MusterGenerator</i>).
+      Weitere Werkzeuge: <a href="../">Übersicht 3D-Druck-Werkzeuge</a>.</p>
   </div>
 </div>`;
 

@@ -1,15 +1,15 @@
 // Writes DXF/SVG/STEP/Fusion-JSON/STL exports of several test patterns into a
 // folder for validation with tests/tools/validate_exports.py (ezdxf, OpenCascade).
-// Usage: node tests/tools/generate-exports.mjs <folder>
+// Usage: node MusterGenerator/tests/tools/generate-exports.mjs <folder>
 import fs from 'node:fs';
-import { defaultDoc, normalizeDoc } from '../../pattern-generator/js/core/document.js';
-import { generate } from '../../pattern-generator/js/core/generator.js';
-import { exportDXF } from '../../pattern-generator/js/export/dxf.js';
-import { exportSVG } from '../../pattern-generator/js/export/svg.js';
-import { exportSTEP } from '../../pattern-generator/js/export/step.js';
-import { exportFusionJSON } from '../../pattern-generator/js/export/fusion.js';
-import { buildPlateMesh, buildTubeMesh, toBinarySTL } from '../../pattern-generator/js/export/mesh.js';
-import { polygonize } from '../../pattern-generator/js/core/shapes.js';
+import { defaultDoc, normalizeDoc } from '../../js/core/document.js';
+import { generate } from '../../js/core/generator.js';
+import { exportDXF } from '../../js/export/dxf.js';
+import { exportSVG } from '../../js/export/svg.js';
+import { exportSTEP } from '../../js/export/step.js';
+import { exportFusionJSON } from '../../js/export/fusion.js';
+import { buildPlateMesh, buildTubeMesh, toBinarySTL } from '../../js/export/mesh.js';
+import { polygonize } from '../../js/core/shapes.js';
 const OUT = process.argv[2] || 'build/exports';
 fs.mkdirSync(OUT, { recursive: true });
 const cases = {

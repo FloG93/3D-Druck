@@ -5,4 +5,4 @@ __pycache__/
 *.pyc
 .DS_Store
 # Fusion 360 script settings (last folder/options) are per user
-fusion360/MusterImport/settings.json
+**/fusion360/*/settings.json

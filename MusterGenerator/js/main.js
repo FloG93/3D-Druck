@@ -153,7 +153,8 @@ async function main() {
     const next = currentTheme() === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     try {
-      localStorage.setItem('muster-generator.theme', next);
+      localStorage.setItem('3d-druck.theme', next);
+      localStorage.removeItem('muster-generator.theme');
     } catch {
       /* ignore */
     }

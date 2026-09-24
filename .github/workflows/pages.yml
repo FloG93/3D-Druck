@@ -1,6 +1,8 @@
 name: GitHub Pages
 
-# Veröffentlicht den Muster-Generator bei jedem Push auf den Standard-Branch.
+# Veröffentlicht die Übersichtsseite und alle Werkzeuge bei jedem Push auf den
+# Standard-Branch: index.html → /3D-Druck/, jeder Ordner mit einer index.html
+# (z. B. MusterGenerator/) → /3D-Druck/<Ordner>/.
 # Einmalig nötig: Settings → Pages → Build and deployment → Source: "GitHub Actions".
 
 on:
@@ -40,10 +42,25 @@ jobs:
       - name: Seite zusammenstellen
         if: steps.pages.outputs.enabled == 'true'
         run: |
-          mkdir -p _site/fusion
-          cp -r pattern-generator/. _site/
-          cd fusion360
-          zip -r ../_site/fusion/MusterImport.zip MusterImport -x '*/settings.json' '*/__pycache__/*'
+          mkdir -p _site
+          cp index.html _site/
+          for dir in */; do
+            tool="${dir%/}"
+            [ "$tool" != _site ] && [ -f "$tool/index.html" ] || continue
+            # Nicht auf die Seite: Tests, Doku-Bilder, Quellen der Fusion-Skripte.
+            cp -r "$tool" "_site/$tool"
+            rm -rf "_site/$tool/tests" "_site/$tool/docs" "_site/$tool/fusion360" "_site/$tool/README.md"
+            # Fusion-Skripte (fusion360/<Name>/) als fusion/<Name>.zip zum Herunterladen.
+            if [ -d "$tool/fusion360" ]; then
+              mkdir -p "_site/$tool/fusion"
+              for script in "$tool"/fusion360/*/; do
+                [ -d "$script" ] || continue
+                name="$(basename "$script")"
+                (cd "$tool/fusion360" && zip -qr "$GITHUB_WORKSPACE/_site/$tool/fusion/$name.zip" "$name" -x '*/settings.json' '*/__pycache__/*')
+              done
+            fi
+            echo "Veröffentlicht: /$tool/"
+          done
       - uses: actions/configure-pages@v5
         if: steps.pages.outputs.enabled == 'true'
       - uses: actions/upload-pages-artifact@v3

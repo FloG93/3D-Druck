@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildHole, outlineArea, polygonize, shapePeriod } from '../pattern-generator/js/core/shapes.js';
-import { makeBoundary, makeBandBoundary, ellipseSdf } from '../pattern-generator/js/core/boundary.js';
-import { makeLattice, wrapX } from '../pattern-generator/js/core/lattice.js';
-import { prepareModifiers } from '../pattern-generator/js/core/modifiers.js';
-import { generate, seamGhosts } from '../pattern-generator/js/core/generator.js';
-import { analyzeWebs, holeGap } from '../pattern-generator/js/core/analysis.js';
-import { defaultDoc, normalizeDoc, createModifier } from '../pattern-generator/js/core/document.js';
-import { BUILTIN_PRESETS } from '../pattern-generator/js/core/preset-library.js';
-import { knurlSettings, withKnurl, twistsShapes } from '../pattern-generator/js/core/knurl.js';
-import { qrMatrix } from '../pattern-generator/js/core/qr.js';
+import { buildHole, outlineArea, polygonize, shapePeriod } from '../js/core/shapes.js';
+import { makeBoundary, makeBandBoundary, ellipseSdf } from '../js/core/boundary.js';
+import { makeLattice, wrapX } from '../js/core/lattice.js';
+import { prepareModifiers } from '../js/core/modifiers.js';
+import { generate, seamGhosts } from '../js/core/generator.js';
+import { analyzeWebs, holeGap } from '../js/core/analysis.js';
+import { defaultDoc, normalizeDoc, createModifier } from '../js/core/document.js';
+import { BUILTIN_PRESETS } from '../js/core/preset-library.js';
+import { knurlSettings, withKnurl, twistsShapes } from '../js/core/knurl.js';
+import { qrMatrix } from '../js/core/qr.js';
 
 const close = (a, b, eps = 1e-9, msg = '') => assert.ok(Math.abs(a - b) <= eps, `${msg} expected ${b}, got ${a}`);
 

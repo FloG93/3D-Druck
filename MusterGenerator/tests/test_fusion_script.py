@@ -5,7 +5,7 @@ checks the script's own logic: loops are closed through shared sketch points,
 geometry lands where the web app put it (cm, centred on the face), profiles
 are filtered and the extrusion is configured as chosen.
 
-Run: python3 tests/test_fusion_script.py   (needs node for the fixtures)
+Run: python3 MusterGenerator/tests/test_fusion_script.py   (needs node for the fixtures)
 """
 
 import importlib.util
@@ -18,6 +18,7 @@ import tempfile
 import types
 import unittest
 
+# The tool folder (MusterGenerator/): web app in js/, the script in fusion360/.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, 'fusion360', 'MusterImport', 'MusterImport.py')
 
@@ -282,9 +283,9 @@ def load_script():
 def make_fixtures(folder):
     code = r"""
 import fs from 'node:fs';
-import { normalizeDoc, defaultDoc } from './pattern-generator/js/core/document.js';
-import { generate } from './pattern-generator/js/core/generator.js';
-import { exportFusionJSON } from './pattern-generator/js/export/fusion.js';
+import { normalizeDoc, defaultDoc } from './js/core/document.js';
+import { generate } from './js/core/generator.js';
+import { exportFusionJSON } from './js/export/fusion.js';
 const cases = {
   swirl: defaultDoc(),
   ellipse: normalizeDoc({ canvas: {width: 60, height: 40}, shape: {type: 'ellipse', width: 6, height: 2.5}, pattern: {type: 'grid', spacingX: 9, spacingY: 6, rotation: 20} }),

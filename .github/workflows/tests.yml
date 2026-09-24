@@ -1,5 +1,7 @@
 name: Tests
 
+# Jedes Werkzeug bringt seine Tests im eigenen Ordner mit (<Werkzeug>/tests/).
+
 on:
   push:
   pull_request:
@@ -9,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  unit:
-    name: Unit-Tests (Geometrie, Exporte, Fusion-Skript)
+  muster-unit:
+    name: Muster-Generator – Unit-Tests (Geometrie, Exporte, Fusion-Skript)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,12 +23,12 @@ jobs:
         with:
           python-version: '3.12'
       - name: JavaScript-Tests
-        run: node --test "tests/*.test.mjs"
+        run: node --test "MusterGenerator/tests/*.test.mjs"
       - name: Fusion-360-Skript (mit nachgebauter API)
-        run: python tests/test_fusion_script.py
+        run: python MusterGenerator/tests/test_fusion_script.py
 
-  exports:
-    name: Exporte mit ezdxf und OpenCascade prüfen
+  muster-exports:
+    name: Muster-Generator – Exporte mit ezdxf und OpenCascade prüfen
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +41,6 @@ jobs:
       - name: Prüfwerkzeuge installieren
         run: pip install ezdxf cadquery-ocp zxing-cpp pillow
       - name: Beispiel-Exporte erzeugen
-        run: node tests/tools/generate-exports.mjs build/exports
+        run: node MusterGenerator/tests/tools/generate-exports.mjs build/exports
       - name: DXF, STEP, STL und SVG validieren
-        run: python tests/tools/validate_exports.py build/exports
+        run: python MusterGenerator/tests/tools/validate_exports.py build/exports
