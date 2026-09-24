@@ -6,7 +6,9 @@ import { Interaction, isTyping } from './ui/interaction.js';
 import { buildLeftPanel, buildRightPanel } from './ui/panels.js';
 import { ModifiersPanel } from './ui/modifiers-panel.js';
 import { PresetsView } from './ui/presets.js';
-import { icon, LOGO } from './ui/icons.js';
+import { icon } from '../../shared/js/icons.js';
+import { setStoragePrefix } from '../../shared/js/controls.js';
+import { LOGO } from './ui/logo.js';
 import { encodeDoc, decodeHash } from './ui/share.js';
 import { createImage } from './ui/image.js';
 import { ExportDialog } from './ui/export-dialog.js';
@@ -26,6 +28,7 @@ function currentTheme() {
 }
 
 async function main() {
+  setStoragePrefix('muster-generator');
   const app = new App();
   window.musterApp = app; // handy for debugging in the browser console
 

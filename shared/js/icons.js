@@ -1,4 +1,4 @@
-// Inline SVG icons (24x24, stroke based).
+// Inline SVG icons (24x24, stroke based), shared by all tools.
 
 const P = {
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
@@ -45,12 +45,3 @@ export function icon(name, cls = '') {
   const body = P[name] || P.help;
   return `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
-
-export const LOGO = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-  <rect x="2" y="2" width="28" height="28" rx="7" fill="var(--accent)"/>
-  <g fill="var(--logo-ink)">
-    <rect x="7" y="8" width="7" height="2.6" rx="1.3"/><rect x="18" y="8" width="7" height="2.6" rx="1.3"/>
-    <rect x="11.5" y="14.7" width="9" height="2.6" rx="1.3" transform="rotate(-35 16 16)"/>
-    <rect x="7" y="21.4" width="7" height="2.6" rx="1.3"/><rect x="18" y="21.4" width="7" height="2.6" rx="1.3"/>
-  </g>
-</svg>`;

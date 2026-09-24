@@ -2,8 +2,8 @@
 
 import {
   h, Panel, bindModifier, numberField, selectField, segmented, toggle, note, grid, section,
-} from './controls.js';
-import { icon } from './icons.js';
+} from '../../../shared/js/controls.js';
+import { icon } from '../../../shared/js/icons.js';
 import { MODIFIER_NAMES } from '../core/document.js';
 
 const TYPE_ICONS = { point: 'point', line: 'line', linear: 'linear', noise: 'noise', image: 'image', edge: 'edge' };

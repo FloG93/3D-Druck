@@ -11,59 +11,11 @@ import { defaultDoc, normalizeDoc, createModifier, newId } from '../core/documen
 import { generate } from '../core/generator.js';
 import { analyzeWebs } from '../core/analysis.js';
 import { clamp } from '../core/math.js';
+import { History } from '../../../shared/js/history.js';
+import { safeStorage } from '../../../shared/js/util.js';
 
 const STORAGE_DOC = 'muster-generator.doc.v1';
 const STORAGE_IMAGE = 'muster-generator.image.v1';
-
-export function safeStorage() {
-  try {
-    const s = window.localStorage;
-    const k = '__mg_test__';
-    s.setItem(k, '1');
-    s.removeItem(k);
-    return s;
-  } catch {
-    return null;
-  }
-}
-
-export class History {
-  constructor(limit = 200) {
-    this.limit = limit;
-    this.stack = [];
-    this.index = -1;
-  }
-
-  reset(snapshot) {
-    this.stack = [snapshot];
-    this.index = 0;
-  }
-
-  push(snapshot) {
-    if (snapshot === this.stack[this.index]) return false;
-    this.stack.length = this.index + 1;
-    this.stack.push(snapshot);
-    if (this.stack.length > this.limit) this.stack.shift();
-    this.index = this.stack.length - 1;
-    return true;
-  }
-
-  undo() {
-    return this.index > 0 ? this.stack[--this.index] : null;
-  }
-
-  redo() {
-    return this.index < this.stack.length - 1 ? this.stack[++this.index] : null;
-  }
-
-  get canUndo() {
-    return this.index > 0;
-  }
-
-  get canRedo() {
-    return this.index < this.stack.length - 1;
-  }
-}
 
 function getPath(obj, path) {
   let cur = obj;

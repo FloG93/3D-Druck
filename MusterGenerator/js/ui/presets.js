@@ -1,7 +1,8 @@
 // Built-in presets, user presets (localStorage) and project files.
 
-import { h } from './controls.js';
-import { icon } from './icons.js';
+import { h } from '../../../shared/js/controls.js';
+import { icon } from '../../../shared/js/icons.js';
+import { downloadBlob, safeName } from '../../../shared/js/util.js';
 import { normalizeDoc, newId } from '../core/document.js';
 import { BUILTIN_PRESETS } from '../core/preset-library.js';
 import { generate } from '../core/generator.js';
@@ -221,7 +222,7 @@ export class PresetsView {
     const data = { ...structuredClone(this.app.doc), generator: 'Muster-Generator' };
     if (this.app.image) data.image = { name: this.app.image.name, dataUrl: this.app.image.dataUrl };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `${safeName(this.app.doc.export.filename)}.muster.json`);
+    downloadBlob(blob, `${safeName(this.app.doc.export.filename, 'muster')}.muster.json`);
   }
 
   async openProject(input) {
@@ -241,19 +242,4 @@ export class PresetsView {
       this.app.emit('toast', `Datei konnte nicht gelesen werden: ${err.message}`);
     }
   }
-}
-
-export function safeName(name) {
-  return (name || 'muster').replace(/[^\w\-äöüÄÖÜß]+/g, '_').replace(/^_+|_+$/g, '') || 'muster';
-}
-
-export function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }

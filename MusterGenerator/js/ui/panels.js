@@ -4,7 +4,7 @@
 import {
   h, Panel, bindPath, numberField, selectField, segmented, toggle, colorField,
   buttonRow, note, grid, section, formatNumber, textField,
-} from './controls.js';
+} from '../../../shared/js/controls.js';
 import { regularPolygon } from '../core/boundary.js';
 import { MAX_TAPER } from '../core/relief.js';
 import { KNURL_DEFAULTS, knurlSettings, twistsShapes } from '../core/knurl.js';

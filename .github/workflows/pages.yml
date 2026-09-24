@@ -44,9 +44,12 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
+          # Gemeinsamer Code der Werkzeuge (Bedienelemente, Design, Bibliotheken).
+          cp -r shared _site/shared
+          rm -f _site/shared/README.md
           for dir in */; do
             tool="${dir%/}"
-            [ "$tool" != _site ] && [ -f "$tool/index.html" ] || continue
+            [ "$tool" != _site ] && [ "$tool" != shared ] && [ -f "$tool/index.html" ] || continue
             # Nicht auf die Seite: Tests, Doku-Bilder, Quellen der Fusion-Skripte.
             cp -r "$tool" "_site/$tool"
             rm -rf "_site/$tool/tests" "_site/$tool/docs" "_site/$tool/fusion360" "_site/$tool/README.md"

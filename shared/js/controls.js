@@ -1,12 +1,19 @@
-// Tiny declarative control library. Every control is bound to a getter/
-// setter pair and registers an update function with its Panel, so the whole
-// UI can be refreshed from the document after undo, presets or canvas drags.
+// Tiny declarative control library shared by all tools. Every control is
+// bound to a getter/setter pair and registers an update function with its
+// Panel, so the whole UI can be refreshed from the document after undo,
+// presets or canvas drags.
 
 import { icon } from './icons.js';
-import { clamp } from '../core/math.js';
 
 let uid = 0;
 const nextId = (p = 'c') => `${p}${++uid}`;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// Prefix for persisted UI state (e.g. which sections are open), per tool.
+let storagePrefix = 'ui';
+export function setStoragePrefix(prefix) {
+  storagePrefix = prefix;
+}
 
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
@@ -302,7 +309,7 @@ export function grid(...children) {
 
 /** Collapsible section with persisted open state. */
 export function section(title, { id, icon: ic, actions = [], open = true } = {}) {
-  const key = id ? `muster-generator.section.${id}` : null;
+  const key = id ? `${storagePrefix}.section.${id}` : null;
   let isOpen = open;
   try {
     if (key && localStorage.getItem(key) !== null) isOpen = localStorage.getItem(key) === '1';

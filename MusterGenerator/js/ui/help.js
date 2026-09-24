@@ -1,6 +1,6 @@
 // Help dialog (German quick guide).
 
-import { icon } from './icons.js';
+import { icon } from '../../../shared/js/icons.js';
 
 const SOURCE_URL = 'https://github.com/FloG93/3D-Druck/tree/HEAD/MusterGenerator';
 

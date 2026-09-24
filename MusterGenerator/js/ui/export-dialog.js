@@ -1,8 +1,8 @@
 // Export dialog: format choice, options and download.
 
-import { h, Panel, numberField, segmented, toggle } from './controls.js';
-import { icon } from './icons.js';
-import { downloadBlob, safeName } from './presets.js';
+import { h, Panel, numberField, segmented, toggle } from '../../../shared/js/controls.js';
+import { icon } from '../../../shared/js/icons.js';
+import { downloadBlob, safeName } from '../../../shared/js/util.js';
 import { exportSVG } from '../export/svg.js';
 import { exportDXF } from '../export/dxf.js';
 import { exportSTEP } from '../export/step.js';
@@ -263,7 +263,7 @@ export class ExportDialog {
     const doc = app.doc;
     if (!r || !r.holes.length) return;
     const ex = doc.export;
-    const base = safeName(ex.filename);
+    const base = safeName(ex.filename, 'muster');
     const filename = `${base}${this.extension()}`;
     this.downloadBtn.disabled = true;
     const label = this.downloadBtn.querySelector('span');

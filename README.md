@@ -24,6 +24,7 @@ MusterGenerator/        Muster-Generator
   tests/                Tests (Node + Python)
   docs/                 Bilder für die Anleitung
   README.md             Anleitung
+shared/                 Gemeinsamer Code: Design, Bedienelemente, Symbole (→ shared/README.md)
 .github/workflows/      Tests (tests.yml) und Veröffentlichung (pages.yml)
 package.json            npm start / npm test
 ```
@@ -32,11 +33,12 @@ Veröffentlicht wird nach festen Regeln ([`pages.yml`](.github/workflows/pages.y
 
 - `index.html` im Hauptordner → <https://flog93.github.io/3D-Druck/>
 - jeder Ordner mit einer `index.html` → `https://flog93.github.io/3D-Druck/<Ordner>/`
+- `shared/` → `https://flog93.github.io/3D-Druck/shared/` (von den Werkzeugen per relativem Pfad eingebunden)
 - `tests/`, `docs/`, `fusion360/` und `README.md` eines Werkzeugs kommen nicht auf die Seite; jedes Skript in `fusion360/<Name>/` liegt dort als `fusion/<Name>.zip` zum Herunterladen.
 
 ### Neues Werkzeug hinzufügen
 
-1. Ordner anlegen, z. B. `TextGenerator/`, mit einer `index.html` (reines HTML/CSS/JavaScript, nur relative Pfade).
+1. Ordner anlegen, z. B. `TextGenerator/`, mit einer `index.html` (reines HTML/CSS/JavaScript, nur relative Pfade). Design und Bedienelemente kommen aus `shared/` (`../shared/css/ui.css`, `../../shared/js/controls.js` …).
 2. Auf der Übersichtsseite (`index.html`) eine Karte ergänzen.
 3. Tests in `TextGenerator/tests/` ablegen und in [`tests.yml`](.github/workflows/tests.yml) und `package.json` eintragen.
 4. Alle Werkzeuge teilen sich den Browser-Speicher: eigene Schlüssel mit dem Werkzeugnamen beginnen (`text-generator.…`). Hell/Dunkel steht für alle in `3d-druck.theme`.

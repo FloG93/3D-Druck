@@ -62,6 +62,7 @@ MusterGenerator/
                             Modifikatoren, Generator, Stegbreiten-Prüfung, Vorlagen
   js/export/                SVG, DXF, STEP, Fusion-JSON, STL/Mesh, PNG
   js/ui/                    Oberfläche, Canvas, Interaktion, Dialoge, 3D-Vorschau
+                            (Design und Bedienelemente aus ../shared/)
   vendor/                   Triangulierung (Delaunator, Constrainautor, earcut), QR-Codes (qrcode-generator)
   fusion360/MusterImport/   Fusion-360-Skript
   tests/                    Tests (Node + Python)
