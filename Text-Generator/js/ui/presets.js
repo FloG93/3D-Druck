@@ -4,7 +4,7 @@
 import { h } from '../../../shared/js/controls.js';
 import { icon } from '../../../shared/js/icons.js';
 import { downloadBlob, safeName } from '../../../shared/js/util.js';
-import { normalizeDoc } from '../core/document.js';
+import { normalizeDoc, firstLine } from '../core/document.js';
 import { buildModel } from '../core/model.js';
 import { BUILTIN_PRESETS } from '../core/presets.js';
 
@@ -139,7 +139,7 @@ export class PresetsView {
   }
 
   saveCurrent() {
-    const name = window.prompt('Name der Vorlage:', this.app.doc.texts[0]?.text.split('\n')[0] || 'Meine Vorlage');
+    const name = window.prompt('Name der Vorlage:', firstLine(this.app.doc) || 'Meine Vorlage');
     if (!name) return;
     const doc = structuredClone(this.app.doc);
     doc.name = name.slice(0, 40);

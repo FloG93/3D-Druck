@@ -10,8 +10,10 @@ import {
 } from './geometry.js';
 import { layoutBlock } from './layout.js';
 import { isSymbolLike } from './fonts.js';
+import { qrBlock, graphicBlock } from './blocks.js';
 
-export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur' };
+export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite' };
+export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
 export const RELIEF_NAMES = { raised: 'erhaben', engraved: 'vertieft', flush: 'bündig', cut: 'durchbrochen' };
 // PLA, for the weight estimate.
 export const DENSITY = 1.24;
@@ -297,8 +299,11 @@ function addMount(doc, base, warnings) {
   return result;
 }
 
-/** Magnet pockets on the back, spread along the long axis of the plate. */
-function magnetPockets(doc, base, mount, warnings) {
+/**
+ * Magnet pockets on the back, spread along the long axis of the plate and
+ * away from holes, slots and whatever is on the back (avoid: region).
+ */
+function magnetPockets(doc, base, mount, avoid, warnings) {
   const mg = doc.magnets;
   if (!mg.enabled || !base.length) return { pockets: [], centers: [] };
   const r = mg.diameter / 2;
@@ -306,39 +311,110 @@ function magnetPockets(doc, base, mount, warnings) {
   const keepOut = [
     ...mount.holes.map((h) => circleRing(h.cx, h.cy, (h.R || h.r) + r + MAGNET_WALL)),
     ...mount.slots.map((s) => offset([s], r + MAGNET_WALL)).flat(),
+    ...(avoid.length ? offset(avoid, r + MAGNET_WALL) : []),
   ];
   if (keepOut.length) allowed = difference(allowed, keepOut);
   if (!allowed.length) {
-    warnings.push('Die Magnete passen nicht in die Platte – kleiner wählen oder die Platte vergrößern.');
+    warnings.push('Die Magnete passen nicht in die Platte – kleiner wählen, die Platte vergrößern oder Platz auf der Rückseite lassen.');
     return { pockets: [], centers: [] };
   }
-  // Largest free piece, along its longer axis through the middle.
-  const piece = allowed.reduce((a, s) => (regionArea([s]) > regionArea([a]) ? s : a));
-  const bb = regionBounds([piece]);
+  // The line along the long axis with the most room: first through the
+  // middle, else a little above or below.
+  const bb = regionBounds(base);
   const horizontal = bb.maxX - bb.minX >= bb.maxY - bb.minY;
   const mid = horizontal ? (bb.minY + bb.maxY) / 2 : (bb.minX + bb.maxX) / 2;
-  const cross = horizontal ? crossingsAtY([piece], mid) : crossingsAtX([piece], mid);
-  let a = cross[0];
-  let b = cross[1];
-  for (let i = 0; i + 1 < cross.length; i += 2) {
-    if (cross[i + 1] - cross[i] > b - a) {
-      a = cross[i];
-      b = cross[i + 1];
+  const across = horizontal ? bb.maxY - bb.minY : bb.maxX - bb.minX;
+  const intervalsAt = (c) => {
+    const xs = horizontal ? crossingsAtY(allowed, c) : crossingsAtX(allowed, c);
+    const out = [];
+    for (let i = 0; i + 1 < xs.length; i += 2) out.push([xs[i], xs[i + 1]]);
+    return out;
+  };
+  const room = (iv) => iv.reduce((sum, [a, b]) => sum + b - a, 0) + iv.length * 1e-3;
+  let line = mid;
+  let intervals = intervalsAt(mid);
+  for (let k = 1; k <= 20 && !intervals.length; k++) {
+    for (const c of [mid + (k * across) / 42, mid - (k * across) / 42]) {
+      const iv = intervalsAt(c);
+      if (room(iv) > room(intervals)) {
+        intervals = iv;
+        line = c;
+      }
     }
   }
-  let n = mg.count;
+  if (!intervals.length) {
+    warnings.push('Die Magnete passen nicht in die Platte – kleiner wählen, die Platte vergrößern oder Platz auf der Rückseite lassen.');
+    return { pockets: [], centers: [] };
+  }
+  // Evenly over the whole span, each moved to the nearest free spot.
+  const lo = intervals[0][0];
+  const hi = intervals[intervals.length - 1][1];
+  const snap = (s) => {
+    let best = null;
+    for (const [a, b] of intervals) {
+      const v = Math.min(b, Math.max(a, s));
+      if (best === null || Math.abs(v - s) < Math.abs(best - s)) best = v;
+    }
+    return best;
+  };
   const pitch = 2 * r + MAGNET_WALL;
-  const fit = Math.floor((b - a) / pitch) + 1;
-  if (n > fit) {
-    warnings.push(`Nur ${fit} Magnet${fit === 1 ? '' : 'e'} passen nebeneinander in die Platte.`);
-    n = fit;
+  let n = mg.count;
+  let spots = [];
+  for (; n >= 1; n--) {
+    spots = [];
+    for (let i = 0; i < n; i++) spots.push(snap(n === 1 ? (lo + hi) / 2 : lo + ((hi - lo) * i) / (n - 1)));
+    spots.sort((a, b) => a - b);
+    if (spots.every((s, i) => i === 0 || s - spots[i - 1] >= pitch - 1e-9)) break;
   }
-  const centers = [];
-  for (let i = 0; i < n; i++) {
-    const s = n === 1 ? (a + b) / 2 : a + ((b - a) * i) / (n - 1);
-    centers.push(horizontal ? { cx: s, cy: mid, r } : { cx: mid, cy: s, r });
-  }
+  if (n < mg.count) warnings.push(`Nur ${n} Magnet${n === 1 ? '' : 'e'} passen nebeneinander in die Platte.`);
+  const centers = spots.map((s) => (horizontal ? { cx: s, cy: line, r } : { cx: line, cy: s, r }));
   return { pockets: union(centers.map((c) => circleRing(c.cx, c.cy, r))), centers };
+}
+
+/** Label of a block as in the side panel: „Text 1“, „QR-Code 2“ … */
+export function blockLabel(doc, block) {
+  return `${KIND_NAMES[block.kind] || KIND_NAMES.text} ${doc.texts.indexOf(block) + 1}`;
+}
+
+const fmt = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+
+/** Relative luminance (WCAG) of a #rrggbb colour. */
+function luminance(hex) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
+/**
+ * Region of one block in the coordinates of its side (before a back block
+ * is mirrored): { block, region, footprint, bounds, … }, null if empty,
+ * 'pending' while its font loads.
+ */
+function blockLayout(block, getFace, keepCurves, warnings, missing) {
+  if (block.kind === 'qr') {
+    const q = qrBlock(block);
+    if (q.error) {
+      warnings.push(`${KIND_NAMES.qr}: ${q.error}`);
+      return null;
+    }
+    const region = block.bold ? offset(q.region, block.bold / 2, { join: 'miter' }) : q.region;
+    return { block, region, footprint: q.footprint, bounds: regionBounds(q.footprint), qr: q };
+  }
+  if (block.kind === 'graphic') {
+    const gr = graphicBlock(block);
+    if (!gr.region.length) return null;
+    const region = block.bold ? offset(gr.region, block.bold / 2) : gr.region;
+    return { block, region, footprint: region, bounds: regionBounds(region), graphic: gr };
+  }
+  if (!block.text.trim()) return null;
+  const face = getFace(block.font);
+  if (!face) return 'pending';
+  const lay = layoutBlock(block, face, { keepCurves });
+  const region = block.bold ? offset(lay.region, block.bold / 2) : lay.region;
+  for (const ch of lay.missing) missing.add(ch);
+  const plain = [...lay.missing].filter((ch) => !isSymbolLike(ch));
+  if (plain.length) warnings.push(`In „${block.font.family}“ fehlen die Zeichen ${plain.join(' ')}.`);
+  return { block, ...lay, region, footprint: region };
 }
 
 /**
@@ -351,23 +427,27 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   const layouts = [];
   const missing = new Set();
   let pending = false;
-  let text = [];
+  const hasPlate = doc.base.shape !== 'none';
+  const MIRROR = [-1, 0, 0, 1, 0, 0];
   for (const block of doc.texts) {
-    if (!block.text.trim()) continue;
-    const face = getFace(block.font);
-    if (!face) {
+    const lay = blockLayout(block, getFace, keepCurves, warnings, missing);
+    if (lay === 'pending') {
       pending = true;
       continue;
     }
-    const lay = layoutBlock(block, face, { keepCurves });
-    let region = lay.region;
-    if (block.bold) region = offset(region, block.bold / 2);
-    for (const ch of lay.missing) missing.add(ch);
-    const plain = [...lay.missing].filter((ch) => !isSymbolLike(ch));
-    if (plain.length) warnings.push(`In „${block.font.family}“ fehlen die Zeichen ${plain.join(' ')}.`);
-    layouts.push({ block, ...lay, region });
-    text = text.length ? union(text, region) : region;
+    if (!lay) continue;
+    // The back is seen from behind: its content is mirrored into the plate.
+    lay.side = block.side === 'back' && hasPlate ? 'back' : 'front';
+    const toWorld = (r) => (lay.side === 'back' ? transformRegion(r, MIRROR) : r);
+    lay.world = toWorld(lay.region);
+    lay.worldFootprint = lay.footprint === lay.region ? lay.world : toWorld(lay.footprint);
+    layouts.push(lay);
   }
+  if (!hasPlate && doc.texts.some((b) => b.side === 'back')) warnings.push('Ohne Platte gibt es keine Rückseite – alles steht vorne.');
+  const front = layouts.filter((l) => l.side === 'front');
+  const back = layouts.filter((l) => l.side === 'back');
+  // Everything the plate has to carry (QR codes with their quiet zone).
+  const text = union(...layouts.map((l) => l.worldFootprint));
   const symbols = [...missing].filter(isSymbolLike);
   if (symbols.length) {
     warnings.push(symbolsLoading
@@ -387,7 +467,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   const mount = addMount(doc, plate0, warnings);
   let base = mount.base;
   if (base.length > 1) warnings.push(`Die Platte zerfällt in ${base.length} Teile.`);
-  const magnets = magnetPockets(doc, base, mount, warnings);
+  // Magnets keep clear of the back (a QR code there needs its quiet zone).
+  const magnets = magnetPockets(doc, base, mount, union(...back.map((l) => l.worldFootprint)), warnings);
 
   const t = body.thickness;
   const relief = base.length ? body.relief : 'raised';
@@ -417,43 +498,107 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     if (keepOut.length) area = difference(area, keepOut);
   }
 
-  // Lettering per text block; where texts overlap, the later one wins.
-  const blocks = [];
-  let above = [];
-  for (let i = layouts.length - 1; i >= 0; i--) {
-    let r = base.length ? intersection(layouts[i].region, area) : layouts[i].region;
-    if (above.length && r.length) r = difference(r, above);
-    above = above.length ? union(above, layouts[i].region) : layouts[i].region;
-    blocks.unshift({ block: layouts[i].block, region: r });
-  }
+  // Content per block, clipped to where it may go; where blocks overlap,
+  // the later one wins.
+  const clip = (list, zone) => {
+    const out = [];
+    let above = [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      let r = zone ? intersection(list[i].world, zone) : list[i].world;
+      if (above.length && r.length) r = difference(r, above);
+      above = above.length ? union(above, list[i].world) : list[i].world;
+      out.unshift({ block: list[i].block, region: r });
+    }
+    return out;
+  };
+  const blocks = clip(front, base.length ? area : null);
   let letters = union(...blocks.map((b) => b.region));
-  if (base.length && regionArea(text) - regionArea(letters) > 0.05) warnings.push('Die Schrift ragt über die Platte hinaus und wird abgeschnitten.');
+  if (base.length && regionArea(union(...front.map((l) => l.world))) - regionArea(letters) > 0.05) {
+    warnings.push('Die Schrift ragt über die Platte hinaus und wird abgeschnitten.');
+  }
 
   // Outline around the lettering (third colour).
   const useOutline = body.outline && base.length > 0 && relief !== 'engraved' && relief !== 'cut';
   let outline = useOutline && letters.length ? intersection(offset(letters, body.outlineWidth), area) : [];
 
-  // Text colour groups by AMS filament.
-  const groups = [];
-  for (const b of blocks) {
-    const slot = b.block.slot || doc.slots.text;
-    let g = groups.find((x) => x.slot === slot);
-    if (!g) {
-      const own = slot !== doc.slots.text;
-      g = {
-        slot,
-        id: own ? `text-${slot}` : 'text',
-        // Named after the first text with this filament (Bambu Studio's object list).
-        name: own ? `Text ${doc.texts.indexOf(b.block) + 1}` : PART_NAMES.text,
-        color: own && b.block.color ? b.block.color : doc.colors.text,
-        regions: [],
-      };
-      groups.push(g);
+  // Colour groups by AMS filament; own filaments are named after the first
+  // block that uses them (Bambu Studio's object list).
+  const colourGroups = (list, idBase, defaultName, ownName) => {
+    const out = [];
+    for (const b of list) {
+      const slot = b.block.slot || doc.slots.text;
+      let g = out.find((x) => x.slot === slot);
+      if (!g) {
+        const own = slot !== doc.slots.text;
+        g = {
+          slot,
+          id: own ? `${idBase}-${slot}` : idBase,
+          name: own ? ownName(b.block) : defaultName,
+          color: own && b.block.color ? b.block.color : doc.colors.text,
+          regions: [],
+        };
+        out.push(g);
+      }
+      g.regions.push(b.region);
     }
-    g.regions.push(b.region);
+    out.sort((a, b) => (a.id === idBase ? -1 : b.id === idBase ? 1 : 0));
+    for (const g of out) g.region = union(...g.regions);
+    return out.filter((g) => g.region.length);
+  };
+  const groups = colourGroups(blocks, 'text', PART_NAMES.text, (b) => blockLabel(doc, b));
+
+  // Back: sunk into the bottom (or inlaid there in its own colour), never
+  // meeting the pockets from the top, the edge, holes or magnet pockets.
+  let backLetters = [];
+  let backGroups = [];
+  let backDepth = 0;
+  if (back.length && base.length) {
+    const room = t - (sunk ? depth : 0) - MIN_FLOOR;
+    backDepth = Math.min(doc.back.depth, room);
+    if (backDepth < 0.1) {
+      warnings.push(`Für die Rückseite ist die Platte zu dünn – mindestens ${fmt(doc.back.depth + MIN_FLOOR + (sunk ? depth : 0))} mm nötig.`);
+      backDepth = 0;
+    } else {
+      if (backDepth < doc.back.depth - 1e-9) warnings.push(`Die Rückseite ist nur ${fmt(backDepth)} mm tief, damit ${fmt(MIN_FLOOR)} mm Material bleiben.`);
+      let backArea = offset(base, -MIN_WALL);
+      const keep = magnets.centers.map((c) => circleRing(c.cx, c.cy, c.r + MIN_WALL));
+      if (keep.length) backArea = difference(backArea, keep);
+      const backBlocks = clip(back, backArea);
+      backLetters = union(...backBlocks.map((b) => b.region));
+      if (regionArea(union(...back.map((l) => l.world))) - regionArea(backLetters) > 0.05) {
+        warnings.push('Die Rückseite ragt über die Platte oder in Löcher und Magnet-Taschen und wird abgeschnitten.');
+      }
+      backGroups = colourGroups(backBlocks, 'back', PART_NAMES.back, (b) => `${PART_NAMES.back} ${blockLabel(doc, b)}`);
+    }
   }
-  groups.sort((a, b) => (a.id === 'text' ? -1 : b.id === 'text' ? 1 : 0));
-  for (const g of groups) g.region = union(...g.regions);
+
+  // QR codes: big enough modules, contrast, nothing else in their area.
+  for (const lay of layouts) {
+    if (!lay.qr) continue;
+    const label = blockLabel(doc, lay.block);
+    if (doc.check.minStroke && lay.qr.module < doc.check.minStroke - 1e-9) {
+      warnings.push(`${label}: Die Module sind nur ${fmt(lay.qr.module)} mm groß – für einen sicheren Druck mindestens ${fmt(doc.check.minStroke)} mm (größer machen oder weniger Inhalt).`);
+    }
+    const others = layouts.filter((l) => l !== lay && l.side === lay.side);
+    if (others.length && regionArea(intersection(union(...others.map((l) => l.world)), lay.worldFootprint)) > 0.01) {
+      warnings.push(`${label}: Etwas anderes ragt in den QR-Code oder seinen Rand – dann lässt er sich nicht lesen.`);
+    }
+    if (!base.length) {
+      warnings.push(`${label}: Ohne Platte zerfällt der QR-Code – eine Grundform wählen.`);
+      continue;
+    }
+    const inlaid = lay.side === 'back' ? doc.back.relief === 'inlay' : relief !== 'engraved';
+    if (!inlaid) {
+      warnings.push(`${label}: Vertieft in derselben Farbe hat der QR-Code kaum Kontrast – besser erhaben oder bündig in einer zweiten Farbe.`);
+      continue;
+    }
+    const color = lay.block.slot && lay.block.slot !== doc.slots.text && lay.block.color ? lay.block.color : doc.colors.text;
+    const lq = luminance(color);
+    const lp = luminance(doc.colors.base);
+    const ratio = (Math.max(lq, lp) + 0.05) / (Math.min(lq, lp) + 0.05);
+    if (ratio < 3) warnings.push(`${label}: Zu wenig Kontrast zwischen QR-Code und Platte – deutlich hellere und dunklere Farben wählen.`);
+    else if (lq > lp) warnings.push(`${label}: Heller QR-Code auf dunkler Platte – nicht jede Kamera liest das. Sicherer: dunkel auf hell.`);
+  }
 
   // Stamps: everything mirrored.
   let holes = mount.holes;
@@ -469,6 +614,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     solidBase = flip(solidBase);
     inner = flip(inner);
     letters = flip(letters);
+    backLetters = flip(backLetters);
+    for (const g of backGroups) g.region = flip(g.region);
     border = flip(border);
     outline = flip(outline);
     magnetPocketRegion = flip(magnetPocketRegion);
@@ -491,7 +638,6 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let magnetDepth = doc.magnets.depth;
   if (magnetCenters.length && magnetDepth > magnetRoom + 1e-9) {
     const need = doc.magnets.depth + MIN_CEILING + (sunk ? depth : 0);
-    const fmt = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
     if (magnetRoom < 0.4) {
       warnings.push(`Für Magnet-Taschen ist die Platte zu dünn – mindestens ${fmt(need)} mm nötig.`);
       magnetCenters = [];
@@ -501,9 +647,9 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
       magnetDepth = magnetRoom;
     }
   }
-  const plateSolid = {
-    region: solidBase, z0: 0, z1: t, countersinks, bottomPockets: magnetPocketRegion, bottomDepth: magnetDepth,
-  };
+  // Pockets in the bottom: magnets and the lettering of the back.
+  const bottom = [{ region: magnetPocketRegion, depth: magnetDepth }, { region: backLetters, depth: backDepth }];
+  const plateSolid = { region: solidBase, z0: 0, z1: t, countersinks, bottom };
   const ho = outline.length ? body.outlineHeight : 0;
   if (!base.length) {
     textParts(0, t);
@@ -525,9 +671,14 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   } else if (relief === 'cut') {
     add('base', PART_NAMES.base, doc.colors.base, doc.slots.base, [{ ...plateSolid, region: difference(solidBase, letters) }]);
   }
+  // Back lettering inlaid in its own colour: the first layers on the bed.
+  if (base.length && backDepth > 0 && doc.back.relief === 'inlay') {
+    for (const g of backGroups) add(g.id, g.name, g.color, g.slot, [{ region: g.region, z0: 0, z1: backDepth }]);
+  }
 
   // Checks.
   const thin = relief === 'cut' || !doc.check.minStroke ? [] : thinParts(letters, doc.check.minStroke);
+  const thinBack = backLetters.length && doc.check.minStroke ? thinParts(backLetters, doc.check.minStroke) : [];
   if (!base.length && letters.length > 1) warnings.push(`Die Buchstaben bestehen aus ${letters.length} getrennten Teilen (z. B. i-Punkte) – ohne Platte fallen sie auseinander.`);
 
   const all = union(base, letters, border, outline);
@@ -548,6 +699,11 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     layouts,
     text: letters,
     textGroups: groups,
+    // Back (world coordinates, i.e. mirrored as seen from the front).
+    backText: backLetters,
+    backGroups,
+    backDepth,
+    thinBack,
     base,
     // Plate as seen from above (with the lettering cut out when it goes through).
     plate: relief === 'cut' ? difference(base, letters) : base,
@@ -577,7 +733,7 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
       grams: (volume / 1000) * DENSITY,
       textWidth: textBox ? textBox.maxX - textBox.minX : 0,
       textHeight: textBox ? textBox.maxY - textBox.minY : 0,
-      thinCount: thin.length,
+      thinCount: thin.length + thinBack.length,
     },
   };
 }
@@ -587,7 +743,7 @@ export function solidVolume(s) {
   let v = regionArea(s.region) * (s.z1 - s.z0);
   if (s.step) v -= (regionArea(s.region) - regionArea(s.step.region)) * (s.z1 - s.step.z);
   if (s.pockets) v -= regionArea(s.pockets) * s.depth;
-  if (s.bottomPockets) v -= regionArea(s.bottomPockets) * s.bottomDepth;
+  for (const b of s.bottom || []) if (b.region.length && b.depth > 0) v -= regionArea(b.region) * b.depth;
   for (const c of s.countersinks || []) {
     // Polygonal cylinder and cone with the same corner count as the mesh.
     const n = countersinkSegments(c.R);

@@ -220,6 +220,38 @@ function boolean(type, subject, clip) {
   return treeToRegion(tree);
 }
 
+/** Region filled by rings with an SVG fill rule ('nonzero' or 'evenodd'). */
+export function fillRings(rings, rule = 'nonzero') {
+  const s = toPaths(rings);
+  if (!s.length) return [];
+  const c = new Clipper();
+  c.StrictlySimple = true;
+  c.AddPaths(s, PolyType.ptSubject, true);
+  const tree = new PolyTree();
+  const fill = rule === 'evenodd' ? PolyFillType.pftEvenOdd : PolyFillType.pftNonZero;
+  c.Execute(ClipType.ctUnion, tree, fill, fill);
+  return treeToRegion(tree);
+}
+
+/**
+ * Area covered by lines of the given width along paths [{ pts, closed }]
+ * (round joins and ends, like an SVG stroke with round caps).
+ */
+export function strokePaths(paths, width, tolerance = TOLERANCE) {
+  if (!(width > 0)) return [];
+  const co = new ClipperOffset(2, tolerance * SCALE);
+  let any = false;
+  for (const p of paths) {
+    if (p.pts.length < 4) continue;
+    co.AddPath(toPath(p.pts), JoinType.jtRound, p.closed ? EndType.etClosedLine : EndType.etOpenRound);
+    any = true;
+  }
+  if (!any) return [];
+  const tree = new PolyTree();
+  co.Execute(tree, (width / 2) * SCALE);
+  return union(treeToRegion(tree));
+}
+
 /** Union of everything given (regions, shapes, rings), non-zero winding. */
 export function union(...items) {
   return boolean(ClipType.ctUnion, items, null);

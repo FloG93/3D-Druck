@@ -1,6 +1,7 @@
 // The document is plain JSON: autosaved, shared in links and stored as presets.
 
 import { DEFAULT_FONT } from './fonts.js';
+import { QR_LEVELS } from '../../../shared/js/qr.js';
 
 export const DOC_VERSION = 1;
 
@@ -10,24 +11,61 @@ export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws'];
 export const MOUNT_POSITIONS = ['left', 'right', 'top'];
 export const ALIGNS = ['left', 'center', 'right'];
 export const LAYOUTS = ['line', 'arcTop', 'arcBottom'];
+// Content blocks (all in doc.texts): text, QR code, imported graphic.
+export const BLOCK_KINDS = ['text', 'qr', 'graphic'];
+export const SIDES = ['front', 'back'];
+export const QR_MODES = ['link', 'wifi'];
+export const WIFI_SECURITY = ['WPA', 'WEP', 'nopass'];
+export const BACK_RELIEFS = ['engraved', 'inlay'];
+
+// Shared by all kinds of blocks.
+const COMMON = {
+  bold: 0, // stroke width change in mm (negative: thinner)
+  x: 0,
+  y: 0,
+  rotation: 0,
+  // Own colour and AMS filament ('' / 0: like "Schrift").
+  color: '',
+  slot: 0,
+  side: 'front', // or 'back' (mirrored into the bottom of the plate)
+};
 
 export const TEXT_DEFAULTS = {
+  kind: 'text',
   text: 'Anna',
   font: { ...DEFAULT_FONT },
   size: 10, // cap height in mm
   letterSpacing: 0, // mm between letters
   lineSpacing: 1.15, // baseline distance as a multiple of the font size
   align: 'center',
-  bold: 0, // stroke width change in mm (negative: thinner)
-  x: 0,
-  y: 0,
-  rotation: 0,
   layout: 'line',
   radius: 30,
-  // Own colour and AMS filament for this text ('' / 0: like "Schrift").
-  color: '',
-  slot: 0,
+  ...COMMON,
 };
+
+export const QR_DEFAULTS = {
+  kind: 'qr',
+  qrMode: 'link',
+  qrText: 'https://flog93.github.io/3D-Druck/',
+  wifiSsid: '',
+  wifiPassword: '',
+  wifiSecurity: 'WPA',
+  wifiHidden: false,
+  qrLevel: 'M',
+  size: 25, // edge length in mm (without quiet zone)
+  quiet: 2, // light margin in modules, part of the plate
+  ...COMMON,
+};
+
+export const GRAPHIC_DEFAULTS = {
+  kind: 'graphic',
+  graphic: null, // see svgimport.js
+  size: 20, // height in mm
+  invert: false,
+  ...COMMON,
+};
+
+const KIND_DEFAULTS = { text: TEXT_DEFAULTS, qr: QR_DEFAULTS, graphic: GRAPHIC_DEFAULTS };
 
 export const DEFAULTS = {
   base: {
@@ -70,6 +108,8 @@ export const DEFAULTS = {
   mirror: false,
   check: { minStroke: 0.8, bed: 256 },
   export: { filename: 'text', flip: false },
+  // Lettering on the back: sunk into the bottom, or inlaid in its own colour.
+  back: { relief: 'inlay', depth: 0.6 },
 };
 
 let idCounter = 0;
@@ -80,6 +120,16 @@ export function newId() {
 
 export function createText(overrides = {}) {
   return { id: newId(), ...structuredClone(TEXT_DEFAULTS), ...overrides };
+}
+
+/** First line of the first text block (for file and preset names). */
+export function firstLine(doc) {
+  const t = doc.texts.find((b) => (b.kind || 'text') === 'text' && b.text.trim());
+  return t ? t.text.split('\n')[0].trim() : '';
+}
+
+export function createBlock(kind, overrides = {}) {
+  return { id: newId(), ...structuredClone(KIND_DEFAULTS[kind] || TEXT_DEFAULTS), ...overrides };
 }
 
 export function defaultDoc() {
@@ -127,16 +177,57 @@ function normalizeFont(f) {
   };
 }
 
+const MAX_GRAPHIC = 3e6; // characters of path data
+
+/** Imported graphic (see svgimport.js) or null. */
+export function normalizeGraphic(g) {
+  if (!isObject(g) || !Array.isArray(g.shapes)) return null;
+  let total = 0;
+  const shapes = [];
+  for (const s of g.shapes) {
+    if (!isObject(s) || typeof s.d !== 'string' || !s.d) continue;
+    total += s.d.length;
+    if (total > MAX_GRAPHIC) break;
+    shapes.push({
+      d: s.d,
+      rule: s.rule === 'evenodd' ? 'evenodd' : 'nonzero',
+      op: Number(s.op) < 0 ? -1 : 1,
+      stroke: Math.max(0, Number(s.stroke) || 0),
+    });
+  }
+  if (!shapes.length) return null;
+  const pos = (v, d) => (Number(v) > 0 ? Number(v) : d);
+  return { name: typeof g.name === 'string' ? g.name.slice(0, 60) : '', shapes, w: pos(g.w, 100), h: pos(g.h, 100) };
+}
+
 export function normalizeText(t) {
-  const out = mergeSection(TEXT_DEFAULTS, t);
+  const kind = isObject(t) && BLOCK_KINDS.includes(t.kind) ? t.kind : 'text';
+  const out = mergeSection(KIND_DEFAULTS[kind], t);
+  out.kind = kind;
   out.id = isObject(t) && typeof t.id === 'string' ? t.id : newId();
-  out.text = isObject(t) && typeof t.text === 'string' ? t.text : TEXT_DEFAULTS.text;
-  out.font = normalizeFont(isObject(t) ? t.font : null);
-  out.size = clamp(out.size, 0.5, 500);
-  out.lineSpacing = clamp(out.lineSpacing, 0.5, 4);
-  out.align = oneOf(ALIGNS, out.align, 'center');
-  out.layout = oneOf(LAYOUTS, out.layout, 'line');
-  out.radius = clamp(out.radius, 1, 2000);
+  if (kind === 'text') {
+    out.text = isObject(t) && typeof t.text === 'string' ? t.text : TEXT_DEFAULTS.text;
+    out.font = normalizeFont(isObject(t) ? t.font : null);
+    out.size = clamp(out.size, 0.5, 500);
+    out.lineSpacing = clamp(out.lineSpacing, 0.5, 4);
+    out.align = oneOf(ALIGNS, out.align, 'center');
+    out.layout = oneOf(LAYOUTS, out.layout, 'line');
+    out.radius = clamp(out.radius, 1, 2000);
+  } else if (kind === 'qr') {
+    out.qrMode = oneOf(QR_MODES, out.qrMode, 'link');
+    out.qrText = out.qrText.slice(0, 2000);
+    out.wifiSsid = out.wifiSsid.slice(0, 64);
+    out.wifiPassword = out.wifiPassword.slice(0, 64);
+    out.wifiSecurity = oneOf(WIFI_SECURITY, out.wifiSecurity, 'WPA');
+    out.qrLevel = oneOf(QR_LEVELS, out.qrLevel, 'M');
+    out.size = clamp(out.size, 3, 1000);
+    out.quiet = Math.round(clamp(out.quiet, 0, 8));
+  } else {
+    out.graphic = normalizeGraphic(isObject(t) ? t.graphic : null);
+    out.size = clamp(out.size, 0.5, 1000);
+  }
+  out.bold = clamp(out.bold, -5, 10);
+  out.side = oneOf(SIDES, out.side, 'front');
   if (!/^#[0-9a-f]{6}$/i.test(out.color)) out.color = '';
   out.slot = Math.round(clamp(out.slot, 0, 16));
   return out;
@@ -179,5 +270,7 @@ export function normalizeDoc(input) {
     if (!/^#[0-9a-f]{6}$/i.test(out.colors[k])) out.colors[k] = DEFAULTS.colors[k];
   }
   out.check.minStroke = clamp(out.check.minStroke, 0, 10);
+  out.back.relief = oneOf(BACK_RELIEFS, out.back.relief, 'inlay');
+  out.back.depth = clamp(out.back.depth, 0.1, 20);
   return out;
 }

@@ -7,6 +7,7 @@ import { modelMeshes, flipMeshes, toBinarySTL } from '../export/mesh.js';
 import { export3MF } from '../export/threemf.js';
 import { exportSVG } from '../export/svg.js';
 import { drawThumbnail } from './presets.js';
+import { firstLine } from '../core/document.js';
 
 const de = (v, digits = 1) => v.toLocaleString('de-DE', { maximumFractionDigits: digits });
 
@@ -102,7 +103,7 @@ export class ExportDialog {
   defaultName() {
     const { doc } = this.app;
     if (doc.export.filename && doc.export.filename !== 'text') return doc.export.filename;
-    return safeName((doc.texts[0]?.text || '').replace(/\s+/g, ' ').trim().slice(0, 40), 'text');
+    return safeName(firstLine(doc).slice(0, 40), 'text');
   }
 
   open() {
@@ -151,7 +152,7 @@ export class ExportDialog {
     const base = safeName(this.nameInput.value || this.defaultName(), 'text');
     try {
       if (this.format === '3mf') {
-        const bytes = await export3MF(this.meshes(m), { title: this.app.doc.texts[0]?.text.split('\n')[0] || 'Text' });
+        const bytes = await export3MF(this.meshes(m), { title: firstLine(this.app.doc) || 'Text' });
         downloadBlob(new Blob([bytes], { type: 'model/3mf' }), `${base}.3mf`);
       } else if (this.format === 'stl') {
         downloadBlob(new Blob([toBinarySTL(this.meshes(m))], { type: 'model/stl' }), `${base}.stl`);

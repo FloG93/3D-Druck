@@ -1,9 +1,12 @@
 // Writes 3MF and STL files of all presets (and a few variants) into a folder
-// for validation with tests/tools/validate_exports.py (lib3mf).
+// for validation with tests/tools/validate_exports.py (lib3mf), plus the top
+// view of every QR code (qr.json) to be read back with zxing.
 // Usage: node Text-Generator/tests/tools/generate-exports.mjs <folder>
 import fs from 'node:fs';
 import { normalizeDoc, defaultDoc } from '../../js/core/document.js';
 import { buildModel } from '../../js/core/model.js';
+import { qrContent } from '../../js/core/blocks.js';
+import { parseSVG } from '../../js/core/svgimport.js';
 import { BUILTIN_PRESETS } from '../../js/core/presets.js';
 import { modelMeshes, flipMeshes, toBinarySTL } from '../../js/export/mesh.js';
 import { export3MF } from '../../js/export/threemf.js';
@@ -31,10 +34,65 @@ cases.colors_symbols = {
   mount: { type: 'eyelet', position: 'top' },
 };
 cases.flipped_flush = { ...cases.outline_flush, export: { flip: true } };
+const montserrat = { id: 'montserrat', family: 'Montserrat', weight: 800, style: 'normal' };
+cases.qr_contour_raised = {
+  ...defaultDoc(),
+  texts: [{ kind: 'qr', qrText: 'https://flog93.github.io/3D-Druck/Text-Generator/', size: 30, qrLevel: 'Q' }],
+  base: { shape: 'contour', padding: 2 },
+  mount: { type: 'hole', position: 'top' },
+  colors: { base: '#ffffff', text: '#000000' },
+};
+cases.qr_back_engraved_magnets = {
+  ...defaultDoc(),
+  texts: [
+    { text: 'Küche', font: montserrat, size: 10 },
+    { kind: 'qr', qrText: 'Grüße vom Kühlschrank – 3D-Druck', size: 26, side: 'back', x: 4 },
+  ],
+  base: { shape: 'rect', sizeMode: 'fixed', width: 90, height: 44, radius: 4 },
+  mount: { type: 'none' },
+  magnets: { enabled: true, count: 2 },
+  back: { relief: 'inlay', depth: 0.6 },
+  body: { thickness: 3.4 },
+};
+cases.back_engraved = {
+  ...defaultDoc(),
+  texts: [{ text: 'Vorne', font: roboto, size: 10 }, { text: 'Hinten 123', font: roboto, size: 6, side: 'back' }],
+  base: { shape: 'capsule' },
+  back: { relief: 'engraved', depth: 0.8 },
+  body: { relief: 'flush', thickness: 2.4, height: 0.6 },
+};
+cases.graphic_strokes = {
+  ...defaultDoc(),
+  texts: [{
+    kind: 'graphic',
+    size: 24,
+    graphic: parseSVG(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2">
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.3l7.8-7.8 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>
+      <circle cx="12" cy="11" r="2" fill="#000"/></svg>`, { name: 'herz' }),
+  }],
+  base: { shape: 'circle', padding: 3 },
+  mount: { type: 'eyelet', position: 'top' },
+};
 cases.flipped_letters = { ...defaultDoc(), base: { shape: 'none' }, texts: [{ text: 'Emma', font: roboto, size: 14 }], export: { flip: true } };
 const summary = {};
+const qr = {};
+// Rings in mm; mirrored ones are also reversed, so outer rings stay
+// counter-clockwise and holes clockwise.
+const ringsOf = (region, mirror) => region.flatMap((s) => [s.outer, ...s.holes]).map((r) => {
+  const pts = [];
+  for (let i = 0; i < r.length; i += 2) pts.push([Math.round((mirror ? -r[i] : r[i]) * 1e4) / 1e4, Math.round(r[i + 1] * 1e4) / 1e4]);
+  if (mirror) pts.reverse();
+  return pts.flat();
+});
 for (const [name, input] of Object.entries(cases)) {
-  const model = buildModel(normalizeDoc(input), (ref) => lib.peek(ref));
+  const doc = normalizeDoc(input);
+  const model = buildModel(doc, (ref) => lib.peek(ref));
+  // QR codes as seen on their side (the back from behind), dark on white.
+  for (const block of doc.texts.filter((b) => b.kind === 'qr')) {
+    const back = block.side === 'back';
+    const dark = back ? model.backText : model.text;
+    qr[`${name}_${block.id}`] = { content: qrContent(block), dark: ringsOf(dark, back) };
+  }
   if (model.missing.size || model.pending) throw new Error(`${name}: fehlende Zeichen ${[...model.missing].join(' ')}`);
   let meshes = modelMeshes(model);
   if (input.export?.flip) {
@@ -47,4 +105,5 @@ for (const [name, input] of Object.entries(cases)) {
   summary[name] = { title, parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume })) };
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));
+fs.writeFileSync(`${OUT}/qr.json`, JSON.stringify(qr));
 console.log(`${Object.keys(summary).length} Fälle nach ${OUT} geschrieben`);

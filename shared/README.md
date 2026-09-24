@@ -10,6 +10,7 @@ Was hier liegt, benutzen mehrere Werkzeuge; es wird unverändert unter `/3D-Druc
 | `js/history.js` | Rückgängig/Wiederholen |
 | `js/util.js` | Browser-Speicher, Dateinamen, Download |
 | `js/share.js` | Teilen-Links: Dokument komprimiert im URL-Hash |
-| `vendor/` | Triangulierung von Flächen mit Löchern (Delaunator, Constrainautor, earcut) – siehe [`vendor/README.md`](vendor/README.md) |
+| `js/qr.js` | QR-Codes als Modul-Matrix, Text für WLAN-QR-Codes |
+| `vendor/` | Triangulierung von Flächen mit Löchern (Delaunator, Constrainautor, earcut) und QR-Codes (qrcode-generator) – siehe [`vendor/README.md`](vendor/README.md) |
 
 Werkzeuge binden die Dateien mit relativen Pfaden ein (`../shared/css/ui.css`, `../../shared/js/controls.js` …). So funktioniert es lokal (Webserver im Hauptordner) genauso wie auf GitHub Pages. Was nur ein Werkzeug braucht, bleibt in dessen Ordner.

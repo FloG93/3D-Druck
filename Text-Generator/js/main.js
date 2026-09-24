@@ -72,6 +72,36 @@ async function main() {
   const right = buildRightPanel($('panel-right'), app);
   const exportDialog = new ExportDialog($('export-dialog'), app);
 
+  // --- front / back ------------------------------------------------------------
+  const sideSwitch = document.createElement('div');
+  sideSwitch.className = 'side-switch segmented';
+  sideSwitch.setAttribute('role', 'group');
+  sideSwitch.setAttribute('aria-label', 'Seite');
+  sideSwitch.innerHTML = '<button type="button" class="seg-btn active" data-side="front" title="Vorderseite">Vorne</button>'
+    + '<button type="button" class="seg-btn" data-side="back" title="Rückseite (von hinten gesehen)">Hinten</button>';
+  $('stage').append(sideSwitch);
+  const hasBack = () => Boolean(app.model && app.model.layouts.some((l) => l.side === 'back'));
+  const setSide = (side) => {
+    if (renderer.side === side) return;
+    renderer.side = side;
+    for (const b of sideSwitch.children) b.classList.toggle('active', b.dataset.side === side);
+    renderer.fit();
+  };
+  sideSwitch.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) setSide(b.dataset.side);
+  });
+  // Show the side of the selected block (also right after it moved sides).
+  let selSide = null;
+  const followSelection = () => {
+    const sel = app.text(app.selectedId);
+    const side = sel && sel.side === 'back' && hasBack() ? 'back' : 'front';
+    if (side !== selSide) {
+      selSide = side;
+      setSide(side);
+    }
+  };
+
   // --- events ----------------------------------------------------------------
   app.on('doc', () => {
     left.refresh();
@@ -84,12 +114,21 @@ async function main() {
       renderer.fit();
       if (view3d) view3d.resetCamera();
     }
+    // Both panels show values of the model (QR module size, graphic size, …).
+    left.refresh();
     right.refresh();
+    sideSwitch.hidden = !hasBack() || mode !== '2d';
+    if (!hasBack()) setSide('front');
+    followSelection();
     renderer.requestDraw();
     updateStatus();
     if (view3d && mode === '3d') view3d.update();
   });
-  app.on('selection', () => renderer.requestDraw());
+  app.on('selection', () => {
+    selSide = null;
+    followSelection();
+    renderer.requestDraw();
+  });
   // A text was added or removed: show the whole design again.
   app.on('structure', () => {
     fitPending = true;
@@ -131,7 +170,7 @@ async function main() {
   }
 
   const hintEl = $('hint');
-  hintEl.innerHTML = '<b>Tipp</b> Text mit der Maus verschieben · Mausrad zoomt · Ziehen im Leeren verschiebt die Ansicht';
+  hintEl.innerHTML = '<b>Tipp</b> Text, QR-Code oder Grafik mit der Maus verschieben · Mausrad zoomt · Ziehen im Leeren verschiebt die Ansicht';
 
   // --- toolbar actions ---------------------------------------------------------
   $('btn-undo').addEventListener('click', () => app.undo());
@@ -176,6 +215,7 @@ async function main() {
     $('btn-3d').classList.toggle('active', mode === '3d');
     $('stage').classList.toggle('mode-3d', mode === '3d');
     const el3d = $('view3d');
+    sideSwitch.hidden = mode !== '2d' || !hasBack();
     if (mode === '3d') {
       el3d.hidden = false;
       canvas.hidden = true;

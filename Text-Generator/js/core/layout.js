@@ -9,42 +9,46 @@ import { isModifier } from './fonts.js';
 
 const DEG = Math.PI / 180;
 
-/** Flattens path commands (font units) with the affine map m into rings (mm). */
-export function flattenCommands(commands, m, tol = TOLERANCE) {
-  const rings = [];
-  let ring = null;
+/**
+ * Flattens path commands (M, L, Q, C, Z) with the affine map m into polylines:
+ * [{ pts: [x0, y0, …], closed }] (closed: the subpath ended with Z).
+ */
+export function flattenPaths(commands, m, tol = TOLERANCE) {
+  const out = [];
+  let pts = null;
   let x0 = 0;
   let y0 = 0;
   let sx = 0;
   let sy = 0;
   const T = (x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
   const push = (x, y) => {
-    const n = ring.length;
-    if (n >= 2 && Math.abs(ring[n - 2] - x) < 1e-9 && Math.abs(ring[n - 1] - y) < 1e-9) return;
-    ring.push(x, y);
+    const n = pts.length;
+    if (n >= 2 && Math.abs(pts[n - 2] - x) < 1e-9 && Math.abs(pts[n - 1] - y) < 1e-9) return;
+    pts.push(x, y);
   };
-  const close = () => {
-    if (!ring) return;
-    const n = ring.length;
-    if (n >= 4 && Math.abs(ring[0] - ring[n - 2]) < 1e-9 && Math.abs(ring[1] - ring[n - 1]) < 1e-9) ring.length = n - 2;
-    if (ring.length >= 6) rings.push(ring);
-    ring = null;
+  const end = (closed) => {
+    if (!pts) return;
+    const n = pts.length;
+    // A closing point equal to the start is implied.
+    if (closed && n >= 4 && Math.abs(pts[0] - pts[n - 2]) < 1e-9 && Math.abs(pts[1] - pts[n - 1]) < 1e-9) pts.length = n - 2;
+    if (pts.length >= 4) out.push({ pts, closed });
+    pts = null;
   };
   for (const c of commands) {
     if (c.type === 'M') {
-      close();
+      end(false);
       [x0, y0] = T(c.x, c.y);
       sx = x0;
       sy = y0;
-      ring = [x0, y0];
+      pts = [x0, y0];
     } else if (c.type === 'L') {
-      if (!ring) ring = [x0, y0];
+      if (!pts) pts = [x0, y0];
       const [x, y] = T(c.x, c.y);
       push(x, y);
       x0 = x;
       y0 = y;
     } else if (c.type === 'Q') {
-      if (!ring) ring = [x0, y0];
+      if (!pts) pts = [x0, y0];
       const [x1, y1] = T(c.x1, c.y1);
       const [x, y] = T(c.x, c.y);
       const dd = Math.hypot(x0 - 2 * x1 + x, y0 - 2 * y1 + y);
@@ -57,7 +61,7 @@ export function flattenCommands(commands, m, tol = TOLERANCE) {
       x0 = x;
       y0 = y;
     } else if (c.type === 'C') {
-      if (!ring) ring = [x0, y0];
+      if (!pts) pts = [x0, y0];
       const [x1, y1] = T(c.x1, c.y1);
       const [x2, y2] = T(c.x2, c.y2);
       const [x, y] = T(c.x, c.y);
@@ -75,12 +79,24 @@ export function flattenCommands(commands, m, tol = TOLERANCE) {
       x0 = x;
       y0 = y;
     } else if (c.type === 'Z') {
-      close();
+      end(true);
       x0 = sx;
       y0 = sy;
     }
   }
-  close();
+  end(false);
+  return out;
+}
+
+/** Flattens path commands (font units) with the affine map m into rings (mm). */
+export function flattenCommands(commands, m, tol = TOLERANCE) {
+  const rings = [];
+  for (const { pts } of flattenPaths(commands, m, tol)) {
+    const n = pts.length;
+    // Every subpath is a filled ring, closed or not.
+    if (n >= 4 && Math.abs(pts[0] - pts[n - 2]) < 1e-9 && Math.abs(pts[1] - pts[n - 1]) < 1e-9) pts.length = n - 2;
+    if (pts.length >= 6) rings.push(pts);
+  }
   return rings;
 }
 

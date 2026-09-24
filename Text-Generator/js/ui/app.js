@@ -6,7 +6,7 @@
 //   'fonts'      a font started/finished loading
 //   'selection'  selected text block changed
 
-import { defaultDoc, normalizeDoc, createText } from '../core/document.js';
+import { defaultDoc, normalizeDoc, createBlock } from '../core/document.js';
 import { buildModel } from '../core/model.js';
 import { FontLibrary, fontKey, isSymbolLike } from '../core/fonts.js';
 import { History } from '../../../shared/js/history.js';
@@ -93,29 +93,45 @@ export class App {
     this.emit('selection');
   }
 
-  addText(overrides = {}) {
-    const last = this.doc.texts[this.doc.texts.length - 1];
-    const size = last ? Math.max(3, Math.round(last.size * 0.6)) : 8;
-    let y = 0;
-    if (last) {
-      // Below the last text (its lines about lineSpacing × size / 0.7 apart),
-      // with a gap of 30 % of its size.
-      const lines = last.text.split('\n').length;
-      const half = ((lines - 1) * last.lineSpacing * (last.size / 0.7) + last.size) / 2;
-      y = Math.round((last.y - half - Math.max(2, last.size * 0.3) - size / 2) * 2) / 2;
+  /** Height of a block's content in mm (for placing the next one below it). */
+  static blockHeight(b) {
+    if (b.kind === 'qr') return b.size + 2 * (b.quiet || 0) * (b.size / 25);
+    if (b.kind === 'graphic') return b.size;
+    // Lines about lineSpacing × size / 0.7 apart (cap height ≈ 0.7 em).
+    const lines = b.text.split('\n').length;
+    return (lines - 1) * b.lineSpacing * (b.size / 0.7) + b.size;
+  }
+
+  /** Adds a text, QR code or graphic below the last block of the front. */
+  addBlock(kind = 'text', overrides = {}) {
+    const front = this.doc.texts.filter((b) => b.side !== 'back');
+    const last = front[front.length - 1];
+    const lastText = [...this.doc.texts].reverse().find((b) => b.kind === 'text');
+    const extra = {};
+    let size;
+    if (kind === 'text') {
+      size = last && last.kind === 'text' ? Math.max(3, Math.round(last.size * 0.6)) : 8;
+      extra.text = 'Text';
+      if (lastText) extra.font = { ...lastText.font };
+    } else {
+      size = kind === 'qr' ? 25 : 20;
     }
-    const t = createText({
-      text: 'Text',
-      font: last ? { ...last.font } : undefined,
-      size,
-      y,
-      ...overrides,
-    });
-    this.doc.texts.push(t);
-    this.selectedId = t.id;
+    const block = createBlock(kind, { ...extra, size, ...overrides });
+    if (last) {
+      const gap = Math.max(2, (last.kind === 'text' ? last.size : 10) * 0.3);
+      block.y = Math.round((last.y - App.blockHeight(last) / 2 - gap - App.blockHeight(block) / 2) * 2) / 2;
+      block.x = kind === 'text' ? 0 : last.x;
+    }
+    this.doc.texts.push(block);
+    this.selectedId = block.id;
     this.emit('structure');
     this.changed();
     this.commit();
+    return block;
+  }
+
+  addText(overrides = {}) {
+    return this.addBlock('text', overrides);
   }
 
   removeText(id) {
@@ -144,7 +160,7 @@ export class App {
 
   /** Builds the model now; missing fonts are loaded and trigger a rebuild. */
   build() {
-    for (const t of this.doc.texts) this.ensureFont(t.font);
+    for (const t of this.doc.texts) if (t.kind === 'text') this.ensureFont(t.font);
     this.loadSymbolsFor(this.doc);
     this.model = buildModel(this.doc, (ref) => this.fonts.peek(ref), { symbolsLoading: this.symbolsLoading > 0 });
     this.emit('model', this.model);
@@ -156,6 +172,7 @@ export class App {
     if (this.symbolsLoading) return;
     const wanted = new Set();
     for (const t of doc.texts) {
+      if (t.kind !== 'text') continue;
       const face = this.fonts.peek(t.font);
       if (!face) continue;
       for (const ch of t.text) {

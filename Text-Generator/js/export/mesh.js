@@ -94,38 +94,44 @@ function withHoles(region, rings) {
   return out;
 }
 
-/** Bottom or top face, with pockets sunk into it (walls + floors). */
-function face(buf, region, pockets, z, depth, up) {
-  if (!pockets || !pockets.length || !(depth > 0)) {
+/**
+ * Bottom or top face with pockets sunk into it: sets [{ region, depth }] of
+ * pockets that do not touch each other, each with walls and a floor.
+ */
+function face(buf, region, sets, z, up) {
+  const used = (sets || []).filter((p) => p.region && p.region.length && p.depth > 0);
+  if (!used.length) {
     for (const s of region) cap(buf, s, z, up);
     return;
   }
-  const zf = up ? z - depth : z + depth;
-  for (const s of subtractInterior(region, pockets)) cap(buf, s, z, up);
-  for (const r of ringsOf(pockets)) {
-    if (up) walls(buf, r, zf, z, true);
-    else walls(buf, r, z, zf, true);
+  for (const s of subtractInterior(region, used.flatMap((p) => p.region))) cap(buf, s, z, up);
+  for (const { region: pockets, depth } of used) {
+    const zf = up ? z - depth : z + depth;
+    for (const r of ringsOf(pockets)) {
+      if (up) walls(buf, r, zf, z, true);
+      else walls(buf, r, z, zf, true);
+    }
+    for (const s of pockets) cap(buf, s, zf, up);
   }
-  for (const s of pockets) cap(buf, s, zf, up);
 }
 
 /**
  * Adds the closed body of one solid:
  *   region z0..z1               plate outline (outer rings and holes)
  *   pockets, depth              sunk into the top (engraved or inlaid text)
- *   bottomPockets, bottomDepth  sunk into the bottom (magnets)
+ *   bottom [{ region, depth }]  sunk into the bottom (magnets, lettering of the back)
  *   step { region, z }          above z only this smaller region remains
  *   countersinks [{cx, cy, r, R, depth}]  screw holes with a 90° cone
  * All faces share their rings, so the body is watertight.
  */
 export function addSolid(buf, solid) {
-  const { region, z0, z1, pockets, depth, bottomPockets, bottomDepth, step, countersinks = [] } = solid;
+  const { region, z0, z1, pockets, depth, bottom = [], step, countersinks = [] } = solid;
   const upper = step ? step.region : region;
   const rings = countersinks.map((c) => {
     const n = countersinkSegments(c.R);
     return { c, n, inner: polygonRing(c.cx, c.cy, c.r, n), outer: polygonRing(c.cx, c.cy, c.R, n) };
   });
-  face(buf, withHoles(region, rings.map((k) => k.inner)), bottomPockets, z0, bottomDepth, false);
+  face(buf, withHoles(region, rings.map((k) => k.inner)), bottom, z0, false);
   const zs = step ? step.z : z1;
   for (const r of ringsOf(region)) walls(buf, r, z0, zs);
   if (step) {
@@ -144,7 +150,7 @@ export function addSolid(buf, solid) {
       buf.push(hole[2 * i], hole[2 * i + 1], zc, top[2 * j], top[2 * j + 1], z1, top[2 * i], top[2 * i + 1], z1);
     }
   }
-  face(buf, withHoles(upper, rings.map((k) => k.outer)), pockets, z1, depth, true);
+  face(buf, withHoles(upper, rings.map((k) => k.outer)), [{ region: pockets, depth }], z1, true);
 }
 
 export function extrudeRegion(buf, region, z0, z1) {

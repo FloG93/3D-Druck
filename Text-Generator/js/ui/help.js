@@ -13,7 +13,7 @@ const HTML = `
   <div class="dialog-body">
     <h3>So geht's</h3>
     <ol>
-      <li><b>Vorlage</b> wählen oder direkt den <b>Text</b> eintippen. Mehrere Zeilen mit Enter, <b>♥ Symbol</b> fügt Herz, Stern, Pfote &amp; Co. ein.</li>
+      <li><b>Vorlage</b> wählen oder direkt den <b>Text</b> eintippen. Mehrere Zeilen mit Enter, <b>♥ Symbol</b> fügt Herz, Stern, Pfote &amp; Co. ein. Unter dem Text kommen weitere Blöcke dazu: <b>+ Text</b>, <b>+ QR-Code</b> (Link oder WLAN) und <b>+ Grafik</b> (eigene SVG-Datei, z. B. ein Logo).</li>
       <li><b>Schrift</b>: sechs Schriften sind eingebaut, unter <i>Mehr …</i> gibt es alle Google Fonts mit Vorschau.</li>
       <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
       <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe.</li>
@@ -27,6 +27,9 @@ const HTML = `
       <li>Mit <b>+</b> bei „Text“ kommen weitere Texte dazu (z. B. Name groß, Untertitel klein). Jeder Text lässt sich in der Vorschau mit der Maus verschieben (Shift: ohne Raster) und bekommt mit <i>Eigene Farbe</i> ein eigenes Filament.</li>
       <li>Magnete einkleben statt Druckpause: Tasche = Magnet + 0,2 mm (z. B. 6,2 × 2,2 mm für 6 × 2 mm). Über der Tasche bleiben mindestens 0,6 mm Material.</li>
       <li><b>Schrift unten</b> (Export): Die Schriftseite liegt auf dem Druckbett – glatt oder mit der Struktur der Druckplatte.</li>
+      <li><b>Rückseite:</b> Bei jedem Block „Seite: Hinten“ wählen, z. B. für die Telefonnummer auf der Hundemarke. Sie wird gespiegelt in den Boden eingelegt – farbig in den ersten Schichten oder vertieft. Unten in der Vorschau zwischen <i>Vorne</i> und <i>Hinten</i> umschalten.</li>
+      <li><b>QR-Codes</b> mit Modulen ab etwa 1 mm lesen sich sicher – dunkel auf hell, bündig oder erhaben in zweiter Farbe. Das Programm warnt bei zu kleinen Modulen und zu wenig Kontrast.</li>
+      <li><b>Grafiken (SVG):</b> Dunkle Flächen und Linien werden gedruckt, weiße darauf sparen aus. Texte in der SVG vorher in Pfade umwandeln.</li>
       <li>Die Kontur verbindet getrennte Wörter automatisch mit Stegen. Mehr Randabstand macht daraus eine geschlossene Form.</li>
     </ul>
 

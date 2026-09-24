@@ -63,7 +63,7 @@ MusterGenerator/
   js/export/                SVG, DXF, STEP, Fusion-JSON, STL/Mesh, PNG
   js/ui/                    Oberfläche, Canvas, Interaktion, Dialoge, 3D-Vorschau
                             (Design und Bedienelemente aus ../shared/)
-  vendor/                   Triangulierung (Delaunator, Constrainautor, earcut), QR-Codes (qrcode-generator)
+  vendor/                   Hinweis: Fremdbibliotheken liegen gemeinsam in ../shared/vendor/
   fusion360/MusterImport/   Fusion-360-Skript
   tests/                    Tests (Node + Python)
   docs/                     Bilder für diese Anleitung

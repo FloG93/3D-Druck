@@ -1,5 +1,7 @@
 // Built-in presets (partial documents, completed by normalizeDoc).
 
+import { parseSVG } from './svgimport.js';
+
 const font = (id, family, weight = 400) => ({ id, family, weight, style: 'normal' });
 const PACIFICO = font('pacifico', 'Pacifico');
 const MONTSERRAT = font('montserrat', 'Montserrat', 800);
@@ -7,6 +9,14 @@ const ROBOTO = font('roboto', 'Roboto', 700);
 const BEBAS = font('bebas-neue', 'Bebas Neue');
 const LOBSTER = font('lobster', 'Lobster');
 const BLACK_OPS = font('black-ops-one', 'Black Ops One');
+
+// Sample graphic for the logo sign: mountains with snow caps and a sun.
+const MOUNTAINS = parseSVG(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 64">
+  <circle cx="74" cy="15" r="9"/>
+  <path d="M0 64 L32 18 L46 38 L60 24 L100 64 Z"/>
+  <path fill="#fff" d="M32 18 L39.5 28.8 L35 26.5 L31.5 30 L27.5 26.5 L24.5 28.6 Z"/>
+  <path fill="#fff" d="M60 24 L66 30 L62 29 L59 31 L56 28 Z"/>
+</svg>`, { name: 'Berge' });
 
 export const BUILTIN_PRESETS = [
   {
@@ -82,6 +92,7 @@ export const BUILTIN_PRESETS = [
     texts: [
       { text: 'BELLO', font: BEBAS, size: 8, letterSpacing: 0.4, y: 2.5 },
       { text: '🐾', font: BEBAS, size: 7, y: -7, slot: 3, color: '#e63946' },
+      { text: '0171\n2345678', font: MONTSERRAT, size: 4.5, lineSpacing: 1.3, side: 'back' },
     ],
     base: { shape: 'circle', padding: 3 },
     mount: { type: 'eyelet', position: 'top', diameter: 4, ring: 2 },
@@ -104,6 +115,29 @@ export const BUILTIN_PRESETS = [
     mount: { type: 'screws', diameter: 4, ring: 3, countersink: true, head: 8 },
     body: { relief: 'raised', thickness: 4, height: 1.2, border: true, borderWidth: 2, borderHeight: 1.2 },
     colors: { base: '#1d1d1f', text: '#ffd166', border: '#ffd166' },
+  },
+  {
+    name: 'WLAN-Schild',
+    texts: [
+      { text: 'WLAN', font: MONTSERRAT, size: 9, y: 24 },
+      { kind: 'qr', qrMode: 'wifi', wifiSsid: 'Mein WLAN', wifiPassword: 'bitte-ändern', size: 36, y: -2 },
+    ],
+    base: { shape: 'rect', padding: 4, radius: 4 },
+    mount: { type: 'none' },
+    magnets: { enabled: true, count: 2 },
+    body: { relief: 'flush', thickness: 3.4, height: 0.6 },
+    colors: { base: '#f7f7f5', text: '#1d1d1f', border: '#1d1d1f' },
+  },
+  {
+    name: 'Logo-Schild',
+    texts: [
+      { kind: 'graphic', graphic: MOUNTAINS, size: 18, y: 8 },
+      { text: 'Berghütte', font: LOBSTER, size: 10, bold: 0.25, y: -10 },
+    ],
+    base: { shape: 'oval', padding: 1.5 },
+    mount: { type: 'none' },
+    body: { relief: 'raised', thickness: 3, height: 1.2, border: true, borderWidth: 1.6, borderHeight: 1.2 },
+    colors: { base: '#2d6a4f', text: '#f1faee', border: '#f1faee' },
   },
   {
     name: 'Nur Buchstaben',

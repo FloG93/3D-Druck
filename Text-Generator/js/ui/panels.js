@@ -2,10 +2,12 @@
 // and the print check on the right.
 
 import {
-  h, Panel, numberField, selectField, segmented, toggle, colorField, note, grid, section, bindPath,
+  h, Panel, numberField, selectField, segmented, toggle, colorField, note, grid, section, bindPath, textField,
 } from '../../../shared/js/controls.js';
 import { icon } from '../../../shared/js/icons.js';
 import { BUILTIN_FONTS, fontKey, SYMBOLS } from '../core/fonts.js';
+import { KIND_NAMES } from '../core/model.js';
+import { parseSVG } from '../core/svgimport.js';
 
 // Suggested colours for texts with their own filament.
 const OWN_COLORS = ['#ffd166', '#06d6a0', '#ef476f', '#118ab2', '#8338ec', '#ff7f11'];
@@ -40,13 +42,13 @@ function symbolPicker(textarea, onInsert) {
 }
 
 function textArea(panel, opts) {
-  const ta = h('textarea', { rows: '2', spellcheck: 'false', placeholder: 'Text eingeben', 'aria-label': opts.label || 'Text' });
+  const ta = h('textarea', { rows: '2', spellcheck: 'false', placeholder: opts.placeholder || 'Text eingeben', 'aria-label': opts.label || 'Text' });
   ta.addEventListener('input', () => {
     opts.bind.set(ta.value);
     ta.rows = Math.min(6, Math.max(1, ta.value.split('\n').length));
   });
   ta.addEventListener('change', () => panel.app.commit());
-  const picker = symbolPicker(ta, (v) => {
+  const picker = opts.symbols === false ? [] : symbolPicker(ta, (v) => {
     opts.bind.set(v);
     panel.app.commit();
   });
@@ -88,17 +90,96 @@ function fontRow(panel, app, id, openFontDialog) {
   return panel.register(el, fill);
 }
 
-function textCard(panel, app, t, index, openFontDialog) {
-  const { id } = t;
-  const bind = (key) => ({ get: () => app.text(id)?.[key], set: (v) => app.setText(id, key, v) });
-  const del = h('button', { type: 'button', class: 'icon-btn', title: 'Text entfernen', html: icon('trash') });
-  del.addEventListener('click', (e) => {
-    e.stopPropagation();
-    app.removeText(id);
+/** Reads an SVG file chosen by the user; resolves to the graphic or null. */
+function pickGraphic(app) {
+  return new Promise((resolve) => {
+    const input = h('input', { type: 'file', accept: '.svg,image/svg+xml', hidden: true });
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      input.remove();
+      if (!file) return resolve(null);
+      try {
+        const g = parseSVG(await file.text(), { name: file.name });
+        for (const w of g.warnings) app.emit('toast', w);
+        resolve(g);
+      } catch (err) {
+        app.emit('toast', `SVG nicht lesbar: ${err.message}`);
+        resolve(null);
+      }
+    });
+    document.body.append(input);
+    input.click();
   });
+}
+
+/** Position, rotation, side and own colour – the same for every kind of block. */
+function commonFields(panel, app, id, bind) {
+  const block = () => app.text(id);
+  const hasBase = () => app.doc.base.shape !== 'none';
   const multiple = () => app.doc.texts.length > 1;
-  const head = h('div', { class: 'text-card-head' }, h('span', { class: 'text-card-title' }, `Text ${index + 1}`), h('span', { class: 'spacer' }), del);
-  const body = h('div', { class: 'text-card-body' },
+  // Only lettering that is a part of its own can have its own filament.
+  const colourable = () => {
+    const b = block();
+    if (!b) return false;
+    if (b.side === 'back' && hasBase()) return app.doc.back.relief === 'inlay';
+    return app.doc.body.relief !== 'engraved' || !hasBase();
+  };
+  return [
+    grid(
+      numberField(panel, { label: 'Position X', unit: 'mm', bind: bind('x'), step: 0.5, digits: 2 }),
+      numberField(panel, { label: 'Position Y', unit: 'mm', bind: bind('y'), step: 0.5, digits: 2 }),
+      numberField(panel, { label: 'Drehung', unit: '°', bind: bind('rotation'), min: -360, max: 360, step: 1, digits: 1, visible: () => multiple() || block()?.kind !== 'text' }),
+    ),
+    segmented(panel, {
+      label: 'Seite',
+      bind: {
+        get: () => block()?.side,
+        set: (side) => {
+          const b = block();
+          if (!b || b.side === side) return;
+          b.side = side;
+          // Start in the middle of the other side.
+          b.x = 0;
+          b.y = 0;
+          app.changed();
+        },
+      },
+      options: [['front', 'Vorne'], ['back', 'Hinten']],
+      visible: hasBase,
+    }),
+    toggle(panel, {
+      label: 'Eigene Farbe',
+      title: 'Dieser Block bekommt eine eigene Farbe und ein eigenes AMS-Filament',
+      bind: {
+        get: () => (block()?.slot || 0) > 0,
+        set: (on) => {
+          const b = block();
+          if (!b) return;
+          if (on) {
+            // Next AMS slot no part uses yet, and a colour that stands out.
+            const used = new Set([app.doc.slots.base, app.doc.slots.text, ...app.doc.texts.map((x) => x.slot)]);
+            for (const part of app.model?.parts || []) used.add(part.slot);
+            let slot = 1;
+            while (used.has(slot) && slot < 16) slot++;
+            b.slot = slot;
+            b.color = b.color || OWN_COLORS[(slot - 1) % OWN_COLORS.length];
+          } else {
+            b.slot = 0;
+          }
+          app.changed();
+        },
+      },
+      visible: () => colourable() && (multiple() || (block()?.slot || 0) > 0),
+    }),
+    grid(
+      colorField(panel, { label: 'Farbe', bind: { get: () => block()?.color || app.doc.colors.text, set: (v) => app.setText(id, 'color', v) }, visible: () => colourable() && (block()?.slot || 0) > 0 }),
+      selectField(panel, { label: 'AMS', bind: bind('slot'), options: Array.from({ length: 16 }, (_, i) => [i + 1, `Filament ${i + 1}`]), wide: false, visible: () => colourable() && (block()?.slot || 0) > 0 }),
+    ),
+  ];
+}
+
+function textFields(panel, app, id, index, bind, openFontDialog) {
+  return [
     textArea(panel, { bind: bind('text'), label: `Text ${index + 1}` }),
     fontRow(panel, app, id, openFontDialog),
     grid(
@@ -114,47 +195,88 @@ function textCard(panel, app, t, index, openFontDialog) {
       options: [['left', 'Links', 'alignLeft', 'Linksbündig'], ['center', 'Mitte', 'alignCenter', 'Zentriert'], ['right', 'Rechts', 'alignRight', 'Rechtsbündig']],
       visible: () => (app.text(id)?.text || '').includes('\n'),
     }),
+  ];
+}
+
+function qrFields(panel, app, id, bind) {
+  const wifi = () => app.text(id)?.qrMode === 'wifi';
+  const info = () => app.model?.layouts.find((l) => l.block.id === id)?.qr;
+  return [
+    segmented(panel, { label: 'Inhalt', bind: bind('qrMode'), options: [['link', 'Link / Text'], ['wifi', 'WLAN']] }),
+    textArea(panel, { bind: bind('qrText'), label: 'Inhalt des QR-Codes', placeholder: 'https://… oder beliebiger Text', symbols: false, visible: () => !wifi() }),
+    textField(panel, { label: 'Netzwerkname (SSID)', bind: bind('wifiSsid'), maxlength: 64, visible: wifi }),
+    textField(panel, { label: 'Passwort', bind: bind('wifiPassword'), maxlength: 64, visible: () => wifi() && app.text(id)?.wifiSecurity !== 'nopass' }),
+    selectField(panel, { label: 'Verschlüsselung', bind: bind('wifiSecurity'), options: [['WPA', 'WPA / WPA2 / WPA3'], ['WEP', 'WEP (alt)'], ['nopass', 'Offen, ohne Passwort']], visible: wifi }),
+    toggle(panel, { label: 'Verstecktes Netz', title: 'Das Netz sendet seinen Namen nicht', bind: bind('wifiHidden'), visible: wifi }),
+    note(panel, 'Handy-Kamera auf das Schild – schon ist man im WLAN. Das Passwort steht auch im Teilen-Link und in Projektdateien.', wifi),
     grid(
-      numberField(panel, { label: 'Position X', unit: 'mm', bind: bind('x'), step: 0.5, digits: 2 }),
-      numberField(panel, { label: 'Position Y', unit: 'mm', bind: bind('y'), step: 0.5, digits: 2 }),
-      numberField(panel, { label: 'Drehung', unit: '°', bind: bind('rotation'), min: -360, max: 360, step: 1, digits: 1, visible: multiple }),
+      numberField(panel, { label: 'Größe', title: 'Kantenlänge des QR-Codes (ohne Rand)', unit: 'mm', bind: bind('size'), min: 3, max: 1000, step: 1, digits: 1, slider: [10, 80] }),
+      selectField(panel, { label: 'Fehlerkorrektur', title: 'Mehr Korrektur: robuster, aber mehr (kleinere) Module', bind: bind('qrLevel'), options: [['L', 'L – 7 %'], ['M', 'M – 15 %'], ['Q', 'Q – 25 %'], ['H', 'H – 30 %']], wide: false }),
     ),
-    toggle(panel, {
-      label: 'Eigene Farbe',
-      title: 'Dieser Text bekommt eine eigene Farbe und ein eigenes AMS-Filament',
-      bind: {
-        get: () => (app.text(id)?.slot || 0) > 0,
-        set: (on) => {
-          const txt = app.text(id);
-          if (!txt) return;
-          if (on) {
-            // Next AMS slot no part uses yet, and a colour that stands out.
-            const used = new Set([app.doc.slots.base, app.doc.slots.text, ...app.doc.texts.map((x) => x.slot)]);
-            for (const part of app.model?.parts || []) used.add(part.slot);
-            let slot = 1;
-            while (used.has(slot) && slot < 16) slot++;
-            txt.slot = slot;
-            txt.color = txt.color || OWN_COLORS[(slot - 1) % OWN_COLORS.length];
-          } else {
-            txt.slot = 0;
-          }
-          app.changed();
-        },
-      },
-      // Engraved text is part of the plate; one text alone uses "Schrift".
-      visible: () => (app.doc.body.relief !== 'engraved' || app.doc.base.shape === 'none') && (multiple() || (app.text(id)?.slot || 0) > 0),
+    note(panel, () => {
+      const q = info();
+      if (!q) return '';
+      const ok = !app.doc.check.minStroke || q.module >= app.doc.check.minStroke;
+      return `${q.modules} × ${q.modules} Module à <span class="${ok ? 'ok' : 'warn'}">${de(q.module, 2)} mm</span>`
+        + (ok ? ' – gut druckbar.' : ` – größer machen (Module ab ${de(app.doc.check.minStroke, 1)} mm).`)
+        + ' Am besten dunkel auf hell, bündig oder erhaben in zweiter Farbe.';
     }),
+  ];
+}
+
+function graphicFields(panel, app, id, bind) {
+  const block = () => app.text(id);
+  const replace = h('button', { type: 'button', class: 'btn small', title: 'Andere SVG-Datei laden', html: `${icon('open')}<span>Andere SVG …</span>` });
+  replace.addEventListener('click', async () => {
+    const g = await pickGraphic(app);
+    if (!g) return;
+    app.setText(id, 'graphic', g);
+    app.commit();
+  });
+  const nameEl = h('span', { class: 'graphic-name' });
+  const row = panel.register(h('div', { class: 'ctl wide graphic-row' }, nameEl, replace), () => {
+    const g = block()?.graphic;
+    nameEl.textContent = g ? (g.name || 'Grafik') : 'Keine Grafik';
+  });
+  return [
+    row,
     grid(
-      colorField(panel, { label: 'Farbe', bind: { get: () => app.text(id)?.color || app.doc.colors.text, set: (v) => app.setText(id, 'color', v) }, visible: () => (app.text(id)?.slot || 0) > 0 }),
-      selectField(panel, { label: 'AMS', bind: bind('slot'), options: Array.from({ length: 16 }, (_, i) => [i + 1, `Filament ${i + 1}`]), wide: false, visible: () => (app.text(id)?.slot || 0) > 0 }),
+      numberField(panel, { label: 'Höhe', unit: 'mm', bind: bind('size'), min: 0.5, max: 1000, step: 0.5, digits: 1, slider: [5, 100] }),
+      numberField(panel, { label: 'Fettung', title: 'Linien dicker (+) oder dünner (−), in mm', unit: 'mm', bind: bind('bold'), min: -2, max: 5, step: 0.05, digits: 2, slider: [-0.6, 1.2] }),
     ),
-  );
-  const card = h('div', { class: 'text-card', 'data-id': id }, head, body);
+    toggle(panel, { label: 'Hell und dunkel tauschen', title: 'Für Grafiken, die hell auf dunklem Grund gezeichnet sind', bind: bind('invert') }),
+    note(panel, () => {
+      const lay = app.model?.layouts.find((l) => l.block.id === id);
+      if (!lay) return block()?.graphic ? 'Die Grafik ist leer – „Hell und dunkel tauschen“ probieren.' : '';
+      const b = lay.bounds;
+      return `${de(b.maxX - b.minX)} × ${de(b.maxY - b.minY)} mm. Dunkle Flächen werden gedruckt, weiße darauf sparen aus.`;
+    }),
+  ];
+}
+
+function blockCard(panel, app, t, index, openFontDialog) {
+  const { id } = t;
+  const kind = t.kind || 'text';
+  const bind = (key) => ({ get: () => app.text(id)?.[key], set: (v) => app.setText(id, key, v) });
+  const del = h('button', { type: 'button', class: 'icon-btn', title: 'Entfernen', html: icon('trash') });
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    app.removeText(id);
+  });
+  const multiple = () => app.doc.texts.length > 1;
+  const sideTag = h('span', { class: 'side-tag' }, 'hinten');
+  const head = h('div', { class: 'text-card-head' }, h('span', { class: 'text-card-title' }, `${KIND_NAMES[kind]} ${index + 1}`), sideTag, h('span', { class: 'spacer' }), del);
+  const fields = kind === 'qr' ? qrFields(panel, app, id, bind)
+    : kind === 'graphic' ? graphicFields(panel, app, id, bind)
+      : textFields(panel, app, id, index, bind, openFontDialog);
+  const body = h('div', { class: 'text-card-body' }, ...fields, ...commonFields(panel, app, id, bind));
+  const card = h('div', { class: `text-card kind-${kind}`, 'data-id': id }, head, body);
   card.addEventListener('pointerdown', () => app.select(id));
   card.addEventListener('focusin', () => app.select(id));
   panel.register(card, () => {
     card.classList.toggle('selected', multiple() && app.selectedId === id);
     del.hidden = !multiple();
+    sideTag.hidden = !(app.text(id)?.side === 'back' && app.doc.base.shape !== 'none');
   });
   return card;
 }
@@ -168,16 +290,28 @@ export function buildLeftPanel(root, app, { onPresetsSection, openFontDialog }) 
   onPresetsSection(presets.body);
 
   const add = h('button', { type: 'button', class: 'icon-btn', title: 'Weiteren Text hinzufügen (z. B. zweite Zeile in anderer Schrift)', html: icon('plus') });
-  add.addEventListener('click', () => app.addText());
-  const textSec = section('Text', { id: 'text', icon: 'text', actions: [add] });
+  add.addEventListener('click', () => app.addBlock('text'));
+  const textSec = section('Inhalt', { id: 'text', icon: 'text', actions: [add] });
   root.append(textSec.el);
   const list = h('div', { class: 'text-list' });
-  const hint = h('p', { class: 'ctl-note' }, 'Mit ', h('b', {}, '+'), ' kommt ein weiterer Text dazu – eigene Schrift, Größe und Position. In der Vorschau lässt sich jeder Text mit der Maus verschieben.');
-  textSec.body.append(list, hint);
+  const addButton = (label, title, onClick) => {
+    const b = h('button', { type: 'button', class: 'btn small', title, html: `${icon('plus')}<span>${label}</span>` });
+    b.addEventListener('click', onClick);
+    return b;
+  };
+  const adds = h('div', { class: 'add-row' },
+    addButton('Text', 'Weiteren Text hinzufügen – eigene Schrift, Größe und Position', () => app.addBlock('text')),
+    addButton('QR-Code', 'QR-Code hinzufügen, z. B. für WLAN oder einen Link', () => app.addBlock('qr')),
+    addButton('Grafik …', 'Eigene Grafik (SVG-Datei) hinzufügen, z. B. ein Logo', async () => {
+      const g = await pickGraphic(app);
+      if (g) app.addBlock('graphic', { graphic: g });
+    }));
+  const hint = h('p', { class: 'ctl-note' }, 'In der Vorschau lässt sich jeder Block mit der Maus verschieben. Mit „Seite: Hinten“ kommt er auf die Rückseite.');
+  textSec.body.append(list, adds, hint);
   const rebuild = () => {
     list.innerHTML = '';
     panel.prune();
-    app.doc.texts.forEach((t, i) => list.append(textCard(panel, app, t, i, openFontDialog)));
+    app.doc.texts.forEach((t, i) => list.append(blockCard(panel, app, t, i, openFontDialog)));
     panel.refresh();
   };
   app.on('structure', rebuild);
@@ -279,6 +413,7 @@ export function buildRightPanel(root, app) {
 
   const body = section('Körper (3D)', { id: 'body', icon: 'cube' });
   const relief = () => doc().body.relief;
+  const hasBack = () => hasBase() && doc().texts.some((t) => t.side === 'back');
   const border = () => hasBase() && doc().body.border;
   body.body.append(
     segmented(panel, { label: 'Schrift', bind: bindPath(app, 'body.relief'), options: [['raised', 'Erhaben'], ['engraved', 'Vertieft'], ['flush', 'Bündig']], visible: hasBase }),
@@ -300,6 +435,11 @@ export function buildRightPanel(root, app) {
       numberField(panel, { label: 'Konturhöhe', title: 'Die Schrift steht auf der Kontur', unit: 'mm', bind: bindPath(app, 'body.outlineHeight'), min: 0.1, max: 20, step: 0.1, digits: 2, slider: [0.2, 3], visible: () => hasBase() && doc().body.outline && relief() === 'raised' }),
     ),
     note(panel, 'Bei „Bündig“ sind Rand und Kontur ebenfalls bündig eingelegt – die Oberfläche bleibt glatt.', () => hasBase() && relief() === 'flush' && (doc().body.border || doc().body.outline)),
+    segmented(panel, { label: 'Rückseite', bind: bindPath(app, 'back.relief'), options: [['inlay', 'Farbig eingelegt'], ['engraved', 'Vertieft']], visible: hasBack }),
+    numberField(panel, { label: 'Tiefe hinten', title: 'Wie tief die Beschriftung der Rückseite in der Platte liegt', unit: 'mm', bind: bindPath(app, 'back.depth'), min: 0.1, max: 20, step: 0.1, digits: 2, slider: [0.2, 2], visible: hasBack }),
+    note(panel, () => (doc().back.relief === 'inlay'
+      ? 'Die Rückseite liegt beim Druck unten auf dem Druckbett – glatt, die Schrift in eigener Farbe in den ersten Schichten.'
+      : 'Die Rückseite ist in den Boden vertieft (gespiegelt, damit sie von hinten richtig herum steht).'), hasBack),
     note(panel, 'Tipp: Dicken als Vielfache der Schichthöhe wählen (z. B. 0,2 mm) – dann liegt der Farbwechsel genau auf einer Schicht.'),
   );
 

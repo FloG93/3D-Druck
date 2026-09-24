@@ -1,6 +1,7 @@
 // 2D canvas view: plate, border, lettering, thin-stroke warnings and
-// dimensions. World units are mm with y up. Drag a text to move it, drag the
-// background to pan, mouse wheel zooms.
+// dimensions. World units are mm with y up. Drag a block to move it, drag
+// the background to pan, mouse wheel zooms. side 'back' shows the plate
+// from behind (mirrored) with the lettering of the back.
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const de = (v, digits = 1) => v.toLocaleString('de-DE', { maximumFractionDigits: digits });
@@ -39,6 +40,7 @@ export class Renderer {
     this.height = 0;
     this.insetBottom = 0;
     this.colors = {};
+    this.side = 'front';
     this._raf = 0;
     this._fitted = false;
     this.readColors();
@@ -78,10 +80,15 @@ export class Renderer {
     this.draw();
   }
 
+  /** World bounds as seen in the current view (the back is mirrored). */
+  viewBounds(b) {
+    return this.side === 'back' ? { minX: -b.maxX, maxX: -b.minX, minY: b.minY, maxY: b.maxY } : b;
+  }
+
   fit() {
     const m = this.app.model;
     if (!this.width || !this.height) return;
-    const b = m && Number.isFinite(m.bounds.minX) ? m.bounds : { minX: -30, minY: -10, maxX: 30, maxY: 10 };
+    const b = m && Number.isFinite(m.bounds.minX) ? this.viewBounds(m.bounds) : { minX: -30, minY: -10, maxX: 30, maxY: 10 };
     const W = Math.max(b.maxX - b.minX, 10);
     const H = Math.max(b.maxY - b.minY, 10);
     const availH = Math.max(this.height * 0.5, this.height - (this.insetBottom || 0));
@@ -120,7 +127,11 @@ export class Renderer {
     });
   }
 
-  /** Text block under the screen point (topmost), or null. */
+  /**
+   * Block under the screen point (topmost) on the side in view, or null.
+   * Layout bounds are in the block's own frame, which is the view frame
+   * on both sides (unless the whole design is mirrored as a stamp).
+   */
   hitText(sx, sy) {
     const m = this.app.model;
     if (!m) return null;
@@ -128,6 +139,7 @@ export class Renderer {
     const px = m.doc.mirror ? -x : x;
     const tol = 6 / this.scale;
     for (let i = m.layouts.length - 1; i >= 0; i--) {
+      if ((m.layouts[i].side || 'front') !== this.side) continue;
       const b = m.layouts[i].bounds;
       if (px >= b.minX - tol && px <= b.maxX + tol && y >= b.minY - tol && y <= b.maxY + tol) return m.layouts[i].block.id;
     }
@@ -201,7 +213,8 @@ export class Renderer {
     this.drawGrid();
     const m = this.app.model;
     if (!m) return;
-    const S = (x, y) => this.toScreen(x, y);
+    const back = this.side === 'back';
+    const S = (x, y) => this.toScreen(back ? -x : x, y);
     const { colors } = m.doc;
     const fill = (region, style, stroke) => {
       if (!region.length) return;
@@ -223,6 +236,10 @@ export class Renderer {
     fill(m.plate.length ? m.plate : m.text, m.plate.length ? colors.base : colors.text);
     ctx.restore();
     fill(m.plate, colors.base, 'rgba(0,0,0,0.28)');
+    if (back) {
+      this.drawBack(m, fill, S);
+      return;
+    }
     fill(m.border, colors.border);
     // Countersinks: the cone seen from above.
     for (const c of m.countersinks) {
@@ -269,6 +286,31 @@ export class Renderer {
     this.drawDimensions(m);
   }
 
+  /** The plate seen from behind: magnet pockets and the lettering of the back. */
+  drawBack(m, fill, S) {
+    const { ctx } = this;
+    for (const c of m.magnets) {
+      const [x, y] = S(c.cx, c.cy);
+      ctx.beginPath();
+      ctx.arc(x, y, c.r * this.scale, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fill();
+    }
+    if (m.doc.back.relief === 'inlay') for (const g of m.backGroups) fill(g.region, g.color);
+    else fill(m.backText, 'rgba(0,0,0,0.30)');
+    if (m.thinBack.length) {
+      ctx.beginPath();
+      regionPath(ctx, m.thinBack, S);
+      ctx.fillStyle = 'rgba(255,160,0,0.55)';
+      ctx.fill('evenodd');
+      ctx.strokeStyle = this.colors.warn;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    this.drawSelection(m);
+    this.drawDimensions(m);
+  }
+
   drawGrid() {
     const { ctx } = this;
     const step = niceStep(24 / this.scale);
@@ -295,7 +337,7 @@ export class Renderer {
   drawSelection(m) {
     if (m.doc.texts.length < 2) return;
     const lay = m.layouts.find((l) => l.block.id === this.app.selectedId);
-    if (!lay || !Number.isFinite(lay.bounds.minX)) return;
+    if (!lay || !Number.isFinite(lay.bounds.minX) || (lay.side || 'front') !== this.side) return;
     const { ctx } = this;
     let { minX, maxX } = lay.bounds;
     if (m.doc.mirror) [minX, maxX] = [-maxX, -minX];
@@ -310,7 +352,7 @@ export class Renderer {
   }
 
   drawDimensions(m) {
-    const b = m.bounds;
+    const b = this.viewBounds(m.bounds);
     if (!Number.isFinite(b.minX)) return;
     const { ctx } = this;
     const [x0, y0] = this.toScreen(b.minX, b.minY);
