@@ -2,10 +2,13 @@
 // (column/row, item/ring) used for alternating rotations and random noise,
 // and a base rotation (e.g. tangential alignment on rings).
 
-import { DEG, TAU } from './math.js';
+import { DEG, TAU, clamp } from './math.js';
 import { mulberry32 } from './random.js';
+import { qrMatrix } from './qr.js';
 
-export const PATTERN_TYPES = ['grid', 'hex', 'radial', 'spiral', 'random'];
+export const PATTERN_TYPES = ['grid', 'hex', 'radial', 'spiral', 'random', 'qr', 'bitmap'];
+/** Arrangements whose cells come from a matrix (sizes per point, no turning). */
+export const CELL_PATTERNS = ['qr', 'bitmap'];
 export const MAX_POINTS = 60000;
 
 const mod2 = (n) => ((n % 2) + 2) % 2;
@@ -18,10 +21,14 @@ const mod2 = (n) => ((n % 2) + 2) % 2;
  * pattern closes without a seam.
  * Returns { points, overflow, estimate, seamless, columns, spacingX }.
  */
-export function makeLattice(pattern, canvas, pad = 0, wrap = 0) {
+export function makeLattice(pattern, canvas, pad = 0, wrap = 0, env = {}) {
   const halfW = wrap > 0 ? wrap / 2 : canvas.width / 2 + pad;
   const halfH = canvas.height / 2 + pad;
   switch (pattern.type) {
+    case 'qr':
+      return qrLattice(pattern, wrap);
+    case 'bitmap':
+      return bitmapLattice(pattern, canvas, env.sampleImage, wrap);
     case 'radial':
       return wrapFilter(radialLattice(pattern, halfW, halfH), wrap);
     case 'spiral':
@@ -255,4 +262,103 @@ function randomLattice(pattern, halfW, halfH, wrap = 0) {
     }
   }
   return { points: pts, overflow: false, estimate: pts.length, seamless: periodic };
+}
+
+/**
+ * Dark cells of a cols x rows matrix with cell size m; (x0, y0) is the top
+ * left corner. With merge, neighbouring cells of a row become one bar and
+ * equal bars of consecutive rows one block, so the shapes keep the gap only
+ * where they would touch. bars(r, c) forces merging for some cells (QR
+ * position markers). Points carry absolute sizes w/h.
+ */
+function cellRuns(cols, rows, dark, m, gap, merge, x0, y0, wrap, bars = () => false) {
+  const blocks = [];
+  let open = new Map();
+  for (let r = 0; r < rows; r++) {
+    const next = new Map();
+    for (let c = 0; c < cols;) {
+      if (!dark(r, c)) {
+        c += 1;
+        continue;
+      }
+      const join = merge || bars(r, c);
+      let e = c + 1;
+      if (join) while (e < cols && dark(r, e) && (merge || bars(r, e))) e += 1;
+      const key = c * 65536 + e;
+      const above = join ? open.get(key) : null;
+      if (above) {
+        above.r1 = r + 1;
+        next.set(key, above);
+      } else {
+        const block = { c, e, r0: r, r1: r + 1, join };
+        blocks.push(block);
+        if (join) next.set(key, block);
+      }
+      c = e;
+    }
+    open = next;
+  }
+  return blocks.map((b) => {
+    const x = x0 + ((b.c + b.e) / 2) * m;
+    return {
+      x: wrap > 0 ? wrapX(x, wrap) : x,
+      y: y0 - ((b.r0 + b.r1) / 2) * m,
+      i: b.c,
+      j: b.r0,
+      rot: 0,
+      w: (b.e - b.c) * m - (merge ? 0 : gap),
+      h: (b.r1 - b.r0) * m - gap,
+    };
+  });
+}
+
+/** QR code for pattern.qrText, centred on the pattern offset. */
+function qrLattice(pattern, wrap) {
+  let matrix;
+  try {
+    matrix = qrMatrix(pattern.qrText, pattern.qrEcc);
+  } catch (err) {
+    return { points: [], overflow: false, estimate: 0, info: { kind: 'qr', error: err.message } };
+  }
+  const m = Math.max(pattern.module || 1, 0.05);
+  const gap = clamp(pattern.gap || 0, 0, m / 2);
+  const n = matrix.size;
+  const x0 = (pattern.offsetX || 0) - (n * m) / 2;
+  const y0 = (pattern.offsetY || 0) + (n * m) / 2;
+  // The three position markers stay bars in every style, so scanners find them.
+  const finder = (r, c) => (r < 7 && (c < 7 || c >= n - 7)) || (r >= n - 7 && c < 7);
+  const points = cellRuns(n, n, matrix.dark, m, gap, pattern.merge !== false, x0, y0, wrap, finder);
+  return {
+    points,
+    overflow: false,
+    estimate: points.length,
+    seamless: true,
+    info: { kind: 'qr', size: n, version: matrix.version, expected: points.length, width: n * m },
+  };
+}
+
+/**
+ * Pixel image of the background image: cells darker than the threshold
+ * (lighter with invert) become shapes. The cells cover the canvas.
+ */
+function bitmapLattice(pattern, canvas, sample, wrap) {
+  if (!sample) return { points: [], overflow: false, estimate: 0, info: { kind: 'bitmap', missing: true } };
+  const m = Math.max(pattern.module || 1, 0.05);
+  const cols = Math.max(1, Math.round(canvas.width / m));
+  const rows = Math.max(1, Math.round(canvas.height / m));
+  if (cols * rows > MAX_POINTS * 40) return overflow((cols * rows) / 4);
+  const gap = clamp(pattern.gap || 0, 0, m / 2);
+  const t = clamp(pattern.threshold ?? 0.5, 0, 1);
+  const x0 = (-cols * m) / 2;
+  const y0 = (rows * m) / 2;
+  const cells = new Uint8Array(cols * rows);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const b = sample(x0 + (c + 0.5) * m, y0 - (r + 0.5) * m);
+      if (b != null) cells[r * cols + c] = (pattern.invert ? b > t : b < t) ? 1 : 0;
+    }
+  }
+  const points = cellRuns(cols, rows, (r, c) => cells[r * cols + c] === 1, m, gap, pattern.merge !== false, x0, y0, wrap);
+  if (points.length > MAX_POINTS) return overflow(points.length);
+  return { points, overflow: false, estimate: points.length, seamless: false, info: { kind: 'bitmap', cols, rows } };
 }

@@ -10,6 +10,7 @@ import { analyzeWebs, holeGap } from '../pattern-generator/js/core/analysis.js';
 import { defaultDoc, normalizeDoc, createModifier } from '../pattern-generator/js/core/document.js';
 import { BUILTIN_PRESETS } from '../pattern-generator/js/core/preset-library.js';
 import { knurlSettings, withKnurl, twistsShapes } from '../pattern-generator/js/core/knurl.js';
+import { qrMatrix } from '../pattern-generator/js/core/qr.js';
 
 const close = (a, b, eps = 1e-9, msg = '') => assert.ok(Math.abs(a - b) <= eps, `${msg} expected ${b}, got ${a}`);
 
@@ -348,4 +349,67 @@ test('knurl: diamond grooves at the chosen angle, one pitch apart, separated by 
   assert.ok(!twistsShapes({ ...createModifier('point'), angle: 0, scale: 0.5 }));
   assert.ok(!twistsShapes(createModifier('edge')));
   assert.ok(twistsShapes({ ...createModifier('noise'), angle: 0, jitter: 1 }));
+});
+
+test('QR code: every dark module is covered exactly once, markers stay bars', () => {
+  const text = 'Grüße – https://flog93.github.io/3D-Druck/';
+  const matrix = qrMatrix(text, 'Q');
+  const n = matrix.size;
+  assert.equal(n, 17 + 4 * matrix.version);
+  for (const merge of [true, false]) {
+    const doc = normalizeDoc({
+      canvas: { width: 80, height: 80 },
+      boundary: { type: 'rect', margin: 1 },
+      shape: { type: 'rect', round: 0, rotation: 30 },
+      pattern: { type: 'qr', qrText: text, qrEcc: 'Q', module: 1.5, gap: 0.1, merge, spin: 45, offsetX: 2, offsetY: -3 },
+    });
+    const res = generate(doc);
+    assert.equal(res.info.kind, 'qr');
+    assert.equal(res.info.size, n);
+    assert.equal(res.holes.length, res.info.expected, 'nothing dropped');
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        const x = 2 - (n * 1.5) / 2 + (c + 0.5) * 1.5;
+        const y = -3 + (n * 1.5) / 2 - (r + 0.5) * 1.5;
+        const hits = res.holes.filter((h) => Math.abs(x - h.x) < h.w / 2 && Math.abs(y - h.y) < h.h / 2).length;
+        assert.equal(hits, matrix.dark(r, c) ? 1 : 0, `module ${r},${c}`);
+      }
+    }
+    for (const h of res.holes) assert.equal(h.rot, 0, 'modules are never turned');
+    const webs = analyzeWebs(res.holes, 0);
+    assert.equal(webs.overlap, 0);
+    close(webs.minWeb, 0.1, 1e-9, 'rows keep the gap');
+    // Top left position marker: its first row is one 7-module bar in both styles.
+    const topLeft = res.holes.find((h) => Math.abs(h.y - (-3 + (n * 1.5) / 2 - 0.75)) < 1e-9 && h.x < 2 - (n * 1.5) / 2 + 7 * 1.5);
+    close(topLeft.w, merge ? 10.5 : 10.4, 1e-9);
+  }
+  // Too small a plate drops modules, too long a text is reported.
+  const small = generate(normalizeDoc({ canvas: { width: 30, height: 30 }, pattern: { type: 'qr', qrText: text, module: 1.5 } }));
+  assert.ok(small.holes.length < small.info.expected);
+  const long = generate(normalizeDoc({ pattern: { type: 'qr', qrText: 'x'.repeat(4000), qrEcc: 'H' } }));
+  assert.match(long.info.error, /zu lang/);
+  assert.equal(long.holes.length, 0);
+});
+
+test('bitmap: dark pixels of the image become bars', () => {
+  const doc = normalizeDoc({
+    canvas: { width: 50, height: 40 },
+    boundary: { type: 'none', margin: 0 },
+    shape: { type: 'rect', round: 0 },
+    pattern: { type: 'bitmap', module: 0.5, gap: 0.05, threshold: 0.5 },
+  });
+  const disk = (x, y) => (Math.hypot(x, y) < 15 ? 0.1 : 0.9);
+  const res = generate(doc, { sampleImage: disk });
+  assert.equal(res.info.cols, 100);
+  assert.equal(res.info.rows, 80);
+  const area = res.holes.reduce((a, h) => a + h.area, 0);
+  const diskArea = Math.PI * 225;
+  assert.ok(area > diskArea * 0.88 && area < diskArea * 1.02, `disk area ${area} vs ${diskArea} (gaps only between blocks)`);
+  for (const h of res.holes) assert.ok(Math.hypot(Math.abs(h.x) - h.w / 2, h.y) < 15.5);
+  const inverted = generate({ ...doc, pattern: { ...doc.pattern, invert: true } }, { sampleImage: disk });
+  const areaInv = inverted.holes.reduce((a, h) => a + h.area, 0);
+  assert.ok(area + areaInv <= 50 * 40 + 1e-6 && area + areaInv >= 50 * 40 * 0.9, 'dark and light pixels fill the canvas');
+  // Equal bars of consecutive rows are joined into blocks: far fewer shapes than rows x runs.
+  assert.ok(res.holes.length < 60);
+  assert.deepEqual(generate(doc).info, { kind: 'bitmap', missing: true });
 });

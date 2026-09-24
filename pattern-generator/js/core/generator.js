@@ -7,7 +7,7 @@
 
 import { DEG } from './math.js';
 import { makeBoundary, makeBandBoundary, rimDistance } from './boundary.js';
-import { makeLattice, wrapX } from './lattice.js';
+import { makeLattice, wrapX, CELL_PATTERNS } from './lattice.js';
 import { prepareModifiers, maxDisplacement } from './modifiers.js';
 import { buildHole, circumradius, shapePeriod, shiftHole } from './shapes.js';
 
@@ -50,7 +50,7 @@ export function generate(doc, env = {}) {
   const centerOnly = doc.boundary.fit === 'center';
   const baseR = circumradius(shape.type, shape.width, shape.height);
   const pad = baseR * 2 + maxDisplacement(doc.modifiers);
-  const lattice = makeLattice(pattern, canvas, pad, period);
+  const lattice = makeLattice(pattern, canvas, pad, period, { sampleImage: env.sampleImage });
   const result = {
     holes: [],
     ghosts: [],
@@ -58,12 +58,16 @@ export function generate(doc, env = {}) {
     overflow: lattice.overflow ? lattice.estimate : 0,
     stats: { count: 0, openArea: 0, ratio: 0, minRim: Infinity },
     wrap: cylinder ? { period, seamless: !!lattice.seamless, columns: lattice.columns || 0, spacingX: lattice.spacingX || 0 } : null,
+    // QR code / bitmap details (version, missing image, error text).
+    info: lattice.info || null,
   };
   if (lattice.overflow) return result;
 
   const shapeSymmetry = shapePeriod(shape);
   const mods = prepareModifiers(doc.modifiers, { boundary, period: shapeSymmetry, sampleImage: env.sampleImage, wrap: period });
-  const shapeRot = (shape.rotation || 0) * DEG;
+  // QR codes and bitmaps: cells keep their size and stay unturned.
+  const cells = CELL_PATTERNS.includes(pattern.type);
+  const shapeRot = cells ? 0 : (shape.rotation || 0) * DEG;
   const minSize = Math.max(shape.minSize || 0, 0.01);
   const el = { x: 0, y: 0, rot: 0, sx: 1, sy: 1, i: 0, j: 0, R: baseR, removed: false };
   const holes = result.holes;
@@ -73,11 +77,12 @@ export function generate(doc, env = {}) {
   for (const p of lattice.points) {
     el.x = p.x;
     el.y = p.y;
-    el.rot = p.rot + shapeRot + spinAmount(pattern, p);
+    el.rot = cells ? 0 : p.rot + shapeRot + spinAmount(pattern, p);
     el.sx = 1;
     el.sy = 1;
     el.i = p.i;
     el.j = p.j;
+    el.R = p.w ? circumradius(shape.type, p.w, p.h) : baseR;
     el.removed = false;
     for (let k = 0; k < mods.length; k++) {
       mods[k](el);
@@ -85,8 +90,8 @@ export function generate(doc, env = {}) {
     }
     if (el.removed) continue;
     if (cylinder) el.x = wrapX(el.x, period);
-    const w = shape.width * el.sx;
-    const h = shape.height * el.sy;
+    const w = (p.w ?? shape.width) * el.sx;
+    const h = (p.h ?? shape.height) * el.sy;
     if (w < minSize || h < minSize) continue;
     // Cheap reject: the centre must be inside the boundary (minus margin).
     const sd = boundary.sdf(el.x, el.y);

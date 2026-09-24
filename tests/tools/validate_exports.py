@@ -4,9 +4,11 @@ DXF: read and audited with ezdxf, hole area recomputed from the entities.
 STEP: read with OpenCascade, every solid checked (BRepCheck) and its volume
 compared with the exact value – tool bodies, the plate with holes and the
 plate with raised / recessed relief. STL: closed 2-manifold and plausible
-volume, also for relief (the recessed one with sloped flanks).
+volume, also for relief (the recessed one with sloped flanks). QR codes: the
+exported module outlines are rendered and must decode to the original text.
 
-Usage: python tests/tools/validate_exports.py <folder>   (pip install ezdxf cadquery-ocp)
+Usage: python tests/tools/validate_exports.py <folder>
+       (pip install ezdxf cadquery-ocp zxing-cpp pillow)
 """
 import json, math, struct, sys, os
 from collections import Counter
@@ -136,6 +138,46 @@ for name, exp in summary.items():
     for f in (f'{name}.svg', f'{name}_plate.svg'):
         ET.parse(f'{OUT}/{f}')
 print('SVG files parsed')
+
+def outline_points(item):
+    """Polygon (mm) of one outline from a Fusion JSON file."""
+    if 'c' in item:
+        (cx, cy), r = item['c'], item['r']
+        return [(cx + r * math.cos(2 * math.pi * k / 48), cy + r * math.sin(2 * math.pi * k / 48)) for k in range(48)]
+    if 'e' in item:
+        cx, cy, rx, ry, rot = item['e']
+        c, s = math.cos(rot), math.sin(rot)
+        return [(cx + rx * math.cos(t) * c - ry * math.sin(t) * s, cy + rx * math.cos(t) * s + ry * math.sin(t) * c)
+                for t in (2 * math.pi * k / 48 for k in range(48))]
+    pts = []
+    for seg in item['p']:
+        if seg[0] == 'L':
+            pts.append((seg[1], seg[2]))
+        else:
+            _, cx, cy, r, a0, sweep = seg
+            pts += [(cx + r * math.cos(a0 + sweep * k / 8), cy + r * math.sin(a0 + sweep * k / 8)) for k in range(8)]
+    return pts
+
+from PIL import Image, ImageDraw
+import zxingcpp
+for name, text in json.load(open(f'{OUT}/qr.json')).items():
+    data = json.load(open(f'{OUT}/{name}.fusion.json'))
+    polys = [outline_points(h) for h in data['holes']]
+    xs = [p[0] for poly in polys for p in poly]
+    ys = [p[1] for poly in polys for p in poly]
+    quiet = 8.0  # light border in mm
+    x0, y1 = min(xs) - quiet, max(ys) + quiet
+    decoded = {}
+    # Coarse (phone at a distance) to fine (the 0.1 mm gaps clearly visible).
+    for scale in (4, 8, 24):
+        size = (int((max(xs) - min(xs) + 2 * quiet) * scale), int((max(ys) - min(ys) + 2 * quiet) * scale))
+        img = Image.new('L', size, 255)
+        draw = ImageDraw.Draw(img)
+        for poly in polys:
+            draw.polygon([((x - x0) * scale, (y1 - y) * scale) for x, y in poly], fill=0)
+        found = [r.text for r in zxingcpp.read_barcodes(img)]
+        decoded[scale] = found[0] if found else None
+    report(all(v == text for v in decoded.values()), f"QR   {name:9s} shapes={len(polys)} decoded={decoded}")
 tube = json.load(open(f'{OUT}/tube.json'))
 n, bad, vol = stl_edges(f'{OUT}/tube.stl')
 report(bad == 0 and abs(vol - tube['volume']) < 2e-3 * tube['volume'],

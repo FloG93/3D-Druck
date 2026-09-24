@@ -234,6 +234,26 @@ export function toggle(panel, opts) {
   }, opts.visible);
 }
 
+/** Single-line text input. opts: { label, bind, placeholder, maxlength, visible } */
+export function textField(panel, opts) {
+  const id = nextId('txt');
+  const input = h('input', {
+    id,
+    type: 'text',
+    spellcheck: 'false',
+    placeholder: opts.placeholder || null,
+    maxlength: opts.maxlength ? String(opts.maxlength) : null,
+  });
+  const el = h('div', { class: 'ctl ctl-textfield wide' }, h('label', { class: 'ctl-label', for: id }, opts.label),
+    h('div', { class: 'ctl-field' }, input));
+  input.addEventListener('input', () => opts.bind.set(input.value));
+  input.addEventListener('change', () => panel.app.commit());
+  return panel.register(el, () => {
+    const v = String(opts.bind.get() ?? '');
+    if (document.activeElement !== input && input.value !== v) input.value = v;
+  }, opts.visible);
+}
+
 /** Colour picker with hex label. */
 export function colorField(panel, opts) {
   const id = nextId('col');

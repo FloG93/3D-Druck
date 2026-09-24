@@ -39,6 +39,14 @@ export const DEFAULTS = {
     spiralSpacing: 8,
     minDistance: 8,
     seed: 1,
+    // QR code and bitmap ("Bild / Logo"): cell size, gap between rows, bars
+    qrText: 'https://flog93.github.io/3D-Druck/',
+    qrEcc: 'M',
+    module: 1.5,
+    gap: 0.1,
+    merge: true,
+    threshold: 0.5,
+    invert: false,
   },
   // cut: holes through the plate · emboss: raised ribs/bumps · deboss: grooves/pockets
   relief: { mode: 'cut', height: 1, taper: 0 },

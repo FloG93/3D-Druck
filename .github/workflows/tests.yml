@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Prüfwerkzeuge installieren
-        run: pip install ezdxf cadquery-ocp
+        run: pip install ezdxf cadquery-ocp zxing-cpp pillow
       - name: Beispiel-Exporte erzeugen
         run: node tests/tools/generate-exports.mjs build/exports
       - name: DXF, STEP, STL und SVG validieren

@@ -23,6 +23,9 @@ const HTML = `
       <li><b>Prüfung</b>: Die Statusleiste zeigt Lochanzahl, offene Fläche und den schmalsten Steg. Zu dünne Stege werden orange, Überlappungen rot markiert.</li>
     </ul>
 
+    <h3>QR-Code &amp; Logo</h3>
+    <p>Unter <b>Anordnung → Typ</b> „QR-Code“ wählen, Text oder Link eintragen und mit <b>Fläche an QR-Code anpassen</b> die Arbeitsfläche samt Ruhezone setzen. Module ab ca. 1 mm lassen sich gut drucken und scannen; am besten erhaben mit Farbwechsel im Slicer auf Höhe der Plattendicke. Für ein <b>Logo</b> links ein Bild laden und „Bild / Logo (Pixel)“ wählen – dunkle Bereiche werden zu Formen (Schwelle und Pixelgröße einstellbar).</p>
+
     <h3>Rändelung</h3>
     <p>Im Bereich <b>Rändelung</b> (rechts) Art, <b>Teilung</b> (Abstand paralleler Rillen, gut druckbar ab ca. 1,5 mm), Winkel und Profilwinkel wählen und <b>Rändelung anwenden</b>: Lochform, Anordnung und Körper (3D) werden passend gesetzt – Kreuzrändel als Pyramiden, gerade Rändel als Grate. Mit Form <b>Zylinder</b> rastet die Teilung auf den Umfang ein (Rändelknopf). Modifikatoren, die Formen drehen oder verschieben, werden dabei ausgeschaltet; Skalieren (z. B. Randverlauf) bleibt erlaubt.</p>
 

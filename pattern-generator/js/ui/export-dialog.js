@@ -234,6 +234,11 @@ export class ExportDialog {
     if (cylinder && this.format === 'step') {
       warn.push('STEP enthält die flache <b>Abwicklung</b> (Umfang × Höhe). Den fertigen Zylinder liefert das STL; in Fusion 360 die Abwicklung mit <i>Prägen</i> auf die Mantelfläche bringen.');
     }
+    if (r && r.info && r.info.kind === 'qr') {
+      if (r.info.error) warn.push(r.info.error);
+      else if (r.info.expected > r.holes.length) warn.push(`Der QR-Code ist unvollständig (${r.info.expected - r.holes.length} Module fehlen) und wird so nicht lesbar sein.`);
+    }
+    if (r && r.info && r.info.kind === 'bitmap' && r.info.missing) warn.push('Für „Bild / Logo“ zuerst ein Hintergrundbild laden.');
     if (cylinder && r && r.wrap && !r.wrap.seamless) {
       warn.push('Diese Anordnung schließt an der Zylinder-Naht nicht exakt.');
     }

@@ -44,6 +44,26 @@ for (const [name, doc] of Object.entries(cases)) {
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));
 
+// QR codes: exported through the Fusion JSON, decoded again by validate_exports.py.
+{
+  const qrCases = {
+    qr_url: { text: 'https://flog93.github.io/3D-Druck/', ecc: 'M', module: 1.5, merge: true, round: 0 },
+    qr_dots: { text: 'Grüße aus dem Muster-Generator – 3D-Druck mit Fusion 360', ecc: 'Q', module: 1.2, merge: false, round: 0.35 },
+  };
+  const texts = {};
+  for (const [name, q] of Object.entries(qrCases)) {
+    const doc = normalizeDoc({
+      canvas: { width: 90, height: 90 },
+      boundary: { type: 'rect', margin: 1 },
+      shape: { type: 'rect', round: q.round },
+      pattern: { type: 'qr', qrText: q.text, qrEcc: q.ecc, module: q.module, gap: 0.1, merge: q.merge },
+    });
+    fs.writeFileSync(`${OUT}/${name}.fusion.json`, exportFusionJSON(generate(doc), doc, { includeBoundary: false }));
+    texts[name] = q.text;
+  }
+  fs.writeFileSync(`${OUT}/qr.json`, JSON.stringify(texts));
+}
+
 // Cylinder Ø 36 x 40 mm, 3 mm wall, hexagons across the seam: a closed tube.
 {
   const U = Math.PI * 36;

@@ -280,6 +280,19 @@ export const BUILTIN_PRESETS = [
       modifiers: [mod('point', { x: 0, y: 0, radius: 60, falloff: 'smooth', angle: 90, rotateMode: 'add', scale: 1 })],
     }),
   },
+  // QR code (see qr.js): 29 x 29 modules of 1.5 mm plus quiet zone.
+  {
+    name: 'QR-Schild',
+    doc: () => ({
+      canvas: { width: 55.5, height: 55.5 },
+      boundary: { type: 'rect', cornerRadius: 3, margin: 1.5 },
+      shape: { type: 'rect', round: 0, color: '#264653' },
+      pattern: { type: 'qr', qrText: 'https://flog93.github.io/3D-Druck/', qrEcc: 'M', module: 1.5, gap: 0.1, merge: true },
+      relief: { mode: 'emboss', height: 0.8, taper: 0 },
+      check: { minWeb: 0 },
+      modifiers: [],
+    }),
+  },
   // Knurls (see knurl.js): pyramids or ridges from sloped relief.
   {
     name: 'Rändelknopf',

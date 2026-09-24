@@ -3,11 +3,12 @@
 
 import {
   h, Panel, bindPath, numberField, selectField, segmented, toggle, colorField,
-  buttonRow, note, grid, section, formatNumber,
+  buttonRow, note, grid, section, formatNumber, textField,
 } from './controls.js';
 import { regularPolygon } from '../core/boundary.js';
 import { MAX_TAPER } from '../core/relief.js';
 import { KNURL_DEFAULTS, knurlSettings, twistsShapes } from '../core/knurl.js';
+import { CELL_PATTERNS } from '../core/lattice.js';
 import { createImage } from './image.js';
 
 const fmt = (v, d = 2) => formatNumber(v, d);
@@ -217,6 +218,8 @@ export function buildRightPanel(root, app, { modifiersSection }) {
   const doc = () => app.doc;
 
   root.append(modifiersSection);
+  // QR code and bitmap: the cells define size, position and orientation.
+  const cellType = () => CELL_PATTERNS.includes(doc().pattern.type);
 
   // Hole shape
   const shape = section('Lochform', { id: 'shape', icon: 'shape' });
@@ -227,11 +230,12 @@ export function buildRightPanel(root, app, { modifiersSection }) {
       options: [['rect', 'Langloch / Rechteck'], ['ellipse', 'Kreis / Ellipse'], ['polygon', 'Polygon']],
     }),
     grid(
-      numberField(panel, { label: 'Breite', unit: 'mm', bind: P('shape.width'), min: 0.05, max: 1000, step: 0.1, title: 'Ausdehnung in X-Richtung (bei Drehung 0°)' }),
-      numberField(panel, { label: 'Höhe', unit: 'mm', bind: P('shape.height'), min: 0.05, max: 1000, step: 0.1, title: 'Ausdehnung in Y-Richtung (bei Drehung 0°)' }),
+      numberField(panel, { label: 'Breite', unit: 'mm', bind: P('shape.width'), min: 0.05, max: 1000, step: 0.1, visible: () => !cellType(), title: 'Ausdehnung in X-Richtung (bei Drehung 0°)' }),
+      numberField(panel, { label: 'Höhe', unit: 'mm', bind: P('shape.height'), min: 0.05, max: 1000, step: 0.1, visible: () => !cellType(), title: 'Ausdehnung in Y-Richtung (bei Drehung 0°)' }),
       numberField(panel, { label: 'Ecken', bind: P('shape.sides'), min: 3, max: 64, step: 1, digits: 0, visible: () => shapeType() === 'polygon' }),
-      numberField(panel, { label: 'Drehung', unit: '°', bind: P('shape.rotation'), min: -360, max: 360, step: 1 }),
+      numberField(panel, { label: 'Drehung', unit: '°', bind: P('shape.rotation'), min: -360, max: 360, step: 1, visible: () => !cellType() }),
     ),
+    note(panel, 'Größe und Lage der Formen kommen aus der Anordnung (QR-Code bzw. Bild). Hier nur Form und Rundung wählen – Rechteck mit 0 % ergibt die klassischen Module.', cellType),
     numberField(panel, {
       label: 'Eckenrundung',
       unit: '%',
@@ -273,7 +277,34 @@ export function buildRightPanel(root, app, { modifiersSection }) {
         ['radial', 'Ringe (kreisförmig)'],
         ['spiral', 'Spirale (Sonnenblume)'],
         ['random', 'Zufällig (Poisson)'],
+        ['qr', 'QR-Code'],
+        ['bitmap', 'Bild / Logo (Pixel)'],
       ],
+      onChange: (type) => {
+        if (!CELL_PATTERNS.includes(type)) return;
+        // Codes and logos need plain, unturned cells.
+        const d = app.doc;
+        Object.assign(d.shape, { type: 'rect', round: 0, rotation: 0 });
+        // A dark colour keeps the code scannable right from the screen.
+        const rgb = /^#([0-9a-f]{6})$/i.exec(d.shape.color || '');
+        const n = rgb ? parseInt(rgb[1], 16) : 0xffffff;
+        const luma = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+        if (type === 'qr' && luma > 0.4) d.shape.color = '#264653';
+        d.pattern.rotation = 0;
+        d.check.minWeb = 0;
+        if (d.relief.mode === 'cut') Object.assign(d.relief, { mode: 'emboss', height: 0.8, taper: 0 });
+        else d.relief.taper = 0;
+        let off = 0;
+        for (const m of d.modifiers) {
+          if (m.enabled !== false && (type === 'qr' || twistsShapes(m))) {
+            m.enabled = false;
+            off += 1;
+          }
+        }
+        app.changed(true);
+        app.commit();
+        if (off) app.emit('toast', `${off} Modifikator${off > 1 ? 'en' : ''} ausgeschaltet – ${type === 'qr' ? 'ein QR-Code muss unverändert bleiben' : 'Drehen/Verschieben passt nicht zu Pixeln'}.`);
+      },
     }),
     grid(
       numberField(panel, { label: 'Abstand X', unit: 'mm', bind: P('pattern.spacingX'), min: 0.1, max: 1000, step: 0.1, visible: isGrid, title: 'Mittenabstand in einer Reihe' }),
@@ -285,10 +316,75 @@ export function buildRightPanel(root, app, { modifiersSection }) {
       numberField(panel, { label: 'Abstand', unit: 'mm', bind: P('pattern.spiralSpacing'), min: 0.1, max: 1000, step: 0.1, visible: () => pt() === 'spiral' }),
       numberField(panel, { label: 'Mindestabstand', unit: 'mm', bind: P('pattern.minDistance'), min: 0.1, max: 1000, step: 0.1, visible: () => pt() === 'random' }),
       numberField(panel, { label: 'Seed', bind: P('pattern.seed'), min: 1, max: 99999, step: 1, digits: 0, visible: () => pt() === 'random' }),
-      numberField(panel, { label: 'Drehung', unit: '°', bind: P('pattern.rotation'), min: -360, max: 360, step: 1 }),
-      numberField(panel, { label: 'Versatz X', unit: 'mm', bind: P('pattern.offsetX'), min: -5000, max: 5000, step: 0.5 }),
-      numberField(panel, { label: 'Versatz Y', unit: 'mm', bind: P('pattern.offsetY'), min: -5000, max: 5000, step: 0.5 }),
+      numberField(panel, { label: 'Drehung', unit: '°', bind: P('pattern.rotation'), min: -360, max: 360, step: 1, visible: () => !cellType() }),
+      numberField(panel, { label: 'Versatz X', unit: 'mm', bind: P('pattern.offsetX'), min: -5000, max: 5000, step: 0.5, visible: () => pt() !== 'bitmap' }),
+      numberField(panel, { label: 'Versatz Y', unit: 'mm', bind: P('pattern.offsetY'), min: -5000, max: 5000, step: 0.5, visible: () => pt() !== 'bitmap' }),
     ),
+    textField(panel, { label: 'Text oder Link', bind: P('pattern.qrText'), placeholder: 'https://…', maxlength: 2000, visible: () => pt() === 'qr' }),
+    segmented(panel, {
+      label: 'Fehlerkorrektur',
+      bind: P('pattern.qrEcc'),
+      options: [['L', 'L 7 %'], ['M', 'M 15 %'], ['Q', 'Q 25 %'], ['H', 'H 30 %']],
+      visible: () => pt() === 'qr',
+    }),
+    grid(
+      numberField(panel, { label: 'Modulgröße', unit: 'mm', bind: P('pattern.module'), min: 0.2, max: 100, step: 0.1, visible: () => pt() === 'qr', title: 'Kantenlänge eines QR-Moduls – ab 1 mm gut druck- und scanbar' }),
+      numberField(panel, { label: 'Pixelgröße', unit: 'mm', bind: P('pattern.module'), min: 0.2, max: 100, step: 0.1, visible: () => pt() === 'bitmap', title: 'Rastergröße des Bildes – etwa Düsendurchmesser (0,4–0,6 mm) für feine Logos' }),
+      numberField(panel, { label: 'Spalt', unit: 'mm', bind: P('pattern.gap'), min: 0, max: 10, step: 0.05, visible: cellType, title: 'Abstand zwischen den Zeilen – hält die Formen getrennt, verschwindet beim Drucken' }),
+    ),
+    numberField(panel, { label: 'Schwelle', unit: '%', percent: true, bind: P('pattern.threshold'), min: 0, max: 1, step: 1, digits: 0, slider: [0, 1], wide: true, visible: () => pt() === 'bitmap', title: 'Helligkeit, unter der ein Pixel zur Form wird' }),
+    toggle(panel, { label: 'Helle Bereiche statt dunkler', bind: P('pattern.invert'), visible: () => pt() === 'bitmap' }),
+    toggle(panel, { label: 'Nachbarn einer Zeile zu Balken verbinden', bind: P('pattern.merge'), visible: cellType, title: 'Weniger, längere Formen – aus: einzelne Punkte/Quadrate' }),
+    note(panel, () => {
+      const r = app.result;
+      const info = r && r.info;
+      if (!info) return '';
+      if (info.error) return `<span class="danger">${info.error}</span>`;
+      if (info.kind === 'bitmap') {
+        if (info.missing) return 'Zuerst links unter <b>Hintergrundbild</b> ein Logo oder Bild laden – dunkle Bereiche werden zu Formen (transparente zählen als hell).';
+        return `${info.cols} × ${info.rows} Pixel à ${fmt(doc().pattern.module)} mm.`;
+      }
+      const parts = [`QR-Code Version ${info.version}: ${info.size} × ${info.size} Module = ${fmt(info.width, 1)} × ${fmt(info.width, 1)} mm.`];
+      const missing = info.expected - r.holes.length;
+      if (missing > 0) parts.push(`<span class="danger">${missing} Module passen nicht auf die Fläche – „Fläche an QR-Code anpassen“ oder Modulgröße verkleinern.</span>`);
+      if (doc().pattern.module < 1) parts.push('<span class="warn">Unter 1 mm Modulgröße wird das Scannen unsicher.</span>');
+      if (doc().relief.mode === 'emboss') parts.push(`Tipp: Im Slicer bei ${fmt(doc().export.thickness)} mm einen Farbwechsel einfügen – dunkle Module auf heller Platte scannen am besten.`);
+      return parts.join(' ');
+    }, cellType),
+    buttonRow(panel, [{
+      label: 'Fläche an QR-Code anpassen',
+      icon: 'fit',
+      title: 'Arbeitsfläche = Code plus 4 Module Ruhezone ringsum',
+      onClick: () => {
+        const info = app.result && app.result.info;
+        if (!info || info.kind !== 'qr' || info.error) return;
+        const d = app.doc;
+        const size = Math.round((info.size + 8) * d.pattern.module * 100) / 100;
+        d.canvas.height = size;
+        if (d.form.type !== 'cylinder') {
+          d.canvas.width = size;
+          Object.assign(d.boundary, { type: 'rect', cornerRadius: Math.round(d.pattern.module * 200) / 100, margin: d.pattern.module });
+        }
+        d.pattern.offsetX = 0;
+        d.pattern.offsetY = 0;
+        app.changed();
+        app.commit();
+        app.emit('fit');
+      },
+    }], () => pt() === 'qr'),
+    buttonRow(panel, [{
+      label: 'Seitenverhältnis wie Bild',
+      icon: 'fit',
+      title: 'Höhe der Arbeitsfläche passend zum Bild setzen',
+      onClick: () => {
+        const img = app.image;
+        if (!img) return;
+        app.doc.canvas.height = Math.round(((app.doc.canvas.width * img.height) / img.width) * 100) / 100;
+        app.changed();
+        app.commit();
+        app.emit('fit');
+      },
+    }], () => pt() === 'bitmap' && !!app.image && doc().form.type !== 'cylinder'),
     buttonRow(panel, [{
       label: 'Wabenabstand',
       title: 'Abstand Y = Abstand X · √3/2 (gleichmäßige Sechseck-Packung)',
@@ -312,25 +408,27 @@ export function buildRightPanel(root, app, { modifiersSection }) {
       label: 'Löcher mitdrehen',
       title: 'Bei gedrehtem Raster auch die Löcher drehen',
       bind: P('pattern.rotateHoles'),
-      visible: () => isGrid() || pt() === 'random' || doc().pattern.align === 'none',
+      visible: () => !cellType() && (isGrid() || pt() === 'random' || doc().pattern.align === 'none'),
     }),
   );
-  const spinHead = h('h4', { class: 'subhead' }, 'Reihen-Drehung');
+  const spinHead = panel.register(h('h4', { class: 'subhead' }, 'Reihen-Drehung'), null, () => !cellType());
   pat.body.append(
     spinHead,
     grid(
-      numberField(panel, { label: 'Winkel', unit: '°', bind: P('pattern.spin'), min: -360, max: 360, step: 1, title: 'Zusätzliche Drehung je Reihe/Spalte – z. B. 90° abwechselnd = Fischgrät' }),
+      numberField(panel, { label: 'Winkel', unit: '°', bind: P('pattern.spin'), min: -360, max: 360, step: 1, visible: () => !cellType(), title: 'Zusätzliche Drehung je Reihe/Spalte – z. B. 90° abwechselnd = Fischgrät' }),
       selectField(panel, {
         label: 'Modus',
         wide: false,
         bind: P('pattern.spinMode'),
         options: [['alternate', 'Abwechselnd ±'], ['progressive', 'Fortlaufend']],
+        visible: () => !cellType(),
       }),
     ),
     segmented(panel, {
       label: 'Bezug',
       bind: P('pattern.spinBy'),
       options: [['row', 'Reihe'], ['column', 'Spalte'], ['checker', 'Schachbrett']],
+      visible: () => !cellType(),
     }),
   );
   root.append(pat.el);
