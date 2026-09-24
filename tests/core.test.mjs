@@ -9,6 +9,7 @@ import { generate, seamGhosts } from '../pattern-generator/js/core/generator.js'
 import { analyzeWebs, holeGap } from '../pattern-generator/js/core/analysis.js';
 import { defaultDoc, normalizeDoc, createModifier } from '../pattern-generator/js/core/document.js';
 import { BUILTIN_PRESETS } from '../pattern-generator/js/core/preset-library.js';
+import { knurlSettings, withKnurl, twistsShapes } from '../pattern-generator/js/core/knurl.js';
 
 const close = (a, b, eps = 1e-9, msg = '') => assert.ok(Math.abs(a - b) <= eps, `${msg} expected ${b}, got ${a}`);
 
@@ -307,4 +308,44 @@ test('cylinder: holes cross the seam, ghosts complete them and the check sees ac
   const bad = normalizeDoc({ form: { type: 'kegel', bottom: -3 } });
   assert.equal(bad.form.type, 'plate');
   assert.equal(bad.form.bottom, 0);
+});
+
+test('knurl: diamond grooves at the chosen angle, one pitch apart, separated by the gap', () => {
+  const plate = normalizeDoc({ canvas: { width: 80, height: 50 }, boundary: { type: 'rect', margin: 2 } });
+  for (const angle of [30, 45]) {
+    const k = knurlSettings({ type: 'diamond', pitch: 2.5, angle, profile: 90, gap: 0.1 }, plate);
+    const a = (angle * Math.PI) / 180;
+    // Cell rhombus: diagonals spacingX and 2 * spacingY.
+    const w = k.pattern.spacingX;
+    const h = 2 * k.pattern.spacingY;
+    close(Math.atan2(w, h), a, 1e-4, 'groove angle to the axis');
+    close(w * Math.cos(a), 2.5, 1e-4, 'pitch between parallel grooves');
+    close(k.shape.width / w, (2.5 - 0.1) / 2.5, 1e-4);
+    close(k.relief.height, 1.2, 1e-4, 'flanks at 45° meet in a point');
+    assert.equal(k.relief.taper, 45);
+    const doc = normalizeDoc(withKnurl(plate, { type: 'diamond', pitch: 2.5, angle, gap: 0.1 }));
+    const res = generate(doc);
+    const webs = analyzeWebs(res.holes, doc.check.minWeb);
+    assert.equal(webs.overlap, 0);
+    close(webs.minWeb, 0.1, 2e-3, 'neighbouring points keep the gap');
+  }
+  // On a cylinder a whole number of points goes around.
+  const knob = normalizeDoc(withKnurl({ canvas: { width: Math.PI * 30, height: 20 }, form: { type: 'cylinder' }, boundary: { margin: 1 } }, { type: 'diamond', pitch: 2 }));
+  const cols = knob.canvas.width / knob.pattern.spacingX;
+  close(cols, Math.round(cols), 1e-9);
+  const res = generate(knob);
+  assert.ok(res.wrap.seamless);
+  assert.equal(res.wrap.columns, Math.round(cols));
+  assert.equal(analyzeWebs(res.holes, knob.check.minWeb, res.ghosts).overlap, 0);
+  // Straight knurl: ridges along the axis, above a closed bottom.
+  const cup = normalizeDoc(withKnurl({ canvas: { width: Math.PI * 24, height: 16 }, form: { type: 'cylinder', bottom: 3 }, boundary: { margin: 1 } }, { type: 'straight', pitch: 1.5, profile: 60 }));
+  const ridges = generate(cup);
+  assert.ok(ridges.holes.length >= 40);
+  for (const h of ridges.holes) assert.ok(h.y - h.h / 2 >= -8 + 3 + 1 - 1e-6, 'ridges stay above the floor');
+  assert.equal(cup.relief.taper, 30);
+  // Turning or moving modifiers would break the tiling, scaling ones are fine.
+  assert.ok(twistsShapes(createModifier('point')));
+  assert.ok(!twistsShapes({ ...createModifier('point'), angle: 0, scale: 0.5 }));
+  assert.ok(!twistsShapes(createModifier('edge')));
+  assert.ok(twistsShapes({ ...createModifier('noise'), angle: 0, jitter: 1 }));
 });

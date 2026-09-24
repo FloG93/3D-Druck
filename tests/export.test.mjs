@@ -10,6 +10,7 @@ import { exportFusionJSON } from '../pattern-generator/js/export/fusion.js';
 import { buildPlateMesh, buildTubeMesh, toBinarySTL, insetConvex } from '../pattern-generator/js/export/mesh.js';
 import { polygonize } from '../pattern-generator/js/core/shapes.js';
 import { encodeDoc, decodeHash } from '../pattern-generator/js/ui/share.js';
+import { withKnurl } from '../pattern-generator/js/core/knurl.js';
 
 const CASES = {
   slots: defaultDoc(),
@@ -384,6 +385,20 @@ test('cylinder exports are the unrolled surface', () => {
   assert.ok(Math.max(...xs) >= U / 2 - 1e-3, 'boundary spans the circumference');
   const data = JSON.parse(exportFusionJSON(r, doc, { includeBoundary: true }));
   assert.deepEqual(data.form, { type: 'cylinder', diameter: 30, bottom: 2 });
+});
+
+test('knurl meshes: pyramids reach their point and stay closed', () => {
+  const doc = normalizeDoc(withKnurl({ canvas: { width: 40, height: 30 }, boundary: { type: 'rect', margin: 2 } }, { type: 'diamond', pitch: 3, angle: 45, gap: 0.1 }));
+  const r = generate(doc);
+  const mesh = buildPlateMesh(r.boundary.outline, r.holes.map((h) => h.outline), 2, 0.01, { relief: doc.relief });
+  closedVolume(mesh.positions, 'knurl plate');
+  let top = 0;
+  for (let i = 2; i < mesh.positions.length; i += 3) top = Math.max(top, mesh.positions[i]);
+  assert.ok(Math.abs(top - (2 + doc.relief.height)) < 1e-4, `tips at ${top}`);
+  const knob = normalizeDoc(withKnurl({ canvas: { width: Math.PI * 20, height: 12 }, form: { type: 'cylinder' }, boundary: { margin: 1 } }, { type: 'diamond', pitch: 2 }));
+  const k = generate(knob);
+  const tube = buildTubeMesh([...k.holes, ...k.ghosts].map((h) => h.outline), knob.canvas.width, 12, 2, 0.02, { relief: knob.relief, segments: 120 });
+  closedVolume(tube.positions, 'knurled knob');
 });
 
 test('share links round-trip the document', async () => {

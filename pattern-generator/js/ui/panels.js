@@ -7,6 +7,7 @@ import {
 } from './controls.js';
 import { regularPolygon } from '../core/boundary.js';
 import { MAX_TAPER } from '../core/relief.js';
+import { KNURL_DEFAULTS, knurlSettings, twistsShapes } from '../core/knurl.js';
 import { createImage } from './image.js';
 
 const fmt = (v, d = 2) => formatNumber(v, d);
@@ -333,6 +334,59 @@ export function buildRightPanel(root, app, { modifiersSection }) {
     }),
   );
   root.append(pat.el);
+
+  // Knurl assistant: sets shape, arrangement and relief in one step.
+  const knurl = { ...KNURL_DEFAULTS };
+  const K = (key) => ({
+    get: () => knurl[key],
+    set: (v) => {
+      knurl[key] = v;
+      panel.refresh();
+    },
+  });
+  const knurlSec = section('Rändelung', { id: 'knurl', icon: 'grid', open: false });
+  knurlSec.body.append(
+    note(panel, 'Griffige Rändelung wie an Drehknöpfen und Schrauben – für Platten oder mit Form <b>Zylinder</b> (Körper (3D)) als Rändelknopf.'),
+    segmented(panel, { label: 'Art', bind: K('type'), options: [['diamond', 'Kreuz (Rauten)'], ['straight', 'Gerade']] }),
+    grid(
+      numberField(panel, { label: 'Teilung', unit: 'mm', bind: K('pitch'), min: 0.3, max: 50, step: 0.1, title: 'Abstand paralleler Rillen – 1,5 bis 3 mm lassen sich gut drucken' }),
+      numberField(panel, { label: 'Winkel', unit: '°', bind: K('angle'), min: 10, max: 80, step: 1, visible: () => knurl.type === 'diamond', title: 'Winkel der Rillen zur Achse: 30° klassisch, 45° quadratische Rauten' }),
+      numberField(panel, { label: 'Profilwinkel', unit: '°', bind: K('profile'), min: 30, max: 150, step: 5, title: 'Öffnungswinkel der Zähne – 90° druckt ohne Stützen' }),
+    ),
+    segmented(panel, { label: 'Spitzen', bind: K('raised'), options: [[true, 'erhaben (Pyramiden)'], [false, 'vertieft']] }),
+    note(panel, () => {
+      const s = knurlSettings(knurl, doc());
+      const size = knurl.type === 'straight'
+        ? `Grate ${fmt(s.shape.width)} mm breit`
+        : `Rauten ${fmt(s.shape.width)} × ${fmt(s.shape.height)} mm`;
+      const around = doc().form.type === 'cylinder' ? ` · ${Math.round(doc().canvas.width / s.pattern.spacingX)} rundherum` : '';
+      return `${size}, ${fmt(s.relief.height)} mm ${knurl.raised ? 'hoch' : 'tief'}${around}.`;
+    }),
+    buttonRow(panel, [{
+      label: 'Rändelung anwenden',
+      icon: 'grid',
+      primary: true,
+      title: 'Setzt Lochform, Anordnung und Körper (3D) passend – Rückgängig mit Strg+Z',
+      onClick: () => {
+        const s = knurlSettings(knurl, app.doc);
+        Object.assign(app.doc.shape, s.shape);
+        Object.assign(app.doc.pattern, s.pattern);
+        Object.assign(app.doc.relief, s.relief);
+        Object.assign(app.doc.check, s.check);
+        let disabled = 0;
+        for (const m of app.doc.modifiers) {
+          if (twistsShapes(m)) {
+            m.enabled = false;
+            disabled += 1;
+          }
+        }
+        app.changed(true);
+        app.commit();
+        app.emit('toast', `Rändelung angewendet – Lochform, Anordnung und Körper (3D) wurden angepasst.${disabled ? ` ${disabled} Modifikator${disabled > 1 ? 'en' : ''} mit Drehung/Verschiebung ausgeschaltet.` : ''}`);
+      },
+    }]),
+  );
+  root.append(knurlSec.el);
 
   // Printability check
   const chk = section('Prüfung (3D-Druck)', { id: 'check', icon: 'check' });

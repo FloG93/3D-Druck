@@ -2,6 +2,7 @@
 // that normalizeDoc() completes.
 
 import { defaultDoc, newId } from './document.js';
+import { withKnurl } from './knurl.js';
 
 const mod = (type, props) => ({ id: newId(), type, enabled: true, ...props });
 
@@ -278,5 +279,35 @@ export const BUILTIN_PRESETS = [
       pattern: { type: 'hex', spacingX: 12, spacingY: 8, rowShift: 0.5 },
       modifiers: [mod('point', { x: 0, y: 0, radius: 60, falloff: 'smooth', angle: 90, rotateMode: 'add', scale: 1 })],
     }),
+  },
+  // Knurls (see knurl.js): pyramids or ridges from sloped relief.
+  {
+    name: 'Rändelknopf',
+    doc: () => withKnurl({
+      canvas: { width: Math.PI * 30, height: 20 },
+      form: { type: 'cylinder', bottom: 0 },
+      boundary: { margin: 1 },
+      shape: { color: '#b8c2cc' },
+      modifiers: [],
+    }, { type: 'diamond', pitch: 2, angle: 30, profile: 90, raised: true }),
+  },
+  {
+    name: 'Rändel gerade',
+    doc: () => withKnurl({
+      canvas: { width: Math.PI * 24, height: 16 },
+      form: { type: 'cylinder', bottom: 0 },
+      boundary: { margin: 1 },
+      shape: { color: '#d4a373' },
+      modifiers: [],
+    }, { type: 'straight', pitch: 1.5, profile: 90, raised: true }),
+  },
+  {
+    name: 'Rändelplatte',
+    doc: () => withKnurl({
+      canvas: { width: 80, height: 50 },
+      boundary: { type: 'rect', cornerRadius: 6, margin: 4 },
+      shape: { color: '#9c89b8' },
+      modifiers: [],
+    }, { type: 'diamond', pitch: 3, angle: 45, profile: 90, raised: false }),
   },
 ];
