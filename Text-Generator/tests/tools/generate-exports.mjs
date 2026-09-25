@@ -1,6 +1,7 @@
-// Writes 3MF and STL files of all presets (and a few variants) into a folder
-// for validation with tests/tools/validate_exports.py (lib3mf), plus the top
-// view of every QR code (qr.json) to be read back with zxing.
+// Writes 3MF, STL and DXF files of all presets (and a few variants) into a
+// folder for validation with tests/tools/validate_exports.py (lib3mf,
+// ezdxf), plus the top view of every QR code (qr.json) to be read back with
+// zxing.
 // Usage: node Text-Generator/tests/tools/generate-exports.mjs <folder>
 import fs from 'node:fs';
 import { normalizeDoc, defaultDoc } from '../../js/core/document.js';
@@ -8,8 +9,10 @@ import { buildModel } from '../../js/core/model.js';
 import { qrContent } from '../../js/core/blocks.js';
 import { parseSVG } from '../../js/core/svgimport.js';
 import { BUILTIN_PRESETS } from '../../js/core/presets.js';
-import { modelMeshes, flipMeshes, toBinarySTL } from '../../js/export/mesh.js';
+import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL } from '../../js/export/mesh.js';
 import { export3MF } from '../../js/export/threemf.js';
+import { exportDXF, dxfLayers } from '../../js/export/dxf.js';
+import { regionArea } from '../../js/core/geometry.js';
 import { loadFonts } from '../helpers.mjs';
 
 const OUT = process.argv[2] || 'build/text-exports';
@@ -99,6 +102,33 @@ cases.graphic_strokes = {
   mount: { type: 'eyelet', position: 'top' },
 };
 cases.flipped_letters = { ...defaultDoc(), base: { shape: 'none' }, texts: [{ text: 'Emma', font: roboto, size: 14 }], export: { flip: true } };
+cases.stencil_bridges = {
+  ...defaultDoc(),
+  texts: [{ text: 'ABOBAD 08 &', font: montserrat, size: 20 }],
+  base: { shape: 'rect', padding: 10 },
+  mount: { type: 'none' },
+  body: { relief: 'cut', thickness: 1.2 },
+  stencil: { bridge: 1.4, bridges: 2, direction: 'vertical' },
+};
+cases.stencil_mirrored_holes = {
+  ...defaultDoc(),
+  texts: [{ text: 'Paket 8', font: roboto, size: 16 }],
+  base: { shape: 'rect', padding: 12 },
+  mount: { type: 'screws', diameter: 4, head: 8, countersink: false },
+  body: { relief: 'cut', thickness: 1.2 },
+  stencil: { bridges: 1, direction: 'auto' },
+  mirror: true,
+};
+// Too big for the bed: 4 × 2 pieces with puzzle connectors, one object each.
+cases.stencil_split_grid = {
+  ...defaultDoc(),
+  texts: [{ text: 'PRIVAT\nPARKPLATZ', font: roboto, size: 60 }],
+  base: { shape: 'rect', padding: 12, radius: 3 },
+  mount: { type: 'none' },
+  body: { relief: 'cut', thickness: 1.2 },
+  check: { bed: 180 },
+  export: { flip: true },
+};
 const summary = {};
 const qr = {};
 // Rings in mm; mirrored ones are also reversed, so outer rings stay
@@ -121,6 +151,7 @@ for (const [name, input] of Object.entries(cases)) {
   }
   if (model.missing.size || model.pending) throw new Error(`${name}: fehlende Zeichen ${[...model.missing].join(' ')}`);
   let meshes = modelMeshes(model);
+  if (model.pieces.length) meshes = spreadPieces(meshes);
   if (input.export?.flip) {
     if (!model.flippable) throw new Error(`${name}: lässt sich nicht umdrehen`);
     meshes = flipMeshes(meshes, model.stats.top);
@@ -128,7 +159,10 @@ for (const [name, input] of Object.entries(cases)) {
   const title = name.startsWith('preset') ? input.name : name;
   fs.writeFileSync(`${OUT}/${name}.3mf`, await export3MF(meshes, { title }));
   fs.writeFileSync(`${OUT}/${name}.stl`, toBinarySTL(meshes));
-  summary[name] = { title, parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume })) };
+  // Top view as DXF: the area of every layer (outer rings minus holes).
+  fs.writeFileSync(`${OUT}/${name}.dxf`, exportDXF(model));
+  const dxf = Object.fromEntries(dxfLayers(model).map(([layer, , region]) => [layer, regionArea(region)]));
+  summary[name] = { title, objects: model.pieces.length || 1, parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume })), dxf };
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));
 fs.writeFileSync(`${OUT}/qr.json`, JSON.stringify(qr));

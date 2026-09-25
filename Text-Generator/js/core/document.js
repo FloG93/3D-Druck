@@ -7,6 +7,9 @@ export const DOC_VERSION = 1;
 
 export const BASE_SHAPES = ['contour', 'rect', 'capsule', 'oval', 'circle', 'none'];
 export const RELIEF_MODES = ['raised', 'engraved', 'flush', 'cut'];
+// Stencils: plate thickness suggested for PLA/PETG, directions of bridges.
+export const STENCIL_THICKNESS = 1.2;
+export const BRIDGE_DIRECTIONS = ['vertical', 'horizontal', 'auto'];
 export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws'];
 export const MOUNT_POSITIONS = ['left', 'right', 'top'];
 export const ALIGNS = ['left', 'center', 'right'];
@@ -118,6 +121,8 @@ export const DEFAULTS = {
   export: { filename: 'text', flip: false },
   // Lettering on the back: sunk into the bottom, or inlaid in its own colour.
   back: { relief: 'inlay', depth: 0.6 },
+  // Stencil (relief 'cut'): bridges for islands, puzzle pieces when too big.
+  stencil: { bridge: 1.2, bridges: 2, direction: 'vertical', split: true, clearance: 0.2, tab: 10 },
 };
 
 let idCounter = 0;
@@ -286,5 +291,11 @@ export function normalizeDoc(input) {
   out.check.minStroke = clamp(out.check.minStroke, 0, 10);
   out.back.relief = oneOf(BACK_RELIEFS, out.back.relief, 'inlay');
   out.back.depth = clamp(out.back.depth, 0.1, 20);
+  out.stencil.bridge = clamp(out.stencil.bridge, 0.4, 20);
+  out.stencil.bridges = out.stencil.bridges === 1 ? 1 : 2;
+  out.stencil.direction = oneOf(BRIDGE_DIRECTIONS, out.stencil.direction, 'vertical');
+  out.stencil.split = out.stencil.split !== false;
+  out.stencil.clearance = clamp(out.stencil.clearance, 0, 2);
+  out.stencil.tab = clamp(out.stencil.tab, 4, 40);
   return out;
 }

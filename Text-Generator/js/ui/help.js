@@ -16,9 +16,18 @@ const HTML = `
       <li><b>Vorlage</b> wählen oder direkt den <b>Text</b> eintippen. Mehrere Zeilen mit Enter, <b>♥ Symbol</b> fügt Herz, Stern, Pfote &amp; Co. ein. Unter dem Text kommen weitere Blöcke dazu: <b>+ Text</b>, <b>+ QR-Code</b> (Link oder WLAN) und <b>+ Grafik</b> (eigene SVG-Datei, z. B. ein Logo).</li>
       <li><b>Schrift</b>: sechs Schriften sind eingebaut, unter <i>Mehr …</i> gibt es alle Google Fonts mit Vorschau.</li>
       <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
-      <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe.</li>
-      <li><b>Exportieren</b> als 3MF: Platte, Schrift, Kontur und Rand sind eigene Teile mit fester Filament-Nummer – in Bambu Studio nur noch die AMS-Farben wählen. Bei flacher Oberseite wahlweise mit der Schrift nach unten.</li>
+      <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe – oder als <b>Schablone</b> ausgeschnitten.</li>
+      <li><b>Exportieren</b> als 3MF: Platte, Schrift, Kontur und Rand sind eigene Teile mit fester Filament-Nummer – in Bambu Studio nur noch die AMS-Farben wählen. Bei flacher Oberseite wahlweise mit der Schrift nach unten. Für Laser, Schneideplotter und Fusion 360 gibt es <b>SVG</b> und <b>DXF</b>.</li>
     </ol>
+
+    <h3>Schablonen</h3>
+    <ul>
+      <li><b>Körper → Schrift: Schablone</b> schneidet die Schrift aus der Platte – zum Sprühen, Lackieren oder Airbrushen. Die Dicke springt auf 1,2 mm (PLA/PETG: 0,8–1,5 mm).</li>
+      <li>Das Innere von O, A, B, 8 … würde herausfallen: <b>Stege</b> halten es automatisch – einer oder zwei je Insel, senkrecht, waagerecht oder der kürzeste Weg. In der Vorschau sind sie etwas dunkler.</li>
+      <li>Zu schmale Stege und Stellen zwischen Buchstaben werden orange markiert. Genug <b>Randabstand</b> lassen (10 mm und mehr), damit kein Sprühnebel danebengeht.</li>
+      <li>Größer als das Druckbett? Die Schablone wird in <b>Teile mit Puzzle-Verbindern</b> (Schwalbenschwanz) zerlegt. Die Nähte laufen möglichst zwischen den Buchstaben, die Verbinder sitzen im vollen Material, 0,2 mm <b>Spiel</b> lassen die Teile ineinandergleiten. Die Nummern in der Vorschau zeigen die Reihenfolge; im 3MF ist jedes Teil ein eigenes Objekt. Das Druckbett wählst du unter <i>Prüfung</i>.</li>
+      <li>Für einen Laser oder Schneideplotter mit Schablonenfolie: <b>DXF</b> oder <b>SVG (Umrisse)</b> – alle Schnittlinien am Stück.</li>
+    </ul>
 
     <h3>Tipps für den Druck</h3>
     <ul>

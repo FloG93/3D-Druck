@@ -21,6 +21,12 @@ export class History {
     return true;
   }
 
+  /** Replaces the current step (a follow-up change that belongs to it). */
+  replace(snapshot) {
+    if (this.index < 0) this.reset(snapshot);
+    else this.stack[this.index] = snapshot;
+  }
+
   undo() {
     return this.index > 0 ? this.stack[--this.index] : null;
   }

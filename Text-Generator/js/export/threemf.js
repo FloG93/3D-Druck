@@ -1,7 +1,8 @@
 // 3MF with one object made of several parts (plate, lettering, border) –
 // the way Bambu Studio / OrcaSlicer expect multi-colour prints. The filament
 // (AMS slot) of each part is stored in Metadata/model_settings.config, which
-// Bambu Studio reads from any 3MF, not only from its own projects.
+// Bambu Studio reads from any 3MF, not only from its own projects. The
+// pieces of a split stencil become objects of their own (part.piece).
 
 import { indexMesh } from './mesh.js';
 import { zip } from './zip.js';
@@ -54,28 +55,42 @@ export function build3MF(meshes, { title = 'Text', application = '3D-Druck Text-
     }
     out.push('    </triangles>', '   </mesh>', '  </object>');
   });
-  const assembly = used.length + 1;
-  out.push(`  <object id="${assembly}" type="model" name="${esc(title)}">`, '   <components>');
-  for (const u of used) out.push(`    <component objectid="${u.id}"/>`);
-  out.push('   </components>', '  </object>', ' </resources>', ' <build>', `  <item objectid="${assembly}"/>`, ' </build>', '</model>');
-
-  const config = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<config>',
-    `  <object id="${assembly}">`,
-    `    <metadata key="name" value="${esc(title)}"/>`,
-    `    <metadata key="extruder" value="${used.length ? used[0].part.slot : 1}"/>`,
-  ];
+  // One object of all parts – or one per piece.
+  const groups = [];
   for (const u of used) {
-    config.push(
-      `    <part id="${u.id}" subtype="normal_part">`,
-      `      <metadata key="name" value="${esc(u.part.name)}"/>`,
-      `      <metadata key="extruder" value="${u.part.slot}"/>`,
-      '    </part>',
-    );
+    const key = u.part.piece ?? 0;
+    let g = groups.find((x) => x.key === key);
+    if (!g) groups.push(g = { key, name: u.part.piece ? u.part.name : title, members: [] });
+    g.members.push(u);
   }
-  config.push('  </object>', '</config>');
-  return { model: out.join('\n'), config: config.join('\n'), parts: used };
+  let next = used.length + 1;
+  for (const g of groups) {
+    g.id = next++;
+    out.push(`  <object id="${g.id}" type="model" name="${esc(g.name)}">`, '   <components>');
+    for (const u of g.members) out.push(`    <component objectid="${u.id}"/>`);
+    out.push('   </components>', '  </object>');
+  }
+  out.push(' </resources>', ' <build>', ...groups.map((g) => `  <item objectid="${g.id}"/>`), ' </build>', '</model>');
+
+  const config = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>'];
+  for (const g of groups) {
+    config.push(
+      `  <object id="${g.id}">`,
+      `    <metadata key="name" value="${esc(g.name)}"/>`,
+      `    <metadata key="extruder" value="${g.members[0].part.slot}"/>`,
+    );
+    for (const u of g.members) {
+      config.push(
+        `    <part id="${u.id}" subtype="normal_part">`,
+        `      <metadata key="name" value="${esc(u.part.name)}"/>`,
+        `      <metadata key="extruder" value="${u.part.slot}"/>`,
+        '    </part>',
+      );
+    }
+    config.push('  </object>');
+  }
+  config.push('</config>');
+  return { model: out.join('\n'), config: config.join('\n'), parts: used, objects: groups.length };
 }
 
 /** 3MF archive (Uint8Array). */

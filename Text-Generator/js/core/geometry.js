@@ -208,16 +208,29 @@ function treeToRegion(tree) {
 }
 
 function boolean(type, subject, clip) {
-  const s = toPaths(subject);
-  const k = clip ? toPaths(clip) : [];
+  return run(type, toPaths(subject), clip ? toPaths(clip) : []);
+}
+
+// strict: no touching vertices in the result (clean meshes).
+function run(type, s, k, strict = true) {
   if (!s.length) return [];
   const c = new Clipper();
-  c.StrictlySimple = true;
+  c.StrictlySimple = strict;
   c.AddPaths(s, PolyType.ptSubject, true);
   if (k.length) c.AddPaths(k, PolyType.ptClip, true);
   const tree = new PolyTree();
   c.Execute(type, tree, PolyFillType.pftNonZero, PolyFillType.pftNonZero);
   return treeToRegion(tree);
+}
+
+/** Round offset on Clipper paths, the result as paths (no tidying). */
+function offsetPaths(paths, delta, tolerance) {
+  if (!paths.length) return [];
+  const co = new ClipperOffset(2, tolerance * SCALE);
+  co.AddPaths(paths, JoinType.jtRound, EndType.etClosedPolygon);
+  const out = [];
+  co.Execute(out, delta * SCALE);
+  return out;
 }
 
 /** Region filled by rings with an SVG fill rule ('nonzero' or 'evenodd'). */
@@ -279,16 +292,104 @@ export function offset(region, delta, { join = 'round', tolerance = TOLERANCE } 
   return union(treeToRegion(tree));
 }
 
+/** Ring with fewer points (Douglas–Peucker, max. deviation t). */
+export function simplifyRing(r, t) {
+  const n = r.length / 2;
+  if (n < 8) return r;
+  const keep = new Uint8Array(n);
+  // Split the closed ring at the point farthest from the first one.
+  let far = 0;
+  let fd = -1;
+  for (let i = 1; i < n; i++) {
+    const d = (r[2 * i] - r[0]) ** 2 + (r[2 * i + 1] - r[1]) ** 2;
+    if (d > fd) {
+      fd = d;
+      far = i;
+    }
+  }
+  keep[0] = 1;
+  keep[far] = 1;
+  keep[n - 1] = 1;
+  const stack = [[0, far], [far, n - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const ax = r[2 * a];
+    const ay = r[2 * a + 1];
+    const dx = r[2 * b] - ax;
+    const dy = r[2 * b + 1] - ay;
+    const len = Math.hypot(dx, dy) || 1e-12;
+    let md = -1;
+    let mi = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs(dx * (ay - r[2 * i + 1]) - (ax - r[2 * i]) * dy) / len;
+      if (d > md) {
+        md = d;
+        mi = i;
+      }
+    }
+    if (md > t) {
+      keep[mi] = 1;
+      stack.push([a, mi], [mi, b]);
+    }
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) if (keep[i]) out.push(r[2 * i], r[2 * i + 1]);
+  return out.length >= 6 ? out : r;
+}
+
 /**
  * Parts of the region narrower than width (morphological opening). Used to
  * find strokes too thin to print. Leftovers smaller than a width × width
  * square are ignored: corners and pointed stroke ends (which an opening
  * always rounds off) print fine, a thin stroke is longer than that.
+ * Outlines are simplified to 0.02 mm first – twice as fast; growing back a
+ * little further makes up for that (else long edges leave slivers).
+ * Clipper gets slow with many edges side by side, so every shape is done
+ * on its own, and big ones with many holes (a stencil) in tiles: what the
+ * opening does at a point only depends on the region within width of it.
  */
+const THIN_SIMPLIFY = 0.02;
+const THIN_TILE = 40;
 export function thinParts(region, width) {
   if (!region.length || width <= 0) return [];
-  const opened = offset(offset(region, -width / 2), width / 2 + TOLERANCE);
-  return difference(region, opened).filter((s) => regionArea([s]) > width * width);
+  const margin = width + 4 * THIN_SIMPLIFY + TOLERANCE;
+  const out = [];
+  for (const s of region) {
+    const b = addRingBounds(emptyBounds(), s.outer);
+    const nx = Math.ceil((b.maxX - b.minX) / THIN_TILE);
+    const ny = Math.ceil((b.maxY - b.minY) / THIN_TILE);
+    const points = s.holes.reduce((n, h) => n + h.length, s.outer.length) / 2;
+    if (nx * ny <= 1 || points < 1500) {
+      out.push(...notOpened([s], width));
+      continue;
+    }
+    const tw = (b.maxX - b.minX) / nx;
+    const th = (b.maxY - b.minY) / ny;
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < ny; j++) {
+        const x0 = b.minX + i * tw;
+        const y0 = b.minY + j * th;
+        const x1 = i === nx - 1 ? b.maxX : x0 + tw;
+        const y1 = j === ny - 1 ? b.maxY : y0 + th;
+        const near = (r) => {
+          const rb = ringBox(r);
+          return rb.maxX >= x0 - margin && rb.minX <= x1 + margin && rb.maxY >= y0 - margin && rb.minY <= y1 + margin;
+        };
+        const tile = [x0 - margin, y0 - margin, x1 + margin, y0 - margin, x1 + margin, y1 + margin, x0 - margin, y1 + margin];
+        const part = intersection([{ outer: s.outer, holes: s.holes.filter(near) }], [tile]);
+        out.push(...intersection(notOpened(part, width), [[x0, y0, x1, y0, x1, y1, x0, y1]]));
+      }
+    }
+  }
+  return union(out).filter((s) => regionArea([s]) > width * width);
+}
+
+/** Region minus its opening with a disc of the given diameter. */
+function notOpened(region, width) {
+  const t = THIN_SIMPLIFY;
+  const simple = toPaths(region.map((s) => ({ outer: simplifyRing(s.outer, t), holes: s.holes.map((h) => simplifyRing(h, t)) })));
+  const opened = offsetPaths(offsetPaths(simple, -width / 2, t), width / 2 + 2 * t + TOLERANCE, t);
+  return run(ClipType.ctDifference, toPaths(region), opened, false);
 }
 
 export function pointInRing(r, x, y) {
@@ -338,10 +439,49 @@ export function containsPoint(region, x, y) {
   return inside;
 }
 
+// Bounding boxes of rings, cached (rings are never changed in place).
+const ringBoxes = new WeakMap();
+function ringBox(r) {
+  let b = ringBoxes.get(r);
+  if (!b) {
+    b = addRingBounds(emptyBounds(), r);
+    ringBoxes.set(r, b);
+  }
+  return b;
+}
+
+/**
+ * The region inside the rectangle x0..x1 × y0..y1. Rings far away are left
+ * out first, which keeps Clipper fast on big regions (a stencil).
+ */
+export function clipRegion(region, x0, y0, x1, y1) {
+  const near = (r) => {
+    const b = ringBox(r);
+    return b.maxX >= x0 && b.minX <= x1 && b.maxY >= y0 && b.minY <= y1;
+  };
+  const parts = region.filter((s) => near(s.outer)).map((s) => ({ outer: s.outer, holes: s.holes.filter(near) }));
+  return parts.length ? intersection(parts, [[x0, y0, x1, y0, x1, y1, x0, y1]]) : [];
+}
+
+/** Point in region (even-odd), fast for many rings. */
+export function insideRegion(region, x, y) {
+  let inside = false;
+  for (const s of region) {
+    for (const r of [s.outer, ...s.holes]) {
+      const b = ringBox(r);
+      if (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY) continue;
+      if (pointInRing(r, x, y)) inside = !inside;
+    }
+  }
+  return inside;
+}
+
 /** x positions where the horizontal line y crosses the region's rings, sorted. */
 export function crossingsAtY(region, y) {
   const xs = [];
   for (const r of regionRings(region)) {
+    const b = ringBox(r);
+    if (y < b.minY || y > b.maxY) continue;
     for (let i = 0, n = r.length, j = n - 2; i < n; j = i, i += 2) {
       const yi = r[i + 1];
       const yj = r[j + 1];
@@ -355,6 +495,8 @@ export function crossingsAtY(region, y) {
 export function crossingsAtX(region, x) {
   const ys = [];
   for (const r of regionRings(region)) {
+    const b = ringBox(r);
+    if (x < b.minX || x > b.maxX) continue;
     for (let i = 0, n = r.length, j = n - 2; i < n; j = i, i += 2) {
       const xi = r[i];
       const xj = r[j];

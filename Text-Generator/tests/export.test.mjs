@@ -8,6 +8,8 @@ import { modelMeshes, toBinarySTL, indexMesh } from '../js/export/mesh.js';
 import { build3MF, export3MF } from '../js/export/threemf.js';
 import { zip, crc32 } from '../js/export/zip.js';
 import { exportSVG } from '../js/export/svg.js';
+import { exportDXF } from '../js/export/dxf.js';
+import { regionArea, regionRings } from '../js/core/geometry.js';
 import { triangulateShape } from '../js/export/triangulate.js';
 import { encodeDoc, decodeHash } from '../../shared/js/share.js';
 import { loadFonts, meshCheck } from './helpers.mjs';
@@ -111,6 +113,62 @@ test('SVG export in millimetres', () => {
   assert.match(svg, /<path id="schrift"/);
   const outline = exportSVG(m, { style: 'outline' });
   assert.match(outline, /fill="none" stroke="#000000"/);
+});
+
+/** Closed and open polylines of an R12 DXF: [{ layer, closed, pts }]. */
+function dxfPolylines(text) {
+  const lines = text.split('\r\n');
+  const out = [];
+  let entity = '';
+  let cur = null;
+  for (let i = 0; i + 1 < lines.length; i += 2) {
+    const code = Number(lines[i]);
+    const value = lines[i + 1];
+    if (code === 0) {
+      entity = value;
+      if (value === 'POLYLINE') out.push(cur = { layer: '', closed: false, pts: [] });
+      else if (value === 'VERTEX') cur.pts.push(0, 0);
+      else if (value === 'SEQEND') cur = null;
+    } else if (cur && entity === 'POLYLINE' && code === 8) cur.layer = value;
+    else if (cur && entity === 'POLYLINE' && code === 70) cur.closed = (Number(value) & 1) === 1;
+    else if (cur && entity === 'VERTEX' && code === 10) cur.pts[cur.pts.length - 2] = Number(value);
+    else if (cur && entity === 'VERTEX' && code === 20) cur.pts[cur.pts.length - 1] = Number(value);
+  }
+  return out;
+}
+const signedArea = (r) => {
+  let a = 0;
+  for (let i = 0, n = r.length, j = n - 2; i < n; j = i, i += 2) a += r[j] * r[i + 1] - r[i] * r[j + 1];
+  return a / 2;
+};
+
+test('DXF export: closed polylines in mm, one layer per part', () => {
+  const sign = build(BUILTIN_PRESETS.find((p) => p.name === 'Namensschild'));
+  const dxf = exportDXF(sign);
+  assert.match(dxf, /\$ACADVER\r\n1\r\nAC1009/);
+  assert.match(dxf, /\$INSUNITS\r\n70\r\n4/);
+  assert.ok(dxf.endsWith('0\r\nEOF\r\n'));
+  const polys = dxfPolylines(dxf);
+  assert.ok(polys.every((p) => p.closed && p.pts.length >= 6));
+  for (const [layer, region] of [['PLATTE', sign.base], ['RAND', sign.border], ['SCHRIFT', sign.text]]) {
+    const own = polys.filter((p) => p.layer === layer);
+    assert.equal(own.length, regionRings(region).length, `${layer}: one polyline per ring`);
+    const area = own.reduce((a, p) => a + signedArea(p.pts), 0);
+    assert.ok(Math.abs(area - regionArea(region)) < 1e-3, `${layer}: area ${area} vs ${regionArea(region)}`);
+  }
+});
+
+test('stencil: DXF and SVG hold every cut line, bridges included', () => {
+  const m = build(BUILTIN_PRESETS.find((p) => p.name === 'Sprühschablone'));
+  const polys = dxfPolylines(exportDXF(m));
+  assert.deepEqual([...new Set(polys.map((p) => p.layer))], ['SCHNITT']);
+  assert.equal(polys.length, regionRings(m.plate).length);
+  const area = polys.reduce((a, p) => a + signedArea(p.pts), 0);
+  assert.ok(Math.abs(area - regionArea(m.plate)) < 1e-3, `cut area ${area}`);
+  const svg = exportSVG(m, { style: 'outline' });
+  assert.match(svg, /<path id="schnitt"/);
+  assert.doesNotMatch(svg, /id="schrift"/);
+  assert.equal((svg.match(/Z/g) || []).length, regionRings(m.plate).length, 'one closed path per ring');
 });
 
 test('share links round-trip', async () => {

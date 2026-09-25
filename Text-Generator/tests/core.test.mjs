@@ -144,7 +144,10 @@ test('every preset builds without surprises', () => {
     assert.equal(m.pending, false, p.name);
     assert.deepEqual(m.warnings, [], p.name);
     assert.equal(m.stats.thinCount, 0, `${p.name}: thin strokes`);
+    // Stencils hold together.
+    if (m.relief === 'cut') assert.equal(difference(m.base, m.text).length, 1, `${p.name}: stencil in one piece`);
   }
+  assert.ok(BUILTIN_PRESETS.filter((p) => p.body.relief === 'cut').length >= 2, 'stencil presets');
 });
 
 test('document normalisation keeps values in range', () => {

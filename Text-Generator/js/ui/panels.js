@@ -7,6 +7,7 @@ import {
 import { icon } from '../../../shared/js/icons.js';
 import { BUILTIN_FONTS, fontKey, SYMBOLS } from '../core/fonts.js';
 import { KIND_NAMES, QR_MIN_MODULE } from '../core/model.js';
+import { STENCIL_THICKNESS } from '../core/document.js';
 import { parseSVG } from '../core/svgimport.js';
 
 // Suggested colours for texts with their own filament.
@@ -376,6 +377,7 @@ const RELIEF_NOTES = {
   raised: 'Die Schrift steht auf der Platte.',
   engraved: 'Die Schrift ist in die Platte vertieft.',
   flush: 'Die Schrift ist bündig in die Platte eingelegt – ideal zweifarbig mit AMS: glatte Oberfläche, Farbe nur in den Buchstaben.',
+  cut: 'Schablone zum Sprühen oder Airbrushen: Die Schrift ist ausgeschnitten, das Innere von O, A, B … halten automatische Stege.',
 };
 
 export function buildRightPanel(root, app) {
@@ -454,25 +456,58 @@ export function buildRightPanel(root, app) {
 
   const body = section('Körper (3D)', { id: 'body', icon: 'cube' });
   const relief = () => doc().body.relief;
-  const hasBack = () => hasBase() && doc().texts.some((t) => t.side === 'back');
-  const border = () => hasBase() && doc().body.border;
+  const hasBack = () => hasBase() && relief() !== 'cut' && doc().texts.some((t) => t.side === 'back');
+  const stencil = () => hasBase() && relief() === 'cut';
+  const split = () => stencil() && doc().stencil.split;
+  const border = () => hasBase() && doc().body.border && relief() !== 'cut';
   body.body.append(
-    segmented(panel, { label: 'Schrift', bind: bindPath(app, 'body.relief'), options: [['raised', 'Erhaben'], ['engraved', 'Vertieft'], ['flush', 'Bündig']], visible: hasBase }),
+    segmented(panel, {
+      label: 'Schrift',
+      bind: bindPath(app, 'body.relief'),
+      options: [['raised', 'Erhaben'], ['engraved', 'Vertieft'], ['flush', 'Bündig'], ['cut', 'Schablone']],
+      visible: hasBase,
+      // A stencil wants to be thin (sharp edges, little filament).
+      onChange: (v) => {
+        if (v === 'cut' && doc().body.thickness > STENCIL_THICKNESS + 0.4) {
+          app.set('body.thickness', STENCIL_THICKNESS);
+          app.amend();
+        }
+      },
+    }),
     note(panel, () => RELIEF_NOTES[relief()], hasBase),
     grid(
       numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: hasBase }),
       numberField(panel, { label: 'Dicke', title: 'Dicke der Buchstaben', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: () => !hasBase() }),
       numberField(panel, { label: 'Schrifthöhe', title: 'Wie weit die Schrift heraussteht', unit: 'mm', bind: bindPath(app, 'body.height'), min: 0.1, max: 50, step: 0.1, digits: 2, slider: [0.2, 4], visible: () => hasBase() && relief() === 'raised' }),
-      numberField(panel, { label: 'Tiefe', title: 'Wie tief die Schrift in der Platte liegt', unit: 'mm', bind: bindPath(app, 'body.height'), min: 0.1, max: 50, step: 0.1, digits: 2, slider: [0.2, 4], visible: () => hasBase() && relief() !== 'raised' }),
+      numberField(panel, { label: 'Tiefe', title: 'Wie tief die Schrift in der Platte liegt', unit: 'mm', bind: bindPath(app, 'body.height'), min: 0.1, max: 50, step: 0.1, digits: 2, slider: [0.2, 4], visible: () => hasBase() && (relief() === 'engraved' || relief() === 'flush') }),
+      numberField(panel, { label: 'Stegbreite', title: 'Breite der Stege, die die Inseln halten', unit: 'mm', bind: bindPath(app, 'stencil.bridge'), min: 0.4, max: 20, step: 0.1, digits: 2, slider: [0.8, 4], visible: stencil }),
     ),
-    toggle(panel, { label: 'Rand', title: 'Erhaben – bei „Bündig“ bündig eingelegt', bind: bindPath(app, 'body.border'), visible: hasBase }),
+    segmented(panel, { label: 'Stege je Insel', bind: bindPath(app, 'stencil.bridges'), options: [[1, 'Einer'], [2, 'Zwei (stabiler)']], visible: stencil }),
+    segmented(panel, { label: 'Richtung der Stege', bind: bindPath(app, 'stencil.direction'), options: [['vertical', 'Senkrecht'], ['horizontal', 'Waagerecht'], ['auto', 'Kürzeste']], visible: stencil }),
+    note(panel, () => {
+      const m = app.model;
+      const n = m ? m.islands : 0;
+      return `${n ? `${n} Insel${n === 1 ? '' : 'n'} mit Stegen gehalten. ` : ''}Dicke für PLA/PETG: 0,8–1,5 mm – dünner gibt schärfere Kanten, dicker hält mehr aus. Rundherum genug Rand lassen (Randabstand), damit kein Sprühnebel danebengeht.`;
+    }, stencil),
+    toggle(panel, { label: 'In Teile aufteilen, wenn größer als das Druckbett', title: 'Große Schablonen werden in Teile mit Puzzle-Verbindern (Schwalbenschwanz) zerlegt', bind: bindPath(app, 'stencil.split'), visible: stencil }),
+    grid(
+      numberField(panel, { label: 'Verbinder', title: 'Breite des Schwalbenschwanz-Kopfes – passt er nicht, wird er automatisch kleiner (bis 5 mm)', unit: 'mm', bind: bindPath(app, 'stencil.tab'), min: 4, max: 40, step: 0.5, digits: 1, slider: [5, 20], visible: split }),
+      numberField(panel, { label: 'Spiel', title: 'Luft zwischen den Teilen, damit sie sich zusammenstecken lassen (PLA/PETG: 0,1–0,3 mm)', unit: 'mm', bind: bindPath(app, 'stencil.clearance'), min: 0, max: 2, step: 0.05, digits: 2, slider: [0, 0.5], visible: split }),
+    ),
+    note(panel, () => {
+      const m = app.model;
+      const bed = doc().check.bed;
+      if (!m || !m.split) return `Passt aufs Druckbett (${bed} × ${bed} mm) – kein Aufteilen nötig.`;
+      return `Aufgeteilt in <b>${m.pieces.length} Teile</b> (${m.split.nx} × ${m.split.ny}) für das Druckbett ${bed} × ${bed} mm, verbunden mit ${m.split.tabs} Puzzle-Verbinder${m.split.tabs === 1 ? '' : 'n'}${m.split.tabHead ? ` (ab ${de(m.split.tabHead, 1)} mm)` : ''}. Die Nähte laufen möglichst zwischen den Buchstaben. Das Druckbett stellst du unter „Prüfung“ ein.`;
+    }, split),
+    toggle(panel, { label: 'Rand', title: 'Erhaben – bei „Bündig“ bündig eingelegt', bind: bindPath(app, 'body.border'), visible: () => hasBase() && relief() !== 'cut' }),
     grid(
       numberField(panel, { label: 'Randbreite', unit: 'mm', bind: bindPath(app, 'body.borderWidth'), min: 0.2, max: 50, step: 0.1, digits: 2, slider: [0.4, 5], visible: border }),
       numberField(panel, { label: 'Randhöhe', unit: 'mm', bind: bindPath(app, 'body.borderHeight'), min: 0.1, max: 50, step: 0.1, digits: 2, slider: [0.2, 4], visible: () => border() && relief() !== 'flush' }),
     ),
-    toggle(panel, { label: 'Kontur um die Schrift', title: 'Umriss um die Buchstaben in eigener Farbe (Sticker-Look)', bind: bindPath(app, 'body.outline'), visible: () => hasBase() && relief() !== 'engraved' }),
+    toggle(panel, { label: 'Kontur um die Schrift', title: 'Umriss um die Buchstaben in eigener Farbe (Sticker-Look)', bind: bindPath(app, 'body.outline'), visible: () => hasBase() && relief() !== 'engraved' && relief() !== 'cut' }),
     grid(
-      numberField(panel, { label: 'Konturbreite', unit: 'mm', bind: bindPath(app, 'body.outlineWidth'), min: 0.2, max: 20, step: 0.1, digits: 2, slider: [0.4, 4], visible: () => hasBase() && doc().body.outline && relief() !== 'engraved' }),
+      numberField(panel, { label: 'Konturbreite', unit: 'mm', bind: bindPath(app, 'body.outlineWidth'), min: 0.2, max: 20, step: 0.1, digits: 2, slider: [0.4, 4], visible: () => hasBase() && doc().body.outline && relief() !== 'engraved' && relief() !== 'cut' }),
       numberField(panel, { label: 'Konturhöhe', title: 'Die Schrift steht auf der Kontur', unit: 'mm', bind: bindPath(app, 'body.outlineHeight'), min: 0.1, max: 20, step: 0.1, digits: 2, slider: [0.2, 3], visible: () => hasBase() && doc().body.outline && relief() === 'raised' }),
     ),
     note(panel, 'Bei „Bündig“ sind Rand und Kontur ebenfalls bündig eingelegt – die Oberfläche bleibt glatt.', () => hasBase() && relief() === 'flush' && (doc().body.border || doc().body.outline)),
@@ -481,14 +516,15 @@ export function buildRightPanel(root, app) {
     note(panel, () => (doc().back.relief === 'inlay'
       ? 'Die Rückseite liegt beim Druck unten auf dem Druckbett – glatt, die Schrift in eigener Farbe in den ersten Schichten.'
       : 'Die Rückseite ist in den Boden vertieft (gespiegelt, damit sie von hinten richtig herum steht).'), hasBack),
-    note(panel, 'Tipp: Dicken als Vielfache der Schichthöhe wählen (z. B. 0,2 mm) – dann liegt der Farbwechsel genau auf einer Schicht.'),
+    note(panel, 'Tipp: Dicken als Vielfache der Schichthöhe wählen (z. B. 0,2 mm) – dann liegt der Farbwechsel genau auf einer Schicht.', () => relief() !== 'cut' || !hasBase()),
   );
 
   const colors = section('Farben & Filamente', { id: 'colors', icon: 'palette' });
   const slotOptions = Array.from({ length: 16 }, (_, i) => [i + 1, `Filament ${i + 1}`]);
   const partVisible = (key) => () => {
     const m = app.model;
-    return m ? m.parts.some((p) => p.id === key) : true;
+    // The pieces of a split stencil are the plate, too.
+    return m ? m.parts.some((p) => p.id === key || (key === 'base' && p.piece)) : true;
   };
   for (const [key, label] of [['base', 'Platte'], ['text', 'Schrift'], ['outline', 'Kontur'], ['border', 'Rand']]) {
     colors.body.append(grid(
@@ -504,14 +540,18 @@ export function buildRightPanel(root, app) {
 
   const check = section('Prüfung (3D-Druck)', { id: 'check', icon: 'check' });
   check.body.append(
-    numberField(panel, { label: 'Mindest-Strichstärke', title: 'Dünnere Stellen der Schrift werden orange markiert (0,4-mm-Düse: etwa 0,8 mm)', unit: 'mm', bind: bindPath(app, 'check.minStroke'), min: 0, max: 5, step: 0.1, digits: 2, slider: [0, 2], wide: true }),
+    numberField(panel, { label: 'Mindest-Strichstärke', title: 'Dünnere Stellen der Schrift – bei Schablonen des Materials (Stege, Stellen zwischen Buchstaben) – werden orange markiert (0,4-mm-Düse: etwa 0,8 mm)', unit: 'mm', bind: bindPath(app, 'check.minStroke'), min: 0, max: 5, step: 0.1, digits: 2, slider: [0, 2], wide: true }),
     selectField(panel, { label: 'Druckbett', bind: bindPath(app, 'check.bed'), options: [[180, 'A1 mini – 180 × 180 mm'], [256, 'A1 / P1 / X1 – 256 × 256 mm'], [320, 'H2D – 320 × 320 mm']] }),
     note(panel, () => {
       const m = app.model;
       if (!m) return '';
       if (!doc().check.minStroke) return 'Prüfung aus.';
-      if (!m.stats.thinCount) return `<span class="ok">Alle Striche sind mindestens ${de(doc().check.minStroke, 2)} mm breit.</span>`;
-      return `<span class="warn">${m.stats.thinCount} Stelle${m.stats.thinCount === 1 ? '' : 'n'} dünner als ${de(doc().check.minStroke, 2)} mm</span> (orange markiert) – größere Schrift, „Fettung“ oder eine kräftigere Schrift wählen.`;
+      const cut = m.relief === 'cut';
+      if (!m.stats.thinCount) return `<span class="ok">${cut ? 'Stege und Material sind' : 'Alle Striche sind'} mindestens ${de(doc().check.minStroke, 2)} mm breit.</span>`;
+      const where = `<span class="warn">${m.stats.thinCount} Stelle${m.stats.thinCount === 1 ? '' : 'n'} dünner als ${de(doc().check.minStroke, 2)} mm</span> (orange markiert)`;
+      return cut
+        ? `${where} – das Material der Schablone bricht dort leicht: breitere Stege, mehr Buchstabenabstand oder größere Schrift.`
+        : `${where} – größere Schrift, „Fettung“ oder eine kräftigere Schrift wählen.`;
     }),
   );
 

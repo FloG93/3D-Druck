@@ -239,6 +239,8 @@ button { cursor: pointer; }
 .ctl { display: grid; gap: 5px; min-width: 0; }
 .ctl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ctl-grid > .wide { grid-column: 1 / -1; }
+/* All fields hidden: no empty gap in the section. */
+.ctl-grid:not(:has(> :not([hidden]))) { display: none; }
 .ctl-label {
   font-size: 11.5px;
   color: var(--text-muted);

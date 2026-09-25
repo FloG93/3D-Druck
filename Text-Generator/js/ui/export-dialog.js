@@ -3,9 +3,10 @@
 import { h } from '../../../shared/js/controls.js';
 import { icon } from '../../../shared/js/icons.js';
 import { downloadBlob, safeName } from '../../../shared/js/util.js';
-import { modelMeshes, flipMeshes, toBinarySTL } from '../export/mesh.js';
+import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL } from '../export/mesh.js';
 import { export3MF } from '../export/threemf.js';
 import { exportSVG } from '../export/svg.js';
+import { exportDXF, dxfLayers } from '../export/dxf.js';
 import { drawThumbnail } from './presets.js';
 import { firstLine } from '../core/document.js';
 
@@ -15,6 +16,7 @@ const FORMATS = [
   { id: '3mf', name: '3MF', desc: 'Für Bambu Studio & OrcaSlicer: Teile mit Filament-Zuordnung (AMS)', tag: 'Empfohlen' },
   { id: 'stl', name: 'STL', desc: 'Ein Körper für jeden Slicer (einfarbig)' },
   { id: 'svg', name: 'SVG', desc: 'Draufsicht in mm – Doku, Laser, Plotter' },
+  { id: 'dxf', name: 'DXF', desc: 'Umrisse in mm – Laser, Schneideplotter, Fusion 360' },
   { id: 'png', name: 'PNG', desc: 'Bild der Draufsicht' },
 ];
 
@@ -22,11 +24,20 @@ function partsList(model) {
   return model.parts.map((p) => `<b>${p.name}</b> → Filament ${p.slot}`).join(', ');
 }
 
+const PIECES = (m) => `Die Schablone besteht aus <b>${m.pieces.length} Teilen</b> (${m.split.nx} × ${m.split.ny}, nummeriert von links oben), die wie ein Puzzle ineinandergreifen.`;
+
 const INFO = {
-  '3mf': (m) => `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
-    <br>Ein Teil lässt sich auch in der Objektliste per Rechtsklick → <i>Filament ändern</i> umstellen. OrcaSlicer liest die Datei genauso.`,
-  stl: () => 'Alle Teile in einer Datei – der Slicer vereint sie zu einem Körper. Für mehrfarbigen Druck lieber <b>3MF</b> nehmen.',
-  svg: () => 'Draufsicht im Maßstab 1:1 (1 SVG-Einheit = 1 mm). <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360 (<i>Einfügen → SVG einfügen</i>).',
+  '3mf': (m) => (m.pieces.length
+    ? `${PIECES(m)} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I) – jedes Teil ist ein eigenes Objekt. Mit <i>Anordnen</i> (Taste A) auf die Druckplatte verteilen; passen nicht alle darauf, eine weitere Platte hinzufügen und erneut anordnen.`
+    : `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
+    <br>Ein Teil lässt sich auch in der Objektliste per Rechtsklick → <i>Filament ändern</i> umstellen. OrcaSlicer liest die Datei genauso.`),
+  stl: (m) => (m.pieces.length
+    ? `${PIECES(m)} Alle Teile liegen auseinandergezogen in einer Datei – im Slicer <i>In Objekte teilen</i> und anordnen. Mit <b>3MF</b> sind es gleich getrennte Objekte.`
+    : 'Alle Teile in einer Datei – der Slicer vereint sie zu einem Körper. Für mehrfarbigen Druck lieber <b>3MF</b> nehmen.'),
+  svg: (m) => `Draufsicht im Maßstab 1:1 (1 SVG-Einheit = 1 mm). <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360 (<i>Einfügen → SVG einfügen</i>)${m.relief === 'cut' ? ' – bei der Schablone alle Schnittlinien mit Stegen' : ''}.`,
+  dxf: (m) => (m.relief === 'cut'
+    ? `Alle Schnittlinien der Schablone – Außenkante und Buchstaben mit Stegen – als geschlossene Linienzüge auf der Ebene <b>SCHNITT</b>, 1:1 in mm${m.pieces.length ? ', am Stück (Laser und Plotter schneiden auch große Formate)' : ''}. Für Laser (z. B. LightBurn), Schneideplotter mit Schablonenfolie (z. B. Silhouette Studio, auch in der kostenlosen Version) oder Fusion 360 (<i>Einfügen → DXF einfügen</i>).`
+    : `Umrisse als geschlossene Linienzüge, 1:1 in mm, je Teil eine Ebene (${dxfLayers(m).map(([n]) => `<b>${n}</b>`).join(', ') || '–'}). Für Fusion 360 (<i>Einfügen → DXF einfügen</i>), Laser oder Plotter.`),
   png: () => 'Bild der Draufsicht mit transparentem Hintergrund.',
 };
 
@@ -132,7 +143,7 @@ export class ExportDialog {
         : 'Die Schrift zeigt nach oben – wie in der Vorschau.';
     this.info.innerHTML = INFO[this.format](m) + (m.warnings.length ? `<br><span class="warn">${m.warnings.join('<br>')}</span>` : '');
     const s = m.stats;
-    this.summary.textContent = `${de(s.width)} × ${de(s.height)} × ${de(s.top)} mm · ≈ ${de(s.grams)} g PLA`;
+    this.summary.textContent = `${de(s.width)} × ${de(s.height)} × ${de(s.top)} mm${m.pieces.length ? ` · ${m.pieces.length} Teile` : ''} · ≈ ${de(s.grams)} g PLA`;
     this.download.disabled = !m.parts.length;
   }
 
@@ -141,9 +152,10 @@ export class ExportDialog {
     return Boolean(m.flippable && this.app.doc.export.flip);
   }
 
-  /** Meshes for 3MF/STL in print orientation. */
+  /** Meshes for 3MF/STL in print orientation, pieces pulled apart. */
   meshes(m) {
-    const meshes = modelMeshes(m);
+    let meshes = modelMeshes(m);
+    if (m.pieces.length) meshes = spreadPieces(meshes);
     return this.flipped(m) ? flipMeshes(meshes, m.stats.top) : meshes;
   }
 
@@ -158,6 +170,8 @@ export class ExportDialog {
         downloadBlob(new Blob([toBinarySTL(this.meshes(m))], { type: 'model/stl' }), `${base}.stl`);
       } else if (this.format === 'svg') {
         downloadBlob(new Blob([exportSVG(m, { style: this.svgStyle })], { type: 'image/svg+xml' }), `${base}.svg`);
+      } else if (this.format === 'dxf') {
+        downloadBlob(new Blob([exportDXF(m)], { type: 'application/dxf' }), `${base}.dxf`);
       } else if (this.format === 'png') {
         // 20 px per mm, at most 4000 px on the long side.
         const s = m.stats;

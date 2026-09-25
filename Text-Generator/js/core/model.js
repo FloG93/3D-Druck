@@ -6,17 +6,19 @@
 
 import {
   union, difference, intersection, offset, fillHoles, regionBounds, regionArea, emptyBounds, addRingBounds,
-  circleRing, ellipseRing, roundedRectRing, crossingsAtY, crossingsAtX, thinParts, transformRegion,
+  circleRing, ellipseRing, roundedRectRing, crossingsAtY, crossingsAtX, thinParts, transformRegion, insideRegion,
 } from './geometry.js';
 import { layoutBlock } from './layout.js';
 import { isSymbolLike, DEFAULT_FONT } from './fonts.js';
 import { qrBlock, graphicBlock, hasQrLogo } from './blocks.js';
+import { bridgeIslands } from './stencil.js';
+import { splitStencil } from './split.js';
 
-export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite' };
+export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil' };
 export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
 // Smallest QR module that prints and scans reliably (mm).
 export const QR_MIN_MODULE = 1;
-export const RELIEF_NAMES = { raised: 'erhaben', engraved: 'vertieft', flush: 'bündig', cut: 'durchbrochen' };
+export const RELIEF_NAMES = { raised: 'erhaben', engraved: 'vertieft', flush: 'bündig', cut: 'als Schablone' };
 // PLA, for the weight estimate.
 export const DENSITY = 1.24;
 // Thinnest floor left under engraved text.
@@ -387,6 +389,16 @@ function luminance(hex) {
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 }
 
+/** A #rrggbb colour a bit darker (light colours) or lighter (dark ones). */
+export function shade(hex, amount) {
+  if (!amount) return hex;
+  const target = luminance(hex) > 0.18 ? 0 : 255;
+  return `#${[1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16);
+    return Math.round(v + (target - v) * amount).toString(16).padStart(2, '0');
+  }).join('')}`;
+}
+
 /**
  * Region of one block in the coordinates of its side (before a back block
  * is mirrored): { block, region, footprint, bounds, … }, null if empty,
@@ -497,7 +509,7 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   // holes (the mesh cuts those itself).
   let border = [];
   let inner = mount.solidBase;
-  if (body.border && base.length) {
+  if (body.border && base.length && relief !== 'cut') {
     inner = offset(mount.solidBase, -body.borderWidth);
     border = difference(mount.solidBase, inner);
   }
@@ -507,6 +519,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     const plate = border.length ? inner : base;
     if (relief === 'flush') area = offset(plate, border.length ? -0.6 : -MIN_WALL);
     else if (relief === 'engraved') area = border.length ? inner : offset(base, -MIN_WALL);
+    // A stencil keeps a frame all around.
+    else if (relief === 'cut') area = offset(base, -MIN_WALL);
     else area = plate;
     const keepOut = mount.countersinks.map((c) => circleRing(c.cx, c.cy, c.R + (sunk ? MIN_WALL : 0.4)));
     if (keepOut.length) area = difference(area, keepOut);
@@ -529,6 +543,19 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let letters = union(...blocks.map((b) => b.region));
   if (base.length && regionArea(union(...front.map((l) => l.world))) - regionArea(letters) > 0.05) {
     warnings.push('Die Schrift ragt über die Platte hinaus und wird abgeschnitten.');
+  }
+  // Stencil: bridges hold the islands (the inside of O, A, B …).
+  let bridges = [];
+  let islands = 0;
+  let loose = [];
+  if (relief === 'cut' && letters.length) {
+    const st = bridgeIslands(base, letters, { width: doc.stencil.bridge, count: doc.stencil.bridges, direction: doc.stencil.direction });
+    bridges = st.bridges;
+    letters = st.cut;
+    islands = st.islands;
+    loose = st.loose;
+    if (st.unresolved) warnings.push(`${st.unresolved} Insel${st.unresolved === 1 ? '' : 'n'} der Schablone ließ${st.unresolved === 1 ? '' : 'en'} sich nicht mit Stegen halten – Schrift oder Stegrichtung ändern.`);
+    for (const b of blocks) b.region = intersection(b.region, letters);
   }
 
   // Outline around the lettering (third colour).
@@ -566,7 +593,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let backLetters = [];
   let backGroups = [];
   let backDepth = 0;
-  if (back.length && base.length) {
+  if (back.length && base.length && relief === 'cut') warnings.push('Eine Schablone hat keine Rückseite – die Blöcke hinten entfallen.');
+  if (back.length && base.length && relief !== 'cut') {
     const room = t - (sunk ? depth : 0) - MIN_FLOOR;
     backDepth = Math.min(doc.back.depth, room);
     if (backDepth < 0.1) {
@@ -629,6 +657,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     solidBase = flip(solidBase);
     inner = flip(inner);
     letters = flip(letters);
+    bridges = flip(bridges);
+    loose = flip(loose);
     backLetters = flip(backLetters);
     for (const g of backGroups) g.region = flip(g.region);
     border = flip(border);
@@ -641,11 +671,25 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     magnetCenters = magnetCenters.map((c) => ({ ...c, cx: -c.cx }));
   }
 
+  // Stencils bigger than the bed: pieces with puzzle connectors, which
+  // keep clear of screw holes and magnets.
+  let split = null;
+  if (relief === 'cut' && doc.stencil.split && letters.length) {
+    const avoid = [
+      ...countersinks.map((c) => circleRing(c.cx, c.cy, c.R + MIN_WALL)),
+      ...magnetCenters.map((c) => circleRing(c.cx, c.cy, c.r + MIN_WALL)),
+    ];
+    split = splitStencil(difference(solidBase, letters), {
+      bed: doc.check.bed, clearance: doc.stencil.clearance, tab: doc.stencil.tab, islands: loose, avoid: avoid.length ? union(avoid) : [],
+    });
+    if (split) warnings.push(...split.warnings);
+  }
+
   // Parts.
   const parts = [];
-  const add = (id, name, color, slot, solids) => {
+  const add = (id, name, color, slot, solids, extra = {}) => {
     const ok = solids.filter((s) => s.region.length && s.z1 > s.z0 + 1e-9);
-    if (ok.length) parts.push({ id, name, color, slot, solids: ok });
+    if (ok.length) parts.push({ id, name, color, slot, solids: ok, ...extra });
   };
   const textParts = (z0, z1) => groups.forEach((g) => add(g.id, g.name, g.color, g.slot, [{ region: g.region, z0, z1 }]));
   // Magnet pockets never reach the text pockets: at least MIN_CEILING stays.
@@ -683,6 +727,18 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     if (outline.length) add('outline', PART_NAMES.outline, doc.colors.outline, doc.slots.outline, [{ region: difference(outline, letters), z0: t - depth, z1: t }]);
     textParts(t - depth, t);
     if (border.length) add('border', PART_NAMES.border, doc.colors.border, doc.slots.border, [{ region: border, z0: t - depth, z1: t }]);
+  } else if (relief === 'cut' && split) {
+    // Every other piece a little darker, so they stand apart in the preview.
+    for (const p of split.pieces) {
+      const pocket = magnetPocketRegion.length ? intersection(magnetPocketRegion, p.region) : [];
+      add(`piece-${p.label}`, `${PART_NAMES.piece} ${p.label}`, shade(doc.colors.base, (p.cell[0] + p.cell[1]) % 2 ? 0.12 : 0), doc.slots.base, [{
+        region: p.region,
+        z0: 0,
+        z1: t,
+        countersinks: countersinks.filter((c) => insideRegion(p.region, c.cx, c.cy)),
+        bottom: [{ region: pocket, depth: magnetDepth }],
+      }], { piece: p.label, cell: p.cell });
+    }
   } else if (relief === 'cut') {
     add('base', PART_NAMES.base, doc.colors.base, doc.slots.base, [{ ...plateSolid, region: difference(solidBase, letters) }]);
   }
@@ -692,15 +748,17 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   }
 
   // Checks.
-  const thin = relief === 'cut' || !doc.check.minStroke ? [] : thinParts(letters, doc.check.minStroke);
+  // Stencils: thin material (bridges, walls between letters); else thin strokes.
+  const thin = !doc.check.minStroke ? []
+    : relief === 'cut' ? thinParts(difference(base, letters), doc.check.minStroke) : thinParts(letters, doc.check.minStroke);
   const thinBack = backLetters.length && doc.check.minStroke ? thinParts(backLetters, doc.check.minStroke) : [];
   if (!base.length && letters.length > 1) warnings.push(`Die Buchstaben bestehen aus ${letters.length} getrennten Teilen (z. B. i-Punkte) – ohne Platte fallen sie auseinander.`);
 
   const all = union(base, letters, border, outline);
   const bounds = all.length ? regionBounds(all) : emptyBounds();
   const bed = doc.check.bed;
-  if (Number.isFinite(bounds.minX) && Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) > bed - 4) {
-    warnings.push(`Größer als das Druckbett (${bed} × ${bed} mm).`);
+  if (!split && Number.isFinite(bounds.minX) && Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) > bed - 4) {
+    warnings.push(`Größer als das Druckbett (${bed} × ${bed} mm)${relief === 'cut' ? ' – „In Teile aufteilen“ einschalten.' : '.'}`);
   }
   let volume = 0;
   for (const part of parts) {
@@ -714,6 +772,12 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     layouts,
     text: letters,
     textGroups: groups,
+    // Stencil bridges and the number of islands they hold.
+    bridges,
+    islands,
+    // Pieces of a stencil bigger than the bed (with puzzle connectors).
+    pieces: split ? split.pieces : [],
+    split: split ? { nx: split.nx, ny: split.ny, tabs: split.tabs.length, tabHead: split.tabHead } : null,
     // Back (world coordinates, i.e. mirrored as seen from the front).
     backText: backLetters,
     backGroups,

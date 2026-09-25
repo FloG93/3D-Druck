@@ -186,6 +186,27 @@ export function flipMeshes(meshes, top) {
   });
 }
 
+/**
+ * Pieces of a split stencil pulled apart by gap mm per row and column, so
+ * the slicer sees separate objects to arrange on its plates.
+ */
+export function spreadPieces(meshes, gap = 10) {
+  return meshes.map((m) => {
+    const cell = m.part.cell;
+    if (!cell) return m;
+    const dx = cell[0] * gap;
+    const dy = cell[1] * gap;
+    const n = m.triangles * 9;
+    const p = new Float32Array(n);
+    for (let i = 0; i < n; i += 3) {
+      p[i] = m.positions[i] + dx;
+      p[i + 1] = m.positions[i + 1] + dy;
+      p[i + 2] = m.positions[i + 2];
+    }
+    return { ...m, positions: p };
+  });
+}
+
 /** Binary STL of the given meshes (merged into one file). */
 export function toBinarySTL(meshes, header = 'Text-Generator') {
   const total = meshes.reduce((n, m) => n + m.triangles, 0);

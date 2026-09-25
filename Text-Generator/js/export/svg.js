@@ -1,7 +1,8 @@
 // SVG export in millimetres (1 user unit = 1 mm), y axis flipped for SVG.
 //
 // style 'color':   top view in the part colours (documentation, preview)
-// style 'outline': cut lines only (laser, plotter, Fusion "SVG einfügen")
+// style 'outline': cut lines only (laser, plotter, Fusion "SVG einfügen");
+//                  a stencil gives one path with all its cut lines
 
 const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
@@ -48,9 +49,14 @@ export function exportSVG(model, { style = 'color', margin = 2, title = '' } = {
   };
   if (style === 'outline') {
     const stroke = 'fill="none" stroke="#000000" stroke-width="0.1"';
-    layer('platte', model.base, stroke);
-    layer('rand', model.border, stroke);
-    layer('schrift', model.text, stroke);
+    if (model.relief === 'cut') {
+      layer('schnitt', model.plate, stroke);
+    } else {
+      layer('platte', model.base, stroke);
+      layer('rand', model.border, stroke);
+      layer('kontur', model.outline, stroke);
+      layer('schrift', model.text, stroke);
+    }
   } else {
     layer('platte', model.plate, `fill="${esc(colors.base)}" stroke="#00000040" stroke-width="0.15"`);
     layer('rand', model.border, `fill="${esc(colors.border)}"`);

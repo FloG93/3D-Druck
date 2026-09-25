@@ -240,6 +240,14 @@ export class App {
     }
   }
 
+  /** Folds a follow-up change into the last step, so one undo takes back both. */
+  amend() {
+    const snap = JSON.stringify(this.doc);
+    this.history.replace(snap);
+    this.emit('history');
+    this.save(snap);
+  }
+
   save(snap = JSON.stringify(this.doc)) {
     if (!this.storage) return;
     try {

@@ -235,7 +235,10 @@ export class Renderer {
     ctx.shadowOffsetY = 4;
     fill(m.plate.length ? m.plate : m.text, m.plate.length ? colors.base : colors.text);
     ctx.restore();
-    fill(m.plate, colors.base, 'rgba(0,0,0,0.28)');
+    if (m.pieces.length && !back) {
+      // Split stencil: the pieces in their shades, outlined.
+      for (const part of m.parts) if (part.piece) fill(part.solids[0].region, part.color, 'rgba(0,0,0,0.45)');
+    } else fill(m.plate, colors.base, 'rgba(0,0,0,0.28)');
     if (back) {
       this.drawBack(m, fill, S);
       return;
@@ -267,6 +270,8 @@ export class Renderer {
       }
       ctx.restore();
     }
+    // Stencil bridges: slightly darker, so you can see where they are.
+    if (m.relief === 'cut') fill(m.bridges, 'rgba(0,0,0,0.14)');
     fill(m.outline, colors.outline, m.relief === 'flush' ? null : 'rgba(0,0,0,0.2)');
     if (m.relief === 'engraved') fill(m.text, 'rgba(0,0,0,0.30)');
     else if (m.relief !== 'cut') {
@@ -282,8 +287,29 @@ export class Renderer {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
+    this.drawPieceLabels(m, S);
     this.drawSelection(m);
     this.drawDimensions(m);
+  }
+
+  /** Numbers of the pieces of a split stencil. */
+  drawPieceLabels(m, S) {
+    if (!m.pieces.length) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.font = '600 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const p of m.pieces) {
+      const [x, y] = S(p.anchor[0], p.anchor[1]);
+      ctx.beginPath();
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(20,20,22,0.82)';
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillText(String(p.label), x, y + 0.5);
+    }
+    ctx.restore();
   }
 
   /** The plate seen from behind: magnet pockets and the lettering of the back. */
