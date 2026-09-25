@@ -103,8 +103,11 @@ function farthestDistance(region, cx, cy) {
   return r;
 }
 
-/** Base plate for the lettering (without mount holes). */
-function basePlate(doc, text, box, warnings) {
+/**
+ * Base plate for the lettering (without mount holes). center: where a
+ * round plate goes (the common centre of text on a circle, like a coin).
+ */
+function basePlate(doc, text, box, warnings, center = null) {
   const b = doc.base;
   // Border and outline take room from the padding.
   const p = b.padding + (doc.body.border ? doc.body.borderWidth : 0)
@@ -143,8 +146,9 @@ function basePlate(doc, text, box, warnings) {
     }
     case 'circle': {
       if (fixed) return union([circleRing(0, 0, b.width / 2)]);
-      const r = (text.length ? farthestDistance(text, cx, cy) : Math.hypot(w, h) / 2) + p;
-      return union([circleRing(cx, cy, r)]);
+      const [mx, my] = center && text.length ? center : [cx, cy];
+      const r = (text.length ? farthestDistance(text, mx, my) : Math.hypot(w, h) / 2) + p;
+      return union([circleRing(mx, my, r)]);
     }
     default:
       return [];
@@ -489,7 +493,12 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     if (room.side === 'right' || room.side === 'both') box.maxX += room.e;
     if (room.side === 'top') box.maxY += room.e;
   }
-  const plate0 = basePlate(doc, text, box, warnings);
+  // Text on circles with one common centre (a coin): the round plate is
+  // concentric with it.
+  const circles = front.filter((l) => l.arc && l.block.layout !== 'bend').map((l) => l.arc);
+  const common = circles.length && circles.every((c) => Math.hypot(c.cx - circles[0].cx, c.cy - circles[0].cy) < 0.01)
+    ? [circles[0].cx, circles[0].cy] : null;
+  const plate0 = basePlate(doc, text, box, warnings, common);
   const mount = addMount(doc, plate0, warnings);
   let base = mount.base;
   if (base.length > 1) warnings.push(`Die Platte zerfällt in ${base.length} Teile.`);

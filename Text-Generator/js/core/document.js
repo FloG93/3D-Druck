@@ -13,7 +13,7 @@ export const BRIDGE_DIRECTIONS = ['vertical', 'horizontal', 'auto'];
 export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws'];
 export const MOUNT_POSITIONS = ['left', 'right', 'top'];
 export const ALIGNS = ['left', 'center', 'right'];
-export const LAYOUTS = ['line', 'arcTop', 'arcBottom'];
+export const LAYOUTS = ['line', 'bend', 'arcTop', 'arcBottom'];
 // Content blocks (all in doc.texts): text, QR code, imported graphic.
 export const BLOCK_KINDS = ['text', 'qr', 'graphic'];
 export const SIDES = ['front', 'back'];
@@ -43,8 +43,9 @@ export const TEXT_DEFAULTS = {
   letterSpacing: 0, // mm between letters
   lineSpacing: 1.15, // baseline distance as a multiple of the font size
   align: 'center',
-  layout: 'line',
-  radius: 30,
+  layout: 'line', // 'bend': bent in place, 'arcTop' / 'arcBottom': on a circle
+  radius: 30, // circle: from the block position to the middle of the capitals
+  bend: 60, // bend: degrees the widest line spans (negative: sagging)
   ...COMMON,
 };
 
@@ -226,6 +227,7 @@ export function normalizeText(t) {
     out.align = oneOf(ALIGNS, out.align, 'center');
     out.layout = oneOf(LAYOUTS, out.layout, 'line');
     out.radius = clamp(out.radius, 1, 2000);
+    out.bend = clamp(out.bend, -340, 340);
   } else if (kind === 'qr') {
     out.qrMode = oneOf(QR_MODES, out.qrMode, 'link');
     out.qrText = out.qrText.slice(0, 2000);

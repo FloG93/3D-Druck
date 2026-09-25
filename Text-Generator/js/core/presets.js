@@ -140,6 +140,29 @@ export const BUILTIN_PRESETS = [
     colors: { base: '#2d6a4f', text: '#f1faee', border: '#f1faee' },
   },
   {
+    name: 'Glücksmünze',
+    texts: [
+      { text: 'GLÜCKS', font: MONTSERRAT, size: 4.5, letterSpacing: 0.8, layout: 'arcTop', radius: 15 },
+      { text: 'MÜNZE', font: MONTSERRAT, size: 4.5, letterSpacing: 0.8, layout: 'arcBottom', radius: 15 },
+      { text: '🍀', font: MONTSERRAT, size: 11 },
+    ],
+    base: { shape: 'circle', padding: 2.6 },
+    mount: { type: 'none' },
+    body: { relief: 'raised', thickness: 2.4, height: 0.8, border: true, borderWidth: 1.4, borderHeight: 0.8 },
+    colors: { base: '#e9c46a', text: '#6f4518', border: '#6f4518' },
+  },
+  {
+    name: 'Kinderzimmer',
+    texts: [
+      { text: 'LEONIE', font: MONTSERRAT, size: 11, letterSpacing: 0.4, layout: 'bend', bend: 70, y: 6 },
+      { text: '🌈', font: MONTSERRAT, size: 13, y: -12, slot: 3, color: '#ff9f1c' },
+    ],
+    base: { shape: 'oval', padding: 3 },
+    mount: { type: 'hole', position: 'top', diameter: 4, ring: 2.5 },
+    body: { relief: 'raised', thickness: 2.4, height: 1.2 },
+    colors: { base: '#ffd6e0', text: '#c9184a', border: '#c9184a' },
+  },
+  {
     name: 'Sprühschablone',
     texts: [{ text: 'KEINE\nWERBUNG', font: MONTSERRAT, size: 14, lineSpacing: 1.3, letterSpacing: 0.15 }],
     base: { shape: 'rect', padding: 12, radius: 3 },

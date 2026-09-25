@@ -288,6 +288,7 @@ export class Renderer {
       ctx.stroke();
     }
     this.drawPieceLabels(m, S);
+    this.drawArcGuide(m, S);
     this.drawSelection(m);
     this.drawDimensions(m);
   }
@@ -333,6 +334,7 @@ export class Renderer {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
+    this.drawArcGuide(m, S);
     this.drawSelection(m);
     this.drawDimensions(m);
   }
@@ -358,6 +360,34 @@ export class Renderer {
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
+  }
+
+  /** Circle of a bent or circular text (dashed) with its centre. */
+  drawArcGuide(m, S) {
+    const lay = m.layouts.find((l) => l.block.id === this.app.selectedId) || (m.layouts.length === 1 ? m.layouts[0] : null);
+    if (!lay?.arc || (lay.side || 'front') !== this.side) return;
+    // World coordinates like the regions: the back is mirrored, so is a stamp.
+    let cx = lay.side === 'back' ? -lay.arc.cx : lay.arc.cx;
+    if (m.doc.mirror && lay.side !== 'back') cx = -cx;
+    const [x, y] = S(cx, lay.arc.cy);
+    const r = lay.arc.r * this.scale;
+    const { ctx } = this;
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = this.colors.accent;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y);
+    ctx.lineTo(x + 6, y);
+    ctx.moveTo(x, y - 6);
+    ctx.lineTo(x, y + 6);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawSelection(m) {

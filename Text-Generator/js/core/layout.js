@@ -184,8 +184,13 @@ export function shapeLine(line, face, fontSize, spacing = 0, kerning = true) {
 /**
  * Lays out a text block.
  * block: { text, size, letterSpacing, lineSpacing, align, x, y, rotation,
- *          layout: 'line' | 'arcTop' | 'arcBottom', radius }
- * Returns { glyphs: [{ ch, rings, commands }], region, bounds, lines, missing, fontSize }.
+ *          layout: 'line' | 'bend' | 'arcTop' | 'arcBottom', radius, bend }
+ * 'arcTop' / 'arcBottom': on a circle around the block position (radius to
+ * the middle of the capitals), readable at the top or at the bottom – like
+ * the lettering of a coin. 'bend': bent in place by `bend` degrees (the
+ * widest line spans that angle; positive arches up, negative sags).
+ * Returns { glyphs: [{ ch, rings, commands }], region, bounds, lines, arc,
+ * missing, fontSize } – arc: { cx, cy, r } the circle of the first line.
  */
 export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false } = {}) {
   const size = Math.max(Number(block.size) || 0, 0.1);
@@ -198,7 +203,21 @@ export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false }
   const missing = new Set();
   for (const s of shaped) for (const ch of s.missing) missing.add(ch);
   const maxWidth = Math.max(0, ...shaped.map((s) => s.width));
-  const layout = block.layout || 'line';
+  let layout = block.layout || 'line';
+  const n = lines.length;
+  // Bent text: a circle on which the widest line spans the angle, its
+  // centre below (arch) or above (sag) so the text stays where it is.
+  const bendAngle = (Number(block.bend) || 0) * DEG;
+  let bendR = 0;
+  let oy = 0;
+  if (layout === 'bend') {
+    if (Math.abs(bendAngle) < 0.5 * DEG || !maxWidth) layout = 'line';
+    else {
+      // An arch keeps room for its inner lines.
+      bendR = Math.max(maxWidth / Math.abs(bendAngle), size + (bendAngle > 0 ? (n - 1) * pitch : 0));
+      oy = bendAngle > 0 ? -bendR + ((n - 1) * pitch) / 2 : bendR + ((n - 1) * pitch) / 2;
+    }
+  }
   const rot = (Number(block.rotation) || 0) * DEG;
   const cosR = Math.cos(rot);
   const sinR = Math.sin(rot);
@@ -213,19 +232,21 @@ export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false }
 
   const glyphs = [];
   const lineInfo = [];
-  const n = lines.length;
   // Straight text: the block is centred on its cap-height box.
   const totalH = (n - 1) * pitch + size;
+  const top = layout === 'arcTop' || (layout === 'bend' && bendAngle > 0);
+  const R = layout === 'bend' ? bendR : Math.max(Number(block.radius) || 0, size);
   shaped.forEach((s, i) => {
     let start;
     if (block.align === 'left') start = -maxWidth / 2;
     else if (block.align === 'right') start = maxWidth / 2 - s.width;
     else start = -s.width / 2;
     const baseline = totalH / 2 - size - i * pitch;
-    const R = Math.max(Number(block.radius) || 0, size);
-    // Arc text: radius is the middle of the cap height of the first line.
-    const top = layout === 'arcTop';
-    const rLine = top ? R - size / 2 - i * pitch : R + size / 2 + i * pitch;
+    // Arc text: radius is the middle of the cap height of the first line;
+    // letters are spaced along that middle (the baseline would squeeze the
+    // tops of the letters at the bottom of a circle).
+    const rMid = top ? R - i * pitch : R + i * pitch;
+    const rLine = top ? rMid - size / 2 : rMid + size / 2;
     lineInfo.push({ baseline, start, width: s.width, radius: layout === 'line' ? null : rLine });
     for (const it of s.items) {
       const cmds = it.glyph.path ? it.glyph.path.commands : [];
@@ -238,14 +259,14 @@ export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false }
         // Glyph centre on the arc, letters upright towards the outside (top)
         // or the inside (bottom).
         const c = start + it.x + it.advance / 2;
-        const theta = top ? Math.PI / 2 - c / rLine : -Math.PI / 2 + c / rLine;
+        const theta = top ? Math.PI / 2 - c / rMid : -Math.PI / 2 + c / rMid;
         const nx = Math.cos(theta) * (top ? 1 : -1);
         const ny = Math.sin(theta) * (top ? 1 : -1);
         const tx = top ? Math.sin(theta) : -Math.sin(theta);
         const ty = top ? -Math.cos(theta) : Math.cos(theta);
         const ax = Math.cos(theta) * rLine;
         const ay = Math.sin(theta) * rLine;
-        m = [k * tx, k * ty, k * nx, k * ny, ax - (it.advance / 2) * tx + it.dy * nx, ay - (it.advance / 2) * ty + it.dy * ny];
+        m = [k * tx, k * ty, k * nx, k * ny, ax - (it.advance / 2) * tx + it.dy * nx, ay - (it.advance / 2) * ty + it.dy * ny + oy];
       }
       m = toWorld(m);
       const rings = flattenCommands(cmds, m, tol);
@@ -257,5 +278,7 @@ export function layoutBlock(block, face, { tol = TOLERANCE, keepCurves = false }
   // and overlapping contours, then all glyphs together.
   const region = union(glyphs.map((g) => union(g.rings)));
   const bounds = region.length ? regionBounds(region) : emptyBounds();
-  return { glyphs, region, bounds, lines: lineInfo, missing, fontSize, size };
+  // The circle the first line runs on, in the coordinates of the side.
+  const arc = layout === 'line' ? null : { cx: -sinR * oy + bx, cy: cosR * oy + by, r: R };
+  return { glyphs, region, bounds, lines: lineInfo, arc, missing, fontSize, size };
 }

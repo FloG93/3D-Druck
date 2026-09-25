@@ -196,8 +196,23 @@ function textFields(panel, app, id, index, bind, openFontDialog) {
       options: [['left', 'Links', 'alignLeft', 'Linksbündig'], ['center', 'Mitte', 'alignCenter', 'Zentriert'], ['right', 'Rechts', 'alignRight', 'Rechtsbündig']],
       visible: () => (app.text(id)?.text || '').includes('\n'),
     }),
+    segmented(panel, {
+      label: 'Form',
+      bind: bind('layout'),
+      options: [
+        ['line', 'Gerade', null, 'Gerade Zeilen'],
+        ['bend', 'Bogen', null, 'Der Text wird an seiner Stelle gebogen'],
+        ['arcTop', 'Kreis oben', null, 'Oben auf einem Kreis um die Position, z. B. für Münzen und Siegel'],
+        ['arcBottom', 'Kreis unten', null, 'Unten auf einem Kreis um die Position, lesbar von links nach rechts'],
+      ],
+    }),
+    numberField(panel, { label: 'Biegung', title: 'Wie weit der Text um den Bogen läuft: positiv nach oben gewölbt, negativ nach unten', unit: '°', bind: bind('bend'), min: -340, max: 340, step: 5, digits: 0, slider: [-180, 180], wide: true, visible: () => app.text(id)?.layout === 'bend' }),
+    numberField(panel, { label: 'Radius', title: 'Von der Kreismitte (Position des Textes) bis zur Mitte der Großbuchstaben', unit: 'mm', bind: bind('radius'), min: 1, max: 2000, step: 0.5, digits: 1, slider: [5, 120], wide: true, visible: () => isCircle(app.text(id)) }),
+    note(panel, 'Die Position ist die Kreismitte (gestrichelt in der Vorschau). Für eine Münze oder ein Siegel: Text oben und Text unten mit derselben Position und demselben Radius.', () => isCircle(app.text(id))),
   ];
 }
+
+const isCircle = (b) => b?.layout === 'arcTop' || b?.layout === 'arcBottom';
 
 /** Grid of the built-in symbols; the chosen one is highlighted. */
 function symbolChooser(panel, bind, visible) {
