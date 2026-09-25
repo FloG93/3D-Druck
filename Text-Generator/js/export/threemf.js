@@ -3,7 +3,8 @@
 // (AMS slot) of each part is stored in Metadata/model_settings.config, which
 // Bambu Studio reads from any 3MF, not only from its own projects. The
 // pieces of a split stencil (part.piece) and a stamp's handle (part.object)
-// become objects of their own.
+// become objects of their own – as does every name of a series
+// (part.objectName names the object).
 
 import { indexMesh } from './mesh.js';
 import { zip } from './zip.js';
@@ -61,7 +62,7 @@ export function build3MF(meshes, { title = 'Text', application = '3D-Druck Text-
   for (const u of used) {
     const key = u.part.object ?? u.part.piece ?? 0;
     let g = groups.find((x) => x.key === key);
-    if (!g) groups.push(g = { key, name: key ? u.part.name : title, members: [] });
+    if (!g) groups.push(g = { key, name: u.part.objectName ?? (key ? u.part.name : title), members: [] });
     g.members.push(u);
   }
   let next = used.length + 1;

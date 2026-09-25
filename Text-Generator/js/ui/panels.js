@@ -7,7 +7,8 @@ import {
 import { icon } from '../../../shared/js/icons.js';
 import { BUILTIN_FONTS, fontKey, SYMBOLS } from '../core/fonts.js';
 import { KIND_NAMES, QR_MIN_MODULE } from '../core/model.js';
-import { STENCIL_THICKNESS, STAMP_KIND_DEFAULTS } from '../core/document.js';
+import { STENCIL_THICKNESS, STAMP_KIND_DEFAULTS, firstLine } from '../core/document.js';
+import { seriesNames, seriesTarget, MAX_SERIES } from '../core/series.js';
 import { parseSVG } from '../core/svgimport.js';
 
 // Suggested colours for texts with their own filament.
@@ -43,10 +44,14 @@ function symbolPicker(textarea, onInsert) {
 }
 
 function textArea(panel, opts) {
+  const { minRows = 1, maxRows = 6 } = opts;
   const ta = h('textarea', { rows: '2', spellcheck: 'false', placeholder: opts.placeholder || 'Text eingeben', 'aria-label': opts.label || 'Text' });
+  const fit = () => {
+    ta.rows = Math.min(maxRows, Math.max(minRows, ta.value.split('\n').length));
+  };
   ta.addEventListener('input', () => {
     opts.bind.set(ta.value);
-    ta.rows = Math.min(6, Math.max(1, ta.value.split('\n').length));
+    fit();
   });
   ta.addEventListener('change', () => panel.app.commit());
   const picker = opts.symbols === false ? [] : symbolPicker(ta, (v) => {
@@ -57,7 +62,7 @@ function textArea(panel, opts) {
   return panel.register(el, () => {
     const v = String(opts.bind.get() ?? '');
     if (document.activeElement !== ta && ta.value !== v) ta.value = v;
-    ta.rows = Math.min(6, Math.max(1, ta.value.split('\n').length));
+    fit();
   }, opts.visible);
 }
 
@@ -366,6 +371,24 @@ export function buildLeftPanel(root, app, { onPresetsSection, openFontDialog }) 
     }));
   const hint = h('p', { class: 'ctl-note' }, 'In der Vorschau lässt sich jeder Block mit der Maus verschieben. Mit „Seite: Hinten“ kommt er auf die Rückseite.');
   textSec.body.append(list, adds, hint);
+
+  // Series: one piece per name of a list.
+  const series = section('Serie aus Namensliste', { id: 'series', icon: 'list', open: false });
+  root.append(series.el);
+  const on = () => app.doc.series.enabled;
+  series.body.append(
+    toggle(panel, { label: 'Für jeden Namen ein Teil', title: 'Viele Anhänger auf einmal, z. B. für alle Kinder einer Klasse', bind: bindPath(app, 'series.enabled') }),
+    textArea(panel, { label: 'Namen', placeholder: 'Anna\nBen\nClara', bind: bindPath(app, 'series.names'), visible: on, minRows: 4, maxRows: 12 }),
+    note(panel, () => {
+      const n = seriesNames(app.doc).length;
+      const target = app.doc.texts[seriesTarget(app.doc)];
+      if (!target) return '<span class="warn">Es gibt keinen Text, den die Namen ersetzen könnten.</span>';
+      const shown = firstLine({ texts: [target] }) || 'leer';
+      return `${n ? `<b>${n} Name${n === 1 ? '' : 'n'}</b>${n >= MAX_SERIES ? ` (höchstens ${MAX_SERIES})` : ''} – s` : 'Einen Namen pro Zeile eintragen – s'}ie ersetzen den ersten Text („${shown.replace(/[<>&]/g, '')}“), alles andere bleibt. Mit | wird umbrochen, z. B. „Familie | Müller“.`;
+    }, on),
+    numberField(panel, { label: 'Abstand', title: 'Zwischen den Teilen auf dem Druckbett bzw. dem Bogen', unit: 'mm', bind: bindPath(app, 'series.gap'), min: 1, max: 50, step: 1, digits: 1, slider: [2, 20], wide: true, visible: on }),
+    note(panel, 'Die Vorschau zeigt den Entwurf. Beim Export als 3MF oder STL wird jeder Name ein eigenes Objekt, in Reihen auf dem Druckbett angeordnet; SVG und DXF legen alle Namen auf einen Bogen.', on),
+  );
   const rebuild = () => {
     list.innerHTML = '';
     panel.prune();

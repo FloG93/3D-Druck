@@ -8,6 +8,7 @@
 
 import { defaultDoc, normalizeDoc, createBlock } from '../core/document.js';
 import { buildModel } from '../core/model.js';
+import { seriesNames, seriesTarget } from '../core/series.js';
 import { FontLibrary, fontKey, isSymbolLike, DEFAULT_FONT } from '../core/fonts.js';
 import { History } from '../../../shared/js/history.js';
 import { safeStorage } from '../../../shared/js/util.js';
@@ -166,6 +167,10 @@ export class App {
       else if (t.kind === 'qr' && t.qrLogo === 'symbol') this.ensureFont(DEFAULT_FONT);
     }
     this.loadSymbolsFor(this.doc);
+    // Symbols in the names of a series (a heart after the name …).
+    const names = seriesNames(this.doc);
+    const target = this.doc.texts[seriesTarget(this.doc)];
+    if (names.length && target) this.loadSymbolsFor({ texts: [{ kind: 'text', font: target.font, text: names.join(' ') }] });
     this.model = buildModel(this.doc, (ref) => this.fonts.peek(ref), { symbolsLoading: this.symbolsLoading > 0 });
     this.emit('model', this.model);
     return this.model;

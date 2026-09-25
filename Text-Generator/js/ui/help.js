@@ -29,6 +29,13 @@ const HTML = `
       <li>Für einen Laser oder Schneideplotter mit Schablonenfolie: <b>DXF</b> oder <b>SVG (Umrisse)</b> – alle Schnittlinien am Stück.</li>
     </ul>
 
+    <h3>Serie aus einer Namensliste</h3>
+    <ul>
+      <li>Links unter <b>Serie aus Namensliste</b> einschalten und die Namen eintragen, einen pro Zeile – mit <b>|</b> wird umbrochen („Familie | Müller“).</li>
+      <li>Jeder Name ersetzt beim Export den ersten Text, alles andere bleibt. Im <b>3MF</b> ist jeder Name ein eigenes Objekt, in Reihen auf dem Druckbett angeordnet; <b>SVG</b> und <b>DXF</b> legen alle auf einen Bogen.</li>
+      <li>Der Export-Dialog zeigt, wie viele Teile es werden, und warnt je Name, z. B. wenn ein langer Name nicht auf eine feste Platte passt.</li>
+    </ul>
+
     <h3>Bogen und Kreis</h3>
     <ul>
       <li>Bei jedem Text unter <b>Form</b>: <b>Bogen</b> biegt den Text an seiner Stelle – die <b>Biegung</b> in Grad, positiv nach oben gewölbt, negativ nach unten.</li>

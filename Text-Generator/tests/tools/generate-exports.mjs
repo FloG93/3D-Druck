@@ -13,6 +13,7 @@ import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL } from '../../js/exp
 import { export3MF } from '../../js/export/threemf.js';
 import { exportDXF, dxfLayers } from '../../js/export/dxf.js';
 import { exportSTEP, stepSupported } from '../../js/export/step.js';
+import { seriesModels, seriesMeshes, seriesSheet } from '../../js/export/series.js';
 import { regionArea, regionRings } from '../../js/core/geometry.js';
 import { loadFonts } from '../helpers.mjs';
 
@@ -148,6 +149,11 @@ cases.cup_conical_lantern = {
   cup: { diameter: 90, height: 90, bottom: 2, conical: true, top: 70 },
   body: { relief: 'cut', thickness: 1.6 },
 };
+// A series: six keychains from a list, one object each, side by side.
+cases.series_keychains = {
+  ...BUILTIN_PRESETS.find((p) => p.name === 'Schlüsselanhänger'),
+  series: { enabled: true, names: 'Anna\nBen\nClara\nMaximilian\nLea\nFamilie | Müller', gap: 5 },
+};
 const summary = {};
 const qr = {};
 // Rings in mm; mirrored ones are also reversed, so outer rings stay
@@ -169,6 +175,23 @@ for (const [name, input] of Object.entries(cases)) {
     qr[`${name}_${block.id}`] = { content: qrContent(block), module: lay.qr.module, dark: ringsOf(dark, back) };
   }
   if (model.missing.size || model.pending) throw new Error(`${name}: fehlende Zeichen ${[...model.missing].join(' ')}`);
+  if (doc.series.enabled) {
+    // Every name an object of its own; SVG/DXF: all on one sheet.
+    const items = seriesModels(doc, (ref) => lib.peek(ref));
+    const meshes = seriesMeshes(items, { bed: doc.check.bed, gap: doc.series.gap, prepare: modelMeshes });
+    const sheet = seriesSheet(items, { width: doc.check.bed, gap: doc.series.gap });
+    fs.writeFileSync(`${OUT}/${name}.3mf`, await export3MF(meshes, { title: name }));
+    fs.writeFileSync(`${OUT}/${name}.stl`, toBinarySTL(meshes));
+    fs.writeFileSync(`${OUT}/${name}.dxf`, exportDXF(sheet));
+    summary[name] = {
+      title: name,
+      objects: new Set(meshes.map((m) => m.part.object)).size,
+      parts: meshes.map((m) => ({ name: m.part.name, slot: m.part.slot, volume: m.part.volume })),
+      dxf: Object.fromEntries(dxfLayers(sheet).map(([layer, , region]) => [layer, regionArea(region)])),
+      step: false,
+    };
+    continue;
+  }
   let meshes = modelMeshes(model);
   if (model.pieces.length) meshes = spreadPieces(meshes);
   if (input.export?.flip) {

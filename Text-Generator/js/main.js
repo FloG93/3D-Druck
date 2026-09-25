@@ -12,6 +12,7 @@ import { setStoragePrefix } from '../../shared/js/controls.js';
 import { encodeDoc, decodeHash } from '../../shared/js/share.js';
 import { RELIEF_NAMES } from './core/model.js';
 import { BUILTIN_PRESETS } from './core/presets.js';
+import { seriesNames } from './core/series.js';
 
 const $ = (id) => document.getElementById(id);
 const de = (v, digits = 1) => (Number.isFinite(v) ? v.toLocaleString('de-DE', { maximumFractionDigits: digits }) : '–');
@@ -179,6 +180,8 @@ async function main() {
     if (m.base.length) parts.push(`<span>Schrift <b>${RELIEF_NAMES[m.relief]}</b></span>`);
     if (m.split) parts.push(`<span title="Für das Druckbett in Teile mit Puzzle-Verbindern aufgeteilt"><b>${m.pieces.length} Teile</b> (${m.split.nx} × ${m.split.ny})</span>`);
     if (m.stamp) parts.push(`<span title="Die Schrift ist gespiegelt, damit der Abdruck richtig herum steht"><b>Stempel</b>${m.stamp.handle ? ' mit Griff' : ''}</span>`);
+    const series = seriesNames(app.doc).length;
+    if (series) parts.push(`<span title="Beim Export wird jeder Name ein eigenes Teil">Serie <b>${series} Name${series === 1 ? '' : 'n'}</b></span>`);
     parts.push(`<span title="Gewicht bei PLA (1,24 g/cm³), massiv">≈ <b>${de(s.grams)} g</b></span>`);
     if (s.thinCount) parts.push(`<span class="warn" title="Striche dünner als die Mindest-Strichstärke">${s.thinCount} dünne Stelle${s.thinCount === 1 ? '' : 'n'}</span>`);
     if (m.warnings.length) parts.push(`<span class="warn" title="${m.warnings.join(' ').replace(/"/g, '&quot;')}">${m.warnings.length} Hinweis${m.warnings.length === 1 ? '' : 'e'}</span>`);

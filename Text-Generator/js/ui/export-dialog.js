@@ -8,6 +8,8 @@ import { export3MF } from '../export/threemf.js';
 import { exportSVG } from '../export/svg.js';
 import { exportDXF, dxfLayers } from '../export/dxf.js';
 import { exportSTEP, stepSupported } from '../export/step.js';
+import { seriesModels, seriesMeshes, seriesSheet, seriesLabel } from '../export/series.js';
+import { seriesNames } from '../core/series.js';
 import { drawThumbnail } from './presets.js';
 import { firstLine } from '../core/document.js';
 
@@ -32,10 +34,20 @@ const STAMP = 'Stempelplatte und Griff sind eigene Objekte: die Platte mit der S
 
 const CUP = 'Der Becher steht auf seinem Boden – so drucken, ohne Stützen.';
 
+// Formats that take a series (every name a piece of its own).
+const SERIES_FORMATS = ['3mf', 'stl', 'svg', 'dxf'];
+
+function seriesInfo(format, n, bed) {
+  if (format === '3mf') return `<b>Serie:</b> ${n} Namen, jeder ein eigenes Objekt, in Reihen auf dem Druckbett (${bed} mm) angeordnet. In Bambu Studio verteilt <i>Anordnen</i> (Taste A) sie bei Bedarf auf mehrere Platten.<br>`;
+  if (format === 'stl') return `<b>Serie:</b> ${n} Namen nebeneinander in einer Datei – im Slicer <i>In Objekte teilen</i>. Mit <b>3MF</b> sind es gleich getrennte Objekte mit Namen.<br>`;
+  if (format === 'svg' || format === 'dxf') return `<b>Serie:</b> ${n} Namen nebeneinander auf einem Bogen (${bed} mm breit).<br>`;
+  return '<b>Serie:</b> STEP und PNG enthalten nur den Entwurf – für alle Namen 3MF, STL, SVG oder DXF nehmen.<br>';
+}
+
 const INFO = {
-  '3mf': (m) => (m.cup ? `${CUP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teilen: ${partsList(m)} – im AMS die Farben zuweisen. Der Boden reicht zur Hälfte in die Wand, beide verschmelzen beim Slicen.` : m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
+  '3mf': (m, series) => (m.cup ? `${CUP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teilen: ${partsList(m)} – im AMS die Farben zuweisen. Der Boden reicht zur Hälfte in die Wand, beide verschmelzen beim Slicen.` : m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
     ? `${PIECES(m)} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I) – jedes Teil ist ein eigenes Objekt. Mit <i>Anordnen</i> (Taste A) auf die Druckplatte verteilen; passen nicht alle darauf, eine weitere Platte hinzufügen und erneut anordnen.`
-    : `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
+    : `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ${series ? 'je Name ' : ''}ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
     <br>Ein Teil lässt sich auch in der Objektliste per Rechtsklick → <i>Filament ändern</i> umstellen. OrcaSlicer liest die Datei genauso.`),
   stl: (m) => (m.stamp?.handle ? `${STAMP} In der STL liegen beide nebeneinander – im Slicer <i>In Objekte teilen</i>.` : m.pieces.length
     ? `${PIECES(m)} Alle Teile liegen auseinandergezogen in einer Datei – im Slicer <i>In Objekte teilen</i> und anordnen. Mit <b>3MF</b> sind es gleich getrennte Objekte.`
@@ -137,6 +149,17 @@ export class ExportDialog {
     this.dialog.showModal();
   }
 
+  /** One model per name of the series (cached for the current design). */
+  series() {
+    const { doc } = this.app;
+    if (!seriesNames(doc).length) return null;
+    const key = JSON.stringify(doc);
+    if (this.cached?.key !== key) {
+      this.cached = { key, items: seriesModels(doc, (ref) => this.app.fonts.peek(ref), { symbolsLoading: this.app.symbolsLoading > 0 }) };
+    }
+    return this.cached.items;
+  }
+
   refresh() {
     const m = this.app.model;
     for (const b of this.formatBtns) b.classList.toggle('active', b.dataset.format === this.format);
@@ -155,9 +178,19 @@ export class ExportDialog {
       : flip
         ? 'Die Schriftseite liegt auf dem Druckbett und bekommt dessen Oberfläche – glatt oder strukturiert (z. B. Textured PEI). Die Farbwechsel liegen in den ersten Schichten.'
         : 'Die Schrift zeigt nach oben – wie in der Vorschau.';
-    this.info.innerHTML = INFO[this.format](m) + (m.warnings.length ? `<br><span class="warn">${m.warnings.join('<br>')}</span>` : '');
+    const names = seriesNames(this.app.doc);
+    const items = SERIES_FORMATS.includes(this.format) ? this.series() : null;
+    // Warnings of the series: what a name brings along (too long, missing
+    // characters …), not what the design has anyway.
+    const own = new Set(m.warnings);
+    const extra = (items || []).flatMap(({ name, model }) => model.warnings.filter((w) => !own.has(w)).map((w) => `${seriesLabel(name)}: ${w}`));
+    const warnings = [...m.warnings, ...extra.slice(0, 6), ...(extra.length > 6 ? [`… und ${extra.length - 6} weitere Hinweise`] : [])];
+    this.info.innerHTML = (names.length ? seriesInfo(this.format, names.length, this.app.doc.check.bed) : '') + INFO[this.format](m, names.length > 0)
+      + (warnings.length ? `<br><span class="warn">${warnings.join('<br>')}</span>` : '');
     const s = m.stats;
-    this.summary.textContent = `${de(s.width)} × ${de(s.height)} × ${de(s.top)} mm${m.pieces.length ? ` · ${m.pieces.length} Teile` : ''} · ≈ ${de(s.grams)} g PLA`;
+    this.summary.textContent = items
+      ? `${items.length} Teile · ≈ ${de(items.reduce((g, i) => g + i.model.stats.grams, 0))} g PLA`
+      : `${de(s.width)} × ${de(s.height)} × ${de(s.top)} mm${m.pieces.length ? ` · ${m.pieces.length} Teile` : ''} · ≈ ${de(s.grams)} g PLA`;
     this.download.disabled = !m.parts.length || (this.format === 'step' && !stepSupported(m));
   }
 
@@ -176,16 +209,21 @@ export class ExportDialog {
   async run() {
     const m = this.app.build();
     const base = safeName(this.nameInput.value || this.defaultName(), 'text');
+    const { doc } = this.app;
+    // A series: all names side by side on the bed, or on one sheet.
+    const items = SERIES_FORMATS.includes(this.format) ? this.series() : null;
+    const meshes = () => (items ? seriesMeshes(items, { bed: doc.check.bed, gap: doc.series.gap, prepare: (x) => this.meshes(x) }) : this.meshes(m));
+    const flat = () => (items ? seriesSheet(items, { width: doc.check.bed, gap: doc.series.gap }) || m : m);
     try {
       if (this.format === '3mf') {
-        const bytes = await export3MF(this.meshes(m), { title: firstLine(this.app.doc) || 'Text' });
+        const bytes = await export3MF(meshes(), { title: firstLine(doc) || 'Text' });
         downloadBlob(new Blob([bytes], { type: 'model/3mf' }), `${base}.3mf`);
       } else if (this.format === 'stl') {
-        downloadBlob(new Blob([toBinarySTL(this.meshes(m))], { type: 'model/stl' }), `${base}.stl`);
+        downloadBlob(new Blob([toBinarySTL(meshes())], { type: 'model/stl' }), `${base}.stl`);
       } else if (this.format === 'svg') {
-        downloadBlob(new Blob([exportSVG(m, { style: this.svgStyle })], { type: 'image/svg+xml' }), `${base}.svg`);
+        downloadBlob(new Blob([exportSVG(flat(), { style: this.svgStyle })], { type: 'image/svg+xml' }), `${base}.svg`);
       } else if (this.format === 'dxf') {
-        downloadBlob(new Blob([exportDXF(m)], { type: 'application/dxf' }), `${base}.dxf`);
+        downloadBlob(new Blob([exportDXF(flat())], { type: 'application/dxf' }), `${base}.dxf`);
       } else if (this.format === 'step') {
         downloadBlob(new Blob([exportSTEP(m, { title: firstLine(this.app.doc) || 'Text' })], { type: 'application/step' }), `${base}.step`);
       } else if (this.format === 'png') {

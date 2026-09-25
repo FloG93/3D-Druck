@@ -136,6 +136,9 @@ export const DEFAULTS = {
   // in mm; the wall is body.thickness, the lettering runs around it.
   // Conical: diameter at the bottom, top at the top (a flower pot).
   cup: { diameter: 70, height: 100, bottom: 2.4, conical: false, top: 85 },
+  // Series: one piece per name of the list (one per line), the first text
+  // replaced; gap between the pieces on the bed (mm).
+  series: { enabled: false, names: '', gap: 5 },
   // Stamp: lettering mirrored, sloped flanks (draft, degrees) on raised
   // lettering, a handle with a peg for the socket in the back (clearance
   // per side, mm).
@@ -320,6 +323,9 @@ export function normalizeDoc(input) {
   out.cup.bottom = clamp(out.cup.bottom, 0.4, 20);
   out.cup.conical = out.cup.conical === true;
   out.cup.top = clamp(out.cup.top, 10, 500);
+  out.series.enabled = out.series.enabled === true;
+  out.series.names = String(out.series.names ?? '').slice(0, 20000);
+  out.series.gap = clamp(out.series.gap, 1, 50);
   out.stamp.enabled = out.stamp.enabled === true;
   out.stamp.kind = oneOf(STAMP_KINDS, out.stamp.kind, 'ink');
   out.stamp.draft = clamp(out.stamp.draft, 0, 30);
