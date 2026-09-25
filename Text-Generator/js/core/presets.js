@@ -237,6 +237,18 @@ export const BUILTIN_PRESETS = [
     colors: { base: '#fefae0', text: '#bc6c25', border: '#bc6c25' },
   },
   {
+    name: 'Übertopf',
+    texts: [
+      { text: 'Basilikum', font: PACIFICO, size: 16, bold: 0.2, y: 5 },
+      { text: '🌱', font: MONTSERRAT, size: 12, y: -17 },
+    ],
+    base: { shape: 'cup' },
+    mount: { type: 'none' },
+    cup: { diameter: 80, height: 85, bottom: 2.4, conical: true, top: 100 },
+    body: { relief: 'raised', thickness: 2.4, height: 1.2, border: true, borderWidth: 3, borderHeight: 1.2 },
+    colors: { base: '#c46a45', text: '#f6efe3', border: '#f6efe3' },
+  },
+  {
     name: 'Sprühschablone',
     texts: [{ text: 'KEINE\nWERBUNG', font: MONTSERRAT, size: 14, lineSpacing: 1.3, letterSpacing: 0.15 }],
     base: { shape: 'rect', padding: 12, radius: 3 },

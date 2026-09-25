@@ -21,10 +21,10 @@ Schlüsselanhänger, Namens-, Tür-, WLAN- und Kofferschilder, **Münzen**, **St
 - **Körper (3D):** Plattendicke, Schrift erhaben (Höhe) oder vertieft (Tiefe, mit Mindestboden), **bündig** als zweifarbiges Inlay mit glatter Oberfläche, Rand und **Kontur um die Schrift** (Sticker-Look in einer dritten Farbe) – erhaben oder bündig –, als **Schablone** oder als **Stempel** (siehe unten).
 - **Schablonen:** Die Schrift wird aus der Platte geschnitten – zum Sprühen, Lackieren oder Airbrushen. **Stege** halten das Innere von O, A, B, 8 … automatisch: einer oder zwei je Insel, senkrecht, waagerecht oder auf dem kürzesten Weg, Breite einstellbar. Zu schmales Material wird markiert. Ist die Schablone größer als das Druckbett, wird sie in **Teile mit Puzzle-Verbindern** (Schwalbenschwanz) zerlegt.
 - **Stempel:** gespiegelte Schrift für **Tinte**, **Keks & Fondant** oder **Ton, Seife, Leder** – mit passender Höhe, **schrägen Flanken** und einem **Griff** als eigenem Teil, dessen Zapfen in einer Tasche auf der Rückseite steckt.
-- **Becher und Stifthalter:** Durchmesser, Höhe und Boden; die Schrift läuft rundherum – erhaben, vertieft, bündig mit Ringen oben und unten oder als **Windlicht** aus der Wand geschnitten.
+- **Becher und Stifthalter:** gerade oder **konisch** (z. B. ein Übertopf), Durchmesser, Höhe und Boden; die Schrift läuft rundherum – erhaben, vertieft, bündig mit Ringen oben und unten oder als **Windlicht** aus der Wand geschnitten.
 - **Farben & Filamente:** Farbe und AMS-Filament je Teil (Platte, Schrift, Kontur, Rand) – und mit *Eigene Farbe* für jeden Text einzeln.
 - **Prüfung für den Druck:** Striche dünner als die Mindest-Strichstärke (Standard 0,8 mm) werden orange markiert – bei Schablonen das Material (Stege, Stellen zwischen Buchstaben); Hinweise bei fehlenden Zeichen, zerfallender Platte, Schrift über dem Rand und wenn das Teil nicht aufs Druckbett passt (A1 mini, A1/P1/X1, H2D).
-- **25 Vorlagen:** Schlüsselanhänger, Anhänger Block, Namensschild (mit Clip-Schlitz), Türschild, Kofferanhänger, Bündig 2-farbig, Oval vertieft, Sticker-Look, Hundemarke (Telefonnummer hinten), Kühlschrank-Magnet, Werkstattschild (Schrauben mit Senkung), WLAN-Schild (QR-Code, Magnete), Logo-Schild (Grafik), Glücksmünze (Text im Kreis), Kinderzimmer (Bogen), Tinten-Stempel, Keksstempel, Seifenstempel, Stifthalter, Zahnputzbecher, Windlicht, Sprühschablone, Airbrush-Schablone, Große Schablone (in zwei Teilen), Nur Buchstaben – dazu eigene Vorlagen, Projektdateien (JSON), Teilen-Link, Rückgängig/Wiederholen, automatisches Speichern, hell/dunkel.
+- **26 Vorlagen:** Schlüsselanhänger, Anhänger Block, Namensschild (mit Clip-Schlitz), Türschild, Kofferanhänger, Bündig 2-farbig, Oval vertieft, Sticker-Look, Hundemarke (Telefonnummer hinten), Kühlschrank-Magnet, Werkstattschild (Schrauben mit Senkung), WLAN-Schild (QR-Code, Magnete), Logo-Schild (Grafik), Glücksmünze (Text im Kreis), Kinderzimmer (Bogen), Tinten-Stempel, Keksstempel, Seifenstempel, Stifthalter, Zahnputzbecher, Übertopf (konisch), Windlicht, Sprühschablone, Airbrush-Schablone, Große Schablone (in zwei Teilen), Nur Buchstaben – dazu eigene Vorlagen, Projektdateien (JSON), Teilen-Link, Rückgängig/Wiederholen, automatisches Speichern, hell/dunkel.
 
 ![Vorlagen in der 3D-Vorschau: Hundemarke mit Pfote in eigener Farbe (Telefonnummer auf der Rückseite), WLAN-Schild mit QR-Code, Logo-Schild mit eigener Grafik, Werkstattschild mit Senkschrauben, Namensschild mit Clip-Schlitz, Kühlschrank-Magnet](docs/vorlagen-3d.png)
 
@@ -73,13 +73,14 @@ Tipp: *Black Ops One* ist selbst schon eine Schablonenschrift und braucht keine 
 
 ## Becher und Stifthalter
 
-![Oben: die abgewickelte Wand des Stifthalters „LEON“ in der 2D-Vorschau – vorne in der Mitte, hinten an beiden Enden. Unten in 3D: Stifthalter mit erhabener Schrift und Ringen, Zahnputzbecher mit bündiger Schrift, Windlicht mit ausgeschnittener Schrift](docs/becher.png)
+![Oben: die abgewickelte Wand des Stifthalters „LEON“ in der 2D-Vorschau – vorne in der Mitte, hinten an beiden Enden. Unten in 3D: Stifthalter mit erhabener Schrift und Ringen, Zahnputzbecher mit bündiger Schrift, konischer Übertopf „Basilikum“, Windlicht mit ausgeschnittener Schrift](docs/becher.png)
 
 - **Grundform → Becher:** Außendurchmesser, Höhe und Boden eingeben; die **Wandstärke** steht unter *Körper*. Die 2D-Vorschau zeigt die Wand **abgewickelt** (Umfang × Höhe): Die Mitte ist vorne, links und rechts treffen sich hinten an der Naht, dort bleiben 1,5 mm frei. Wer einen Text nach links oder rechts schiebt, schickt ihn um den Becher herum; was über die Naht ragt, wird abgeschnitten (mit Hinweis).
+- **Konisch** (*Wand → Konisch*): Ø unten und Ø oben eingeben – oben weiter wie ein Übertopf oder enger wie ein Lampenschirm. Die Vorschau zeigt die Wand weiter als Rechteck, so breit wie der Umfang auf halber Höhe und so hoch wie die Wand entlang ihrer Schräge; zum weiten Ende hin wird die Schrift auf dem Becher etwas breiter. Rand und Fuß bleiben waagerecht, die Wand behält ihre Stärke. Ab etwa 35° Schräge warnt das Programm.
 - **3D und 3MF:** Die flache Wand wird in schmale Streifen geschnitten und um die Achse gebogen; die Naht schließt exakt, die Teile bleiben geschlossene Körper. Der **Boden** ist ein eigenes Teil desselben Objekts und reicht bis in die Mitte der Wand.
 - **Schrift:** erhaben, vertieft oder **bündig** in einer zweiten Farbe; der **Rand** wird zu Ringen oben und unten. Als **Schablone** wird ein **Windlicht** daraus – die Schrift ist aus der Wand geschnitten, Stege halten das Innere von O, A und B. Nur ein LED-Teelicht hineinstellen: PLA wird schon bei etwa 60 °C weich.
 - **Drucken:** stehend auf dem Boden, ohne Stützen. Wand 2–2,4 mm für Stifthalter und Zahnputzbecher, 1,6 mm für ein Windlicht. Befestigung, Magnete, Rückseite und Stempel entfallen beim Becher.
-- **SVG und DXF** enthalten die abgewickelte Wand 1:1 – z. B. als Vorlage für Folie oder Papier.
+- **SVG und DXF** enthalten die abgewickelte Wand 1:1 – beim konischen Becher als **Kreisring-Ausschnitt**, der genau um die Wand passt. Das ergibt eine Vorlage für Folie oder Papier.
 
 ## Exporte
 
@@ -108,7 +109,7 @@ Text-Generator/
   index.html, css/, favicon.svg   Web-App (→ flog93.github.io/3D-Druck/Text-Generator/)
   js/core/                  Schriften (opentype.js), Textsatz (auch Bogen und Kreis), QR-Codes und
                             Grafiken (SVG-Import), Geometrie (Clipper), Schablonen (Stege, Puzzle-Teile),
-                            Stempel (Griff), Modell, Vorlagen
+                            Stempel (Griff), Becher (Kegel, Abwicklung), Modell, Vorlagen
   js/export/                Netze (geschlossene Körper, beim Becher um die Achse gebogen),
                             Triangulierung, 3MF, ZIP, STL, SVG, DXF
   js/ui/                    Oberfläche, 2D-Ansicht, 3D-Vorschau, Schriftauswahl, Dialoge

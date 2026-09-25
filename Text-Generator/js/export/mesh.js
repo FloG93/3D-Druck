@@ -240,21 +240,24 @@ function addHandle(buf, h) {
  * A solid of a cup: built flat (x along the circumference, y up the wall,
  * z out of it), cut into narrow strips and bent around the Z axis. x = 0
  * faces the front (-y), the plate top (z = t) is the outside at the given
- * radius; the seam lines at the back meet exactly.
- *   wrap: { seam: [x0, x1], radius, t, height, segments }
+ * radius (at half height); the seam lines at the back meet exactly. A
+ * conical wall (slope sin, cos against the vertical) leans outwards or
+ * inwards; y runs along its surface, z sideways, so the rim and the foot
+ * stay level and the wall keeps its thickness.
+ *   wrap: { seam: [x0, x1], radius, t, height, sin, cos, segments }
  */
 function addWrapped(out, solid) {
   // Full precision: the seam points must stay exactly on the seam lines.
   const flat = new TriangleBuffer(4096, Float64Array);
   addSolid(flat, solid);
-  const { seam: [x0, x1], radius: R, t, height: H, segments: n } = solid.wrap;
+  const { seam: [x0, x1], radius: R, t, height: H, sin = 0, cos = 1, segments: n } = solid.wrap;
   const C = x1 - x0;
   const planes = [];
   for (let k = 0; k <= n; k++) planes.push(k === n ? x1 : x0 + (k * C) / n);
   const bend = (p) => {
     const a = p[0] >= x1 ? -Math.PI : (2 * Math.PI * (p[0] - x0)) / C - Math.PI;
-    const rho = R - t + p[2];
-    return [rho * Math.sin(a), -rho * Math.cos(a), p[1] + H / 2];
+    const rho = R + p[1] * sin + (p[2] - t) / cos;
+    return [rho * Math.sin(a), -rho * Math.cos(a), (p[1] + H / 2) * cos];
   };
   sliceStrips(flat.positions, flat.count, planes, (poly) => {
     const q = poly.map(bend);

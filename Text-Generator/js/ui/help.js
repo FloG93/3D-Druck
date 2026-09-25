@@ -46,6 +46,7 @@ const HTML = `
     <h3>Becher und Stifthalter</h3>
     <ul>
       <li><b>Grundform → Becher</b>: Durchmesser, Höhe und Boden eingeben. Die Vorschau zeigt die Wand <b>abgewickelt</b>: die Mitte ist vorne, links und rechts treffen sich hinten an der Naht (dort bleiben 1,5 mm frei). Schiebst du einen Text nach links oder rechts, wandert er um den Becher herum.</li>
+      <li><b>Wand → Konisch</b>: Ø unten und Ø oben, z. B. für einen Übertopf. Die Vorschau bleibt ein Rechteck (Umfang auf halber Höhe); zum weiten Ende hin wird die Schrift auf dem Becher etwas breiter. SVG und DXF enthalten den genauen Zuschnitt als Kreisring-Ausschnitt.</li>
       <li>In der 3D-Ansicht steht der fertige Becher. Schrift erhaben, vertieft oder <b>bündig</b> in zweiter Farbe; der <b>Rand</b> wird zu Ringen oben und unten.</li>
       <li>Als <b>Schablone</b> wird ein <b>Windlicht</b> daraus: die Schrift ist aus der Wand geschnitten. Nur ein LED-Teelicht hineinstellen – PLA wird schon bei etwa 60 °C weich.</li>
       <li>Gedruckt wird stehend, ohne Stützen. Wand 2–2,4 mm für Stifthalter, 1,6 mm fürs Windlicht.</li>

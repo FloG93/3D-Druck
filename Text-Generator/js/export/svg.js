@@ -3,6 +3,9 @@
 // style 'color':   top view in the part colours (documentation, preview)
 // style 'outline': cut lines only (laser, plotter, Fusion "SVG einfügen");
 //                  a stencil gives one path with all its cut lines
+// A cup gives its wall unrolled, a conical one as a ring sector.
+
+import { developedModel } from '../core/cup.js';
 
 const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
@@ -27,7 +30,8 @@ export function regionPathData(region, X, Y, digits = 3) {
   return d;
 }
 
-export function exportSVG(model, { style = 'color', margin = 2, title = '' } = {}) {
+export function exportSVG(input, { style = 'color', margin = 2, title = '' } = {}) {
+  const model = developedModel(input);
   const b = model.bounds;
   const valid = Number.isFinite(b.minX);
   const x0 = valid ? b.minX - margin : -10;

@@ -92,9 +92,10 @@ export class Renderer {
     const W = Math.max(b.maxX - b.minX, 10);
     const H = Math.max(b.maxY - b.minY, 10);
     const availH = Math.max(this.height * 0.5, this.height - (this.insetBottom || 0));
-    // Room for the dimension labels.
+    // Room for the dimension labels (a conical cup: its diameters beside it).
     const pad = Math.min(70, Math.min(this.width, availH) * 0.12);
-    this.scale = Math.max(0.05, Math.min((this.width - 2 * pad) / W, (availH - 2 * pad) / H));
+    const padX = pad + (m?.cup?.conical ? 40 : 0);
+    this.scale = Math.max(0.05, Math.min((this.width - 2 * padX) / W, (availH - 2 * pad) / H));
     const cx = (b.minX + b.maxX) / 2;
     const cy = (b.minY + b.maxY) / 2;
     this.ox = this.width / 2 - cx * this.scale;
@@ -333,6 +334,14 @@ export class Renderer {
     ctx.fillText('hinten', xl, yt - 6);
     ctx.textAlign = 'right';
     ctx.fillText('hinten', xr, yt - 6);
+    // A conical wall: its diameters at the rim and at the foot.
+    if (m.cup.conical) {
+      const d = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+      ctx.textBaseline = 'top';
+      ctx.fillText(`oben Ø ${d(m.cup.top)}`, xl - 8, yt);
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`unten Ø ${d(m.cup.diameter)}`, xl - 8, yb);
+    }
     ctx.restore();
   }
 

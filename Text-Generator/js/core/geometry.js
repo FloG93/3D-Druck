@@ -133,6 +133,24 @@ export function regionArea(region) {
   return a;
 }
 
+/** First moment ∫y dA of a region (holes subtracted): area × centroid height. */
+export function regionMomentY(region) {
+  const ring = (r) => {
+    let m = 0;
+    for (let i = 0, n = r.length; i < n; i += 2) {
+      const j = (i + 2) % n;
+      m += (r[i] * r[j + 1] - r[j] * r[i + 1]) * (r[i + 1] + r[j + 1]);
+    }
+    return (m / 6) * Math.sign(ringArea(r));
+  };
+  let m = 0;
+  for (const s of region) {
+    m += ring(s.outer);
+    for (const h of s.holes) m -= ring(h);
+  }
+  return m;
+}
+
 export function regionBounds(region, b = emptyBounds()) {
   for (const s of region) addRingBounds(b, s.outer);
   return b;

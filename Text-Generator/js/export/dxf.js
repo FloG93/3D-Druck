@@ -5,9 +5,14 @@
 // of the sign has its own layer.
 
 import { dxfFile } from '../../../shared/js/dxf.js';
+import { developedModel } from '../core/cup.js';
 
-/** [layer, ACI colour, region] for the model, only the ones with lines. */
-export function dxfLayers(model) {
+/**
+ * [layer, ACI colour, region] for the model, only the ones with lines. A
+ * conical cup gives the flat pattern of its wall (a ring sector).
+ */
+export function dxfLayers(input) {
+  const model = developedModel(input);
   const layers = model.relief === 'cut'
     ? [['SCHNITT', 1, model.plate]]
     : [
@@ -20,7 +25,8 @@ export function dxfLayers(model) {
   return layers.filter(([, , region]) => region.length);
 }
 
-export function exportDXF(model) {
+export function exportDXF(input) {
+  const model = developedModel(input);
   const b = model.bounds;
   const bounds = Number.isFinite(b.minX) ? [b.minX, b.minY, b.maxX, b.maxY] : [0, 0, 0, 0];
   const layers = dxfLayers(model);

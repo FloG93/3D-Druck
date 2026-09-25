@@ -5,7 +5,7 @@
 // the 3MF file so Bambu Studio can print them in different colours (AMS).
 
 import {
-  union, difference, intersection, offset, fillHoles, regionBounds, regionArea, emptyBounds, addRingBounds,
+  union, difference, intersection, offset, fillHoles, regionBounds, regionArea, regionMomentY, emptyBounds, addRingBounds,
   circleRing, ellipseRing, roundedRectRing, crossingsAtY, crossingsAtX, thinParts, transformRegion, insideRegion,
 } from './geometry.js';
 import { layoutBlock } from './layout.js';
@@ -14,6 +14,7 @@ import { qrBlock, graphicBlock, hasQrLogo } from './blocks.js';
 import { bridgeIslands } from './stencil.js';
 import { splitStencil } from './split.js';
 import { stampHandle, handleVolume } from './stamp.js';
+import { cupShape } from './cup.js';
 
 export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil', handle: 'Griff', floor: 'Boden' };
 export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
@@ -148,9 +149,9 @@ function basePlate(doc, text, box, warnings, center = null) {
       return union([ellipseRing(cx, cy, (w / 2 + p) * Math.SQRT2, (h / 2 + p) * Math.SQRT2)]);
     }
     case 'cup': {
-      // The wall unrolled: the circumference wide, as high as the cup.
-      const C = Math.PI * doc.cup.diameter;
-      const H = doc.cup.height;
+      // The wall unrolled: the circumference (at half height) wide, as high
+      // as the wall along its surface.
+      const { circumference: C, length: H } = cupShape(doc.cup);
       return union([[-C / 2, -H / 2, C / 2, -H / 2, C / 2, H / 2, -C / 2, H / 2]]);
     }
     case 'circle': {
@@ -832,13 +833,30 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let cupInfo = null;
   if (cup && base.length) {
     const b = regionBounds(base);
-    const R = doc.cup.diameter / 2;
-    const wrap = { seam: [b.minX, b.maxX], radius: R, t, height: b.maxY - b.minY, segments: Math.max(72, Math.min(360, Math.round(doc.cup.diameter * 2.5))) };
+    const shape = cupShape(doc.cup);
+    const { r0, r1, sin, cos } = shape;
+    const segments = Math.max(72, Math.min(360, Math.round(2 * Math.max(r0, r1) * 2.5)));
+    const wrap = { seam: [b.minX, b.maxX], radius: shape.radius, t, height: b.maxY - b.minY, sin, cos, segments };
     for (const part of parts) for (const s of part.solids) s.wrap = wrap;
-    const floor = Math.min(doc.cup.bottom, wrap.height);
-    add('floor', PART_NAMES.floor, doc.colors.base, doc.slots.base, [{ region: union([circleRing(0, 0, R - t / 2)]), z0: 0, z1: floor }]);
-    if (t > R * 0.6) warnings.push('Die Wand ist für diesen Durchmesser zu dick.');
-    cupInfo = { diameter: doc.cup.diameter, height: wrap.height, circumference: b.maxX - b.minX, floor, wall: t };
+    // The floor reaches halfway into the wall; on a sloped wall in slices
+    // that follow it.
+    const floor = Math.min(doc.cup.bottom, shape.height);
+    const tan = sin / cos;
+    const slices = Math.max(1, Math.ceil((floor * Math.abs(sin)) / (t / 2)));
+    const discs = [];
+    for (let i = 0; i < slices; i++) {
+      const z0 = (floor * i) / slices;
+      const z1 = (floor * (i + 1)) / slices;
+      discs.push({ region: union([circleRing(0, 0, r0 + ((z0 + z1) / 2) * tan - t / (2 * cos))]), z0, z1 });
+    }
+    add('floor', PART_NAMES.floor, doc.colors.base, doc.slots.base, discs);
+    if (t > Math.min(r0, r1) * 0.6) warnings.push('Die Wand ist für diesen Durchmesser zu dick.');
+    const degrees = Math.abs((shape.slope * 180) / Math.PI);
+    if (degrees > 35) warnings.push(`Die Wand ist ${Math.round(degrees)}° schräg – ohne Stützen druckt man meist bis etwa 40°.`);
+    cupInfo = {
+      diameter: doc.cup.diameter, top: 2 * r1, conical: r0 !== r1, height: shape.height, length: shape.length,
+      circumference: b.maxX - b.minX, floor, wall: t, slope: degrees, shape,
+    };
   }
 
   // Checks.
@@ -853,7 +871,7 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   const bed = doc.check.bed;
   // A cup stands on the bed: its outer diameter (lettering included) and height count.
   const flatTop = parts.filter((p) => p.object !== 'handle' && p.id !== 'floor').reduce((z, part) => Math.max(z, ...part.solids.map((s) => s.z1)), 0);
-  const cupRadius = cupInfo ? cupInfo.diameter / 2 - t + flatTop : 0;
+  const cupRadius = cupInfo ? Math.max(cupInfo.shape.r0, cupInfo.shape.r1) + (flatTop - t) / cupInfo.shape.cos : 0;
   const size = cupInfo ? [2 * cupRadius, cupInfo.height] : [bounds.maxX - bounds.minX, bounds.maxY - bounds.minY];
   if (!split && Number.isFinite(bounds.minX) && Math.max(...size) > bed - 4) {
     warnings.push(`Größer als das Druckbett (${bed} × ${bed} mm)${relief === 'cut' && !cupInfo ? ' – „In Teile aufteilen“ einschalten.' : '.'}`);
@@ -938,22 +956,25 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
 export function solidVolume(s) {
   if (s.kind === 'handle') return handleVolume(s);
   // Bent around a cup, a slab grows with its distance from the axis: the
-  // flat size holds at the outside (radius), in between it scales.
+  // flat size holds on the outside at half height (radius); further in it
+  // shrinks, on a cone it also grows with the height (y) up the wall.
   const w = s.wrap;
-  const f = w ? (za, zb) => (w.radius - w.t + (za + zb) / 2) / w.radius : () => 1;
+  const slab = w
+    ? (region, za, zb) => ((zb - za) * (regionArea(region) * (w.radius + ((za + zb) / 2 - w.t) / (w.cos ?? 1)) + (w.sin ?? 0) * regionMomentY(region))) / w.radius
+    : (region, za, zb) => regionArea(region) * (zb - za);
   // Slabs: the region up to the first step, each step up to the next.
   const steps = s.steps || (s.step ? [s.step] : []);
   let v = 0;
   let region = s.region;
   let z = s.z0;
   for (const st of steps) {
-    v += regionArea(region) * (st.z - z) * f(z, st.z);
+    v += slab(region, z, st.z);
     region = st.region;
     z = st.z;
   }
-  v += regionArea(region) * (s.z1 - z) * f(z, s.z1);
-  if (s.pockets) v -= regionArea(s.pockets) * s.depth * f(s.z1 - s.depth, s.z1);
-  for (const b of s.bottom || []) if (b.region.length && b.depth > 0) v -= regionArea(b.region) * b.depth * f(s.z0, s.z0 + b.depth);
+  v += slab(region, z, s.z1);
+  if (s.pockets) v -= slab(s.pockets, s.z1 - s.depth, s.z1);
+  for (const b of s.bottom || []) if (b.region.length && b.depth > 0) v -= slab(b.region, s.z0, s.z0 + b.depth);
   for (const c of s.countersinks || []) {
     // Polygonal cylinder and cone with the same corner count as the mesh.
     const n = countersinkSegments(c.R);

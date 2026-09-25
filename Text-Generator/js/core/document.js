@@ -134,7 +134,8 @@ export const DEFAULTS = {
   stencil: { bridge: 1.2, bridges: 2, direction: 'vertical', split: true, clearance: 0.2, tab: 10 },
   // Cup or pen holder (base shape 'cup'): outer diameter, height and floor
   // in mm; the wall is body.thickness, the lettering runs around it.
-  cup: { diameter: 70, height: 100, bottom: 2.4 },
+  // Conical: diameter at the bottom, top at the top (a flower pot).
+  cup: { diameter: 70, height: 100, bottom: 2.4, conical: false, top: 85 },
   // Stamp: lettering mirrored, sloped flanks (draft, degrees) on raised
   // lettering, a handle with a peg for the socket in the back (clearance
   // per side, mm).
@@ -317,6 +318,8 @@ export function normalizeDoc(input) {
   out.cup.diameter = clamp(out.cup.diameter, 10, 500);
   out.cup.height = clamp(out.cup.height, 5, 500);
   out.cup.bottom = clamp(out.cup.bottom, 0.4, 20);
+  out.cup.conical = out.cup.conical === true;
+  out.cup.top = clamp(out.cup.top, 10, 500);
   out.stamp.enabled = out.stamp.enabled === true;
   out.stamp.kind = oneOf(STAMP_KINDS, out.stamp.kind, 'ink');
   out.stamp.draft = clamp(out.stamp.draft, 0, 30);

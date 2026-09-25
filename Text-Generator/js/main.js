@@ -166,7 +166,10 @@ async function main() {
     const s = m.stats;
     const parts = [];
     if (app.loading.size) parts.push('<span class="warn">Schrift wird geladen …</span>');
-    if (m.cup) {
+    if (m.cup?.conical) {
+      parts.push(`<span title="Außendurchmesser unten – oben (ohne Schrift) × Höhe">Becher <b>Ø ${de(m.cup.diameter)}–${de(m.cup.top)} × ${de(s.top)} mm</b></span>`);
+      parts.push(`<span title="Die Vorschau zeigt die Wand abgewickelt: so breit wie der Umfang auf halber Höhe">Umfang Mitte <b>${de(m.cup.circumference)} mm</b></span>`);
+    } else if (m.cup) {
       parts.push(`<span title="Außendurchmesser mit Schrift × Höhe">Becher <b>Ø ${de(s.width)} × ${de(s.top)} mm</b></span>`);
       parts.push(`<span title="Die Vorschau zeigt die Wand abgewickelt">Umfang <b>${de(m.cup.circumference)} mm</b></span>`);
     } else {

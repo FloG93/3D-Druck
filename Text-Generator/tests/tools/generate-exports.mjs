@@ -138,6 +138,15 @@ cases.cup_engraved = {
   cup: { diameter: 60, height: 80, bottom: 2 },
   body: { relief: 'engraved', thickness: 2.4, height: 1 },
 };
+// A conical lantern, narrower at the top: SVG and DXF as a ring sector.
+cases.cup_conical_lantern = {
+  ...defaultDoc(),
+  texts: [{ text: 'Gute Nacht', font: montserrat, size: 16 }],
+  base: { shape: 'cup' },
+  mount: { type: 'none' },
+  cup: { diameter: 90, height: 90, bottom: 2, conical: true, top: 70 },
+  body: { relief: 'cut', thickness: 1.6 },
+};
 const summary = {};
 const qr = {};
 // Rings in mm; mirrored ones are also reversed, so outer rings stay

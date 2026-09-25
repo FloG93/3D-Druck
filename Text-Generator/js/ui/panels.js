@@ -429,10 +429,28 @@ export function buildRightPanel(root, app) {
       ],
     }),
     note(panel, () => SHAPE_NOTES[shape()]),
+    segmented(panel, {
+      label: 'Wand',
+      bind: bindPath(app, 'cup.conical'),
+      options: [[false, 'Gerade'], [true, 'Konisch']],
+      visible: cup,
+      onChange: (on) => {
+        // Konisch: wider at the top, like a flower pot (narrower on request).
+        const c = doc().cup;
+        if (on && c.top <= c.diameter) {
+          c.top = Math.round(c.diameter * 1.2);
+          app.changed();
+          app.amend();
+        }
+      },
+    }),
+    note(panel, 'Konisch, z. B. ein Übertopf: Die Vorschau zeigt die Wand als Rechteck mit dem Umfang auf halber Höhe, die Höhe entlang der Wand gemessen. Zum weiten Ende hin wird die Schrift auf dem Becher etwas breiter; SVG und DXF enthalten den genauen Zuschnitt der Wand.', () => cup() && doc().cup.conical),
     segmented(panel, { label: 'Größe', bind: bindPath(app, 'base.sizeMode'), options: [['auto', 'Um die Schrift'], ['fixed', 'Feste Maße']], visible: sizable }),
     grid(
       numberField(panel, { label: 'Randabstand', title: 'Abstand zwischen Schrift und Plattenrand', unit: 'mm', bind: bindPath(app, 'base.padding'), min: 0, max: 100, step: 0.2, digits: 2, slider: [0, 10], visible: () => hasBase() && !fixed() && !cup() }),
-      numberField(panel, { label: 'Durchmesser', title: 'Außen, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.diameter'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: cup }),
+      numberField(panel, { label: 'Durchmesser', title: 'Außen, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.diameter'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: () => cup() && !doc().cup.conical }),
+      numberField(panel, { label: 'Ø unten', title: 'Außendurchmesser am Boden, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.diameter'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: () => cup() && doc().cup.conical }),
+      numberField(panel, { label: 'Ø oben', title: 'Außendurchmesser am Rand, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.top'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: () => cup() && doc().cup.conical }),
       numberField(panel, { label: 'Höhe', unit: 'mm', bind: bindPath(app, 'cup.height'), min: 5, max: 500, step: 1, digits: 1, slider: [20, 200], visible: cup }),
       numberField(panel, { label: 'Boden', title: 'Dicke des Bodens', unit: 'mm', bind: bindPath(app, 'cup.bottom'), min: 0.4, max: 20, step: 0.2, digits: 2, slider: [1, 6], visible: cup }),
       numberField(panel, { label: 'Breite', unit: 'mm', bind: bindPath(app, 'base.width'), min: 1, max: 2000, step: 1, digits: 1, visible: () => fixed() && shape() !== 'circle' }),
