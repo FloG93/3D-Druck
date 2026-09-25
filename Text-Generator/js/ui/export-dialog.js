@@ -28,15 +28,17 @@ const PIECES = (m) => `Die Schablone besteht aus <b>${m.pieces.length} Teilen</b
 
 const STAMP = 'Stempelplatte und Griff sind eigene Objekte: die Platte mit der Schrift nach oben drucken, den Griff kopfüber (flache Seite auf dem Druckbett) – beides ohne Stützen. Den Zapfen in die Tasche auf der Rückseite stecken, bei Bedarf mit etwas Sekundenkleber sichern.';
 
+const CUP = 'Der Becher steht auf seinem Boden – so drucken, ohne Stützen.';
+
 const INFO = {
-  '3mf': (m) => (m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
+  '3mf': (m) => (m.cup ? `${CUP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teilen: ${partsList(m)} – im AMS die Farben zuweisen. Der Boden reicht zur Hälfte in die Wand, beide verschmelzen beim Slicen.` : m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
     ? `${PIECES(m)} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I) – jedes Teil ist ein eigenes Objekt. Mit <i>Anordnen</i> (Taste A) auf die Druckplatte verteilen; passen nicht alle darauf, eine weitere Platte hinzufügen und erneut anordnen.`
     : `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
     <br>Ein Teil lässt sich auch in der Objektliste per Rechtsklick → <i>Filament ändern</i> umstellen. OrcaSlicer liest die Datei genauso.`),
   stl: (m) => (m.stamp?.handle ? `${STAMP} In der STL liegen beide nebeneinander – im Slicer <i>In Objekte teilen</i>.` : m.pieces.length
     ? `${PIECES(m)} Alle Teile liegen auseinandergezogen in einer Datei – im Slicer <i>In Objekte teilen</i> und anordnen. Mit <b>3MF</b> sind es gleich getrennte Objekte.`
     : 'Alle Teile in einer Datei – der Slicer vereint sie zu einem Körper. Für mehrfarbigen Druck lieber <b>3MF</b> nehmen.'),
-  svg: (m) => `Draufsicht im Maßstab 1:1 (1 SVG-Einheit = 1 mm). <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360 (<i>Einfügen → SVG einfügen</i>)${m.relief === 'cut' ? ' – bei der Schablone alle Schnittlinien mit Stegen' : ''}.`,
+  svg: (m) => (m.cup ? 'Die abgewickelte Wand des Bechers im Maßstab 1:1 (Umfang × Höhe) – zum Beispiel als Vorlage für Folie oder Papier.' : `Draufsicht im Maßstab 1:1 (1 SVG-Einheit = 1 mm). <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360 (<i>Einfügen → SVG einfügen</i>)${m.relief === 'cut' ? ' – bei der Schablone alle Schnittlinien mit Stegen' : ''}.`),
   dxf: (m) => (m.relief === 'cut'
     ? `Alle Schnittlinien der Schablone – Außenkante und Buchstaben mit Stegen – als geschlossene Linienzüge auf der Ebene <b>SCHNITT</b>, 1:1 in mm${m.pieces.length ? ', am Stück (Laser und Plotter schneiden auch große Formate)' : ''}. Für Laser (z. B. LightBurn), Schneideplotter mit Schablonenfolie (z. B. Silhouette Studio, auch in der kostenlosen Version) oder Fusion 360 (<i>Einfügen → DXF einfügen</i>).`
     : `Umrisse als geschlossene Linienzüge, 1:1 in mm, je Teil eine Ebene (${dxfLayers(m).map(([n]) => `<b>${n}</b>`).join(', ') || '–'}). Für Fusion 360 (<i>Einfügen → DXF einfügen</i>), Laser oder Plotter.`),
@@ -131,7 +133,8 @@ export class ExportDialog {
     for (const b of this.formatBtns) b.classList.toggle('active', b.dataset.format === this.format);
     for (const b of this.svgSeg.children) b.classList.toggle('active', b.dataset.value === this.svgStyle);
     this.svgRow.hidden = this.format !== 'svg';
-    this.flipRow.hidden = this.format !== '3mf' && this.format !== 'stl';
+    // A cup stands on its floor; there is nothing to turn over.
+    this.flipRow.hidden = (this.format !== '3mf' && this.format !== 'stl') || Boolean(m?.cup);
     if (!m) return;
     const flip = this.flipped(m);
     for (const b of this.flipSeg.children) {

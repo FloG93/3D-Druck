@@ -26,8 +26,9 @@ export const font = (id) => {
 
 /**
  * Checks that a triangle soup (9 floats per triangle) is closed: after
- * merging equal points every directed edge has exactly one opposite edge.
- * Returns { badEdges, volume }.
+ * merging equal points (like the 3MF writer, to 0.01 µm) and dropping the
+ * triangles that collapse, every directed edge has exactly one opposite
+ * edge. Returns { badEdges, volume }.
  */
 export function meshCheck(positions, triangles) {
   const ids = new Map();
@@ -47,7 +48,10 @@ export function meshCheck(positions, triangles) {
     const a = id(o);
     const b = id(o + 3);
     const c = id(o + 6);
-    for (const [u, v] of [[a, b], [b, c], [c, a]]) edges.set(`${u},${v}`, (edges.get(`${u},${v}`) || 0) + 1);
+    // A sliver thinner than the merging grid collapses (the 3MF writer drops it too).
+    if (a !== b && b !== c && a !== c) {
+      for (const [u, v] of [[a, b], [b, c], [c, a]]) edges.set(`${u},${v}`, (edges.get(`${u},${v}`) || 0) + 1);
+    }
     const [x1, y1, z1, x2, y2, z2, x3, y3, z3] = positions.subarray(o, o + 9);
     volume += (x1 * (y2 * z3 - y3 * z2) - x2 * (y1 * z3 - y3 * z1) + x3 * (y1 * z2 - y2 * z1)) / 6;
   }

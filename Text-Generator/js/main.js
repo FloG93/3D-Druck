@@ -107,7 +107,14 @@ async function main() {
     left.refresh();
     right.refresh();
   });
+  let wasCup = false;
   app.on('model', () => {
+    // From a plate to a cup or back: sizes and camera change completely.
+    const isCup = Boolean(app.model?.cup);
+    if (isCup !== wasCup) {
+      wasCup = isCup;
+      fitPending = true;
+    }
     // Fit views once the new design is complete (fonts loaded).
     if (fitPending && app.model && !app.model.pending) {
       fitPending = false;
@@ -159,8 +166,13 @@ async function main() {
     const s = m.stats;
     const parts = [];
     if (app.loading.size) parts.push('<span class="warn">Schrift wird geladen …</span>');
-    parts.push(`<span title="Außenmaße">Größe <b>${de(s.width)} × ${de(s.height)} mm</b></span>`);
-    parts.push(`<span title="Gesamthöhe">Höhe <b>${de(s.top, 2)} mm</b></span>`);
+    if (m.cup) {
+      parts.push(`<span title="Außendurchmesser mit Schrift × Höhe">Becher <b>Ø ${de(s.width)} × ${de(s.top)} mm</b></span>`);
+      parts.push(`<span title="Die Vorschau zeigt die Wand abgewickelt">Umfang <b>${de(m.cup.circumference)} mm</b></span>`);
+    } else {
+      parts.push(`<span title="Außenmaße">Größe <b>${de(s.width)} × ${de(s.height)} mm</b></span>`);
+      parts.push(`<span title="Gesamthöhe">Höhe <b>${de(s.top, 2)} mm</b></span>`);
+    }
     if (m.base.length) parts.push(`<span>Schrift <b>${RELIEF_NAMES[m.relief]}</b></span>`);
     if (m.split) parts.push(`<span title="Für das Druckbett in Teile mit Puzzle-Verbindern aufgeteilt"><b>${m.pieces.length} Teile</b> (${m.split.nx} × ${m.split.ny})</span>`);
     if (m.stamp) parts.push(`<span title="Die Schrift ist gespiegelt, damit der Abdruck richtig herum steht"><b>Stempel</b>${m.stamp.handle ? ' mit Griff' : ''}</span>`);

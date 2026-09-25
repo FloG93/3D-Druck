@@ -15,7 +15,7 @@ import { bridgeIslands } from './stencil.js';
 import { splitStencil } from './split.js';
 import { stampHandle, handleVolume } from './stamp.js';
 
-export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil', handle: 'Griff' };
+export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil', handle: 'Griff', floor: 'Boden' };
 export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
 // Smallest QR module that prints and scans reliably (mm).
 export const QR_MIN_MODULE = 1;
@@ -26,6 +26,8 @@ export const DENSITY = 1.24;
 export const MIN_FLOOR = 0.4;
 // Plate material kept between engraved letters and the plate edge.
 export const MIN_WALL = 0.8;
+// A cup keeps its lettering this far from the seam at the back (mm).
+export const SEAM_GAP = 1.5;
 // Material kept around magnet pockets and above them.
 const MAGNET_WALL = 1.2;
 const MIN_CEILING = 0.6;
@@ -144,6 +146,12 @@ function basePlate(doc, text, box, warnings, center = null) {
     case 'oval': {
       if (fixed) return union([ellipseRing(0, 0, b.width / 2, b.height / 2)]);
       return union([ellipseRing(cx, cy, (w / 2 + p) * Math.SQRT2, (h / 2 + p) * Math.SQRT2)]);
+    }
+    case 'cup': {
+      // The wall unrolled: the circumference wide, as high as the cup.
+      const C = Math.PI * doc.cup.diameter;
+      const H = doc.cup.height;
+      return union([[-C / 2, -H / 2, C / 2, -H / 2, C / 2, H / 2, -C / 2, H / 2]]);
     }
     case 'circle': {
       if (fixed) return union([circleRing(0, 0, b.width / 2)]);
@@ -487,6 +495,16 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   }
 
   const { body } = doc;
+  // A cup (pen holder): the wall unrolled, bent around afterwards; no
+  // mount, magnets, back or stamp (the panels say so; only dropped
+  // lettering is worth a warning).
+  const cup = doc.base.shape === 'cup';
+  if (cup) {
+    if (back.length) warnings.push('Ein Becher hat keine Rückseite – die Blöcke hinten entfallen.');
+    doc = { ...doc, mount: { ...doc.mount, type: 'none' }, magnets: { ...doc.magnets, enabled: false }, stamp: { ...doc.stamp, enabled: false }, stencil: { ...doc.stencil, split: false } };
+    back.length = 0;
+    layouts.splice(0, layouts.length, ...front);
+  }
   const box = boxOf(text);
   const room = mountRoom(doc);
   if (room) {
@@ -529,8 +547,16 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let border = [];
   let inner = mount.solidBase;
   if (body.border && base.length && relief !== 'cut') {
-    inner = offset(mount.solidBase, -body.borderWidth);
-    border = difference(mount.solidBase, inner);
+    if (cup) {
+      // Around a cup: a ring at the top and at the bottom.
+      const b = regionBounds(base);
+      const w = Math.min(body.borderWidth, (b.maxY - b.minY) / 3);
+      border = union([[b.minX, b.maxY - w, b.maxX, b.maxY - w, b.maxX, b.maxY, b.minX, b.maxY]], [[b.minX, b.minY, b.maxX, b.minY, b.maxX, b.minY + w, b.minX, b.minY + w]]);
+      inner = difference(mount.solidBase, border);
+    } else {
+      inner = offset(mount.solidBase, -body.borderWidth);
+      border = difference(mount.solidBase, inner);
+    }
   }
   // Where lettering may go (pockets keep a wall to every edge and hole).
   let area = base;
@@ -545,6 +571,11 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     else area = plate;
     const keepOut = mount.countersinks.map((c) => circleRing(c.cx, c.cy, c.R + (sunk ? MIN_WALL : 0.4)));
     if (keepOut.length) area = difference(area, keepOut);
+    // A cup: nothing on the seam at the back, where the wall closes.
+    if (cup) {
+      const b = regionBounds(base);
+      area = intersection(area, [[b.minX + SEAM_GAP, b.minY - 1, b.maxX - SEAM_GAP, b.minY - 1, b.maxX - SEAM_GAP, b.maxY + 1, b.minX + SEAM_GAP, b.maxY + 1]]);
+    }
   }
 
   // Content per block, clipped to where it may go; where blocks overlap,
@@ -796,6 +827,19 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     for (const g of backGroups) add(g.id, g.name, g.color, g.slot, [{ region: g.region, z0: 0, z1: backDepth }]);
   }
   if (handle) add('handle', PART_NAMES.handle, shade(doc.colors.base, 0.12), doc.slots.base, [handle.solid], { object: 'handle' });
+  // A cup: every part is bent around the axis (the plate top is the
+  // outside), plus a floor reaching halfway into the wall.
+  let cupInfo = null;
+  if (cup && base.length) {
+    const b = regionBounds(base);
+    const R = doc.cup.diameter / 2;
+    const wrap = { seam: [b.minX, b.maxX], radius: R, t, height: b.maxY - b.minY, segments: Math.max(72, Math.min(360, Math.round(doc.cup.diameter * 2.5))) };
+    for (const part of parts) for (const s of part.solids) s.wrap = wrap;
+    const floor = Math.min(doc.cup.bottom, wrap.height);
+    add('floor', PART_NAMES.floor, doc.colors.base, doc.slots.base, [{ region: union([circleRing(0, 0, R - t / 2)]), z0: 0, z1: floor }]);
+    if (t > R * 0.6) warnings.push('Die Wand ist für diesen Durchmesser zu dick.');
+    cupInfo = { diameter: doc.cup.diameter, height: wrap.height, circumference: b.maxX - b.minX, floor, wall: t };
+  }
 
   // Checks.
   // Stencils: thin material (bridges, walls between letters); else thin strokes.
@@ -807,8 +851,12 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   const all = union(base, letters, border, outline);
   const bounds = all.length ? regionBounds(all) : emptyBounds();
   const bed = doc.check.bed;
-  if (!split && Number.isFinite(bounds.minX) && Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) > bed - 4) {
-    warnings.push(`Größer als das Druckbett (${bed} × ${bed} mm)${relief === 'cut' ? ' – „In Teile aufteilen“ einschalten.' : '.'}`);
+  // A cup stands on the bed: its outer diameter (lettering included) and height count.
+  const flatTop = parts.filter((p) => p.object !== 'handle' && p.id !== 'floor').reduce((z, part) => Math.max(z, ...part.solids.map((s) => s.z1)), 0);
+  const cupRadius = cupInfo ? cupInfo.diameter / 2 - t + flatTop : 0;
+  const size = cupInfo ? [2 * cupRadius, cupInfo.height] : [bounds.maxX - bounds.minX, bounds.maxY - bounds.minY];
+  if (!split && Number.isFinite(bounds.minX) && Math.max(...size) > bed - 4) {
+    warnings.push(`Größer als das Druckbett (${bed} × ${bed} mm)${relief === 'cut' && !cupInfo ? ' – „In Teile aufteilen“ einschalten.' : '.'}`);
   }
   let volume = 0;
   for (const part of parts) {
@@ -816,10 +864,10 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     volume += part.volume;
   }
   // Height of the sign itself (a stamp's handle stands beside it).
-  const top = parts.filter((p) => p.object !== 'handle').reduce((z, part) => Math.max(z, ...part.solids.map((s) => s.z1)), 0);
+  const top = cupInfo ? cupInfo.height : flatTop;
   const textBox = letters.length ? regionBounds(letters) : null;
-  // Everything in the 3D view, a stamp's handle included.
-  const extent = { ...bounds, top };
+  // Everything in the 3D view, a stamp's handle included, a cup standing.
+  const extent = cupInfo ? { minX: -cupRadius, minY: -cupRadius, maxX: cupRadius, maxY: cupRadius, top } : { ...bounds, top };
   if (handle && Number.isFinite(bounds.minX)) {
     const { at, z1 } = handle.solid;
     const r = handle.diameter / 2;
@@ -870,10 +918,12 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     pending,
     missing,
     // A flat top can be printed upside down (lettering on the textured plate).
-    flippable: parts.length > 0 && (relief === 'flush' || relief === 'cut' || !base.length),
+    flippable: parts.length > 0 && !cupInfo && (relief === 'flush' || relief === 'cut' || !base.length),
+    // A cup: diameter, height, circumference of the unrolled wall.
+    cup: cupInfo,
     stats: {
-      width: bounds.maxX - bounds.minX,
-      height: bounds.maxY - bounds.minY,
+      width: size[0],
+      height: cupInfo ? size[0] : size[1],
       top,
       volume,
       grams: (volume / 1000) * DENSITY,
@@ -887,19 +937,23 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
 /** Volume of a solid (see mesh.js addSolid). */
 export function solidVolume(s) {
   if (s.kind === 'handle') return handleVolume(s);
+  // Bent around a cup, a slab grows with its distance from the axis: the
+  // flat size holds at the outside (radius), in between it scales.
+  const w = s.wrap;
+  const f = w ? (za, zb) => (w.radius - w.t + (za + zb) / 2) / w.radius : () => 1;
   // Slabs: the region up to the first step, each step up to the next.
   const steps = s.steps || (s.step ? [s.step] : []);
   let v = 0;
   let region = s.region;
   let z = s.z0;
   for (const st of steps) {
-    v += regionArea(region) * (st.z - z);
+    v += regionArea(region) * (st.z - z) * f(z, st.z);
     region = st.region;
     z = st.z;
   }
-  v += regionArea(region) * (s.z1 - z);
-  if (s.pockets) v -= regionArea(s.pockets) * s.depth;
-  for (const b of s.bottom || []) if (b.region.length && b.depth > 0) v -= regionArea(b.region) * b.depth;
+  v += regionArea(region) * (s.z1 - z) * f(z, s.z1);
+  if (s.pockets) v -= regionArea(s.pockets) * s.depth * f(s.z1 - s.depth, s.z1);
+  for (const b of s.bottom || []) if (b.region.length && b.depth > 0) v -= regionArea(b.region) * b.depth * f(s.z0, s.z0 + b.depth);
   for (const c of s.countersinks || []) {
     // Polygonal cylinder and cone with the same corner count as the mesh.
     const n = countersinkSegments(c.R);

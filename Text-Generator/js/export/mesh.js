@@ -4,19 +4,20 @@
 // and walls share the ring vertices and edges exactly, so each shell is
 // watertight.
 
-import { subtractInterior, pointInRing, reverseRing } from '../core/geometry.js';
+import { subtractInterior, difference, pointInRing, reverseRing } from '../core/geometry.js';
 import { countersinkSegments } from '../core/model.js';
 import { triangulateShape } from './triangulate.js';
 
 export class TriangleBuffer {
-  constructor(estimate = 1024) {
-    this.data = new Float32Array(Math.max(estimate, 16) * 9);
+  constructor(estimate = 1024, Type = Float32Array) {
+    this.Type = Type;
+    this.data = new Type(Math.max(estimate, 16) * 9);
     this.count = 0;
   }
 
   push(ax, ay, az, bx, by, bz, cx, cy, cz) {
     if ((this.count + 1) * 9 > this.data.length) {
-      const next = new Float32Array(this.data.length * 2);
+      const next = new this.Type(this.data.length * 2);
       next.set(this.data);
       this.data = next;
     }
@@ -51,9 +52,10 @@ function cap(buf, shape, z, up) {
 /**
  * Walls along a ring from z0 to z1. Outer rings run counter-clockwise and
  * holes clockwise, so the material is on the left and the normal points to
- * the right; `inward` flips that (walls of a pocket).
+ * the right; `inward` flips that (walls of a pocket). seam: [x0, x1] – no
+ * wall along these lines (a cup's wall closes there).
  */
-function walls(buf, r, z0, z1, inward = false) {
+function walls(buf, r, z0, z1, inward = false, seam = null) {
   const n = r.length;
   for (let i = 0; i < n; i += 2) {
     const j = (i + 2) % n;
@@ -61,6 +63,7 @@ function walls(buf, r, z0, z1, inward = false) {
     let py = r[i + 1];
     let qx = r[j];
     let qy = r[j + 1];
+    if (seam && px === qx && (px === seam[0] || px === seam[1])) continue;
     if (inward) [px, py, qx, qy] = [qx, qy, px, py];
     buf.push(px, py, z0, qx, qy, z0, qx, qy, z1);
     buf.push(px, py, z0, qx, qy, z1, px, py, z1);
@@ -132,17 +135,21 @@ export function addSolid(buf, solid) {
   }
   const { region, z0, z1, pockets, depth, bottom = [], step, countersinks = [] } = solid;
   const steps = solid.steps || (step ? [step] : []);
+  const seam = solid.wrap ? solid.wrap.seam : null;
   const rings = countersinks.map((c) => {
     const n = countersinkSegments(c.R);
     return { c, n, inner: polygonRing(c.cx, c.cy, c.r, n), outer: polygonRing(c.cx, c.cy, c.R, n) };
   });
   face(buf, withHoles(region, rings.map((k) => k.inner)), bottom, z0, false);
-  for (const r of ringsOf(region)) walls(buf, r, z0, steps.length ? steps[0].z : z1);
+  for (const r of ringsOf(region)) walls(buf, r, z0, steps.length ? steps[0].z : z1, false, seam);
   // Each step: the ledge left over from the region below, then its walls.
   let upper = region;
   steps.forEach(({ region: next, z }, i) => {
-    for (const s of subtractInterior(upper, next)) cap(buf, s, z, true);
-    for (const r of ringsOf(next)) walls(buf, r, z, i + 1 < steps.length ? steps[i + 1].z : z1);
+    // Around a cup the step reaches the seam (rings at the top and bottom):
+    // not inside the region below, so the ledge is a plain difference.
+    const ledge = seam ? difference(upper, next) : subtractInterior(upper, next);
+    for (const s of ledge) cap(buf, s, z, true);
+    for (const r of ringsOf(next)) walls(buf, r, z, i + 1 < steps.length ? steps[i + 1].z : z1, false, seam);
     upper = next;
   });
   // Countersunk holes: cylinder up to the cone, then the cone to the top.
@@ -229,10 +236,96 @@ function addHandle(buf, h) {
   } else flat([base], 0, false);
 }
 
+/**
+ * A solid of a cup: built flat (x along the circumference, y up the wall,
+ * z out of it), cut into narrow strips and bent around the Z axis. x = 0
+ * faces the front (-y), the plate top (z = t) is the outside at the given
+ * radius; the seam lines at the back meet exactly.
+ *   wrap: { seam: [x0, x1], radius, t, height, segments }
+ */
+function addWrapped(out, solid) {
+  // Full precision: the seam points must stay exactly on the seam lines.
+  const flat = new TriangleBuffer(4096, Float64Array);
+  addSolid(flat, solid);
+  const { seam: [x0, x1], radius: R, t, height: H, segments: n } = solid.wrap;
+  const C = x1 - x0;
+  const planes = [];
+  for (let k = 0; k <= n; k++) planes.push(k === n ? x1 : x0 + (k * C) / n);
+  const bend = (p) => {
+    const a = p[0] >= x1 ? -Math.PI : (2 * Math.PI * (p[0] - x0)) / C - Math.PI;
+    const rho = R - t + p[2];
+    return [rho * Math.sin(a), -rho * Math.cos(a), p[1] + H / 2];
+  };
+  sliceStrips(flat.positions, flat.count, planes, (poly) => {
+    const q = poly.map(bend);
+    for (let i = 1; i + 1 < q.length; i++) out.push(...q[0], ...q[i], ...q[i + 1]);
+  });
+}
+
+/** Where the segment a–b crosses x = X, the same from either end. */
+function crossAt(a, b, X) {
+  const [p, r] = a[0] < b[0] || (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && a[2] < b[2]))) ? [a, b] : [b, a];
+  const k = (X - p[0]) / (r[0] - p[0]);
+  return [X, p[1] + k * (r[1] - p[1]), p[2] + k * (r[2] - p[2])];
+}
+
+// Points closer than this to a cutting plane count as lying on it (mm).
+const ON_PLANE = 1e-7;
+
+/**
+ * Cuts every triangle at the planes x = planes[k] and hands each piece (a
+ * convex polygon in the triangle's orientation) to emit. Shared edges are
+ * cut at the same points on both sides, so closed shells stay closed.
+ */
+function sliceStrips(pos, count, planes, emit) {
+  const last = planes.length - 1;
+  const x0 = planes[0];
+  const step = (planes[last] - x0) / last;
+  const eps = ON_PLANE;
+  for (let t = 0; t < count; t++) {
+    const o = t * 9;
+    const tri = [[pos[o], pos[o + 1], pos[o + 2]], [pos[o + 3], pos[o + 4], pos[o + 5]], [pos[o + 6], pos[o + 7], pos[o + 8]]];
+    const minX = Math.min(tri[0][0], tri[1][0], tri[2][0]);
+    const maxX = Math.max(tri[0][0], tri[1][0], tri[2][0]);
+    const j0 = Math.max(0, Math.floor((minX - x0) / step) - 1);
+    const j1 = Math.min(last - 1, Math.floor((maxX - x0) / step) + 1);
+    // Not crossing any plane inside: as it is.
+    let crosses = false;
+    for (let j = Math.max(1, j0); j <= Math.min(last - 1, j1 + 1); j++) {
+      if (planes[j] > minX + eps && planes[j] < maxX - eps) crosses = true;
+    }
+    if (!crosses) {
+      emit(tri);
+      continue;
+    }
+    for (let j = j0; j <= j1; j++) {
+      const lo = planes[j];
+      const hi = planes[j + 1];
+      if (hi <= minX + eps || lo >= maxX - eps) continue;
+      const poly = [];
+      for (let c = 0; c < 3; c++) {
+        const a = tri[c];
+        const b = tri[(c + 1) % 3];
+        if (a[0] >= lo - eps && a[0] <= hi + eps) poly.push(a);
+        const cuts = [];
+        for (const X of [lo, hi]) {
+          if (Math.abs(a[0] - X) > eps && Math.abs(b[0] - X) > eps && (a[0] - X) * (b[0] - X) < 0) cuts.push(X);
+        }
+        if (cuts.length === 2 && a[0] > b[0]) cuts.reverse();
+        for (const X of cuts) poly.push(crossAt(a, b, X));
+      }
+      if (poly.length >= 3) emit(poly);
+    }
+  }
+}
+
 /** Mesh of one part: { positions (Float32Array, 9 per triangle), triangles }. */
 export function partMesh(part) {
   const buf = new TriangleBuffer(4096);
-  for (const s of part.solids) addSolid(buf, s);
+  for (const s of part.solids) {
+    if (s.wrap) addWrapped(buf, s);
+    else addSolid(buf, s);
+  }
   return { positions: buf.positions, triangles: buf.count };
 }
 

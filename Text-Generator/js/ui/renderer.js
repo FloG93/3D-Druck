@@ -299,9 +299,41 @@ export class Renderer {
       ctx.stroke();
     }
     this.drawPieceLabels(m, S);
+    this.drawCupGuides(m, S);
     this.drawArcGuide(m, S);
     this.drawSelection(m);
     this.drawDimensions(m);
+  }
+
+  /** Unrolled wall of a cup: the front in the middle, the back at both ends. */
+  drawCupGuides(m, S) {
+    if (!m.cup || !Number.isFinite(m.bounds.minX)) return;
+    const { ctx } = this;
+    const b = m.bounds;
+    const [xm, yt] = S(0, b.maxY);
+    const [, yb] = S(0, b.minY);
+    const [xl] = S(b.minX, b.maxY);
+    const [xr] = S(b.maxX, b.maxY);
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = this.colors.accent;
+    ctx.globalAlpha = 0.6;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(xm, yt);
+    ctx.lineTo(xm, yb);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = this.colors.text;
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'center';
+    ctx.fillText('vorne', xm, yt - 6);
+    ctx.textAlign = 'left';
+    ctx.fillText('hinten', xl, yt - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText('hinten', xr, yt - 6);
+    ctx.restore();
   }
 
   /** Numbers of the pieces of a split stencil. */

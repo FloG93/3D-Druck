@@ -5,7 +5,7 @@ import { QR_LEVELS } from '../../../shared/js/qr.js';
 
 export const DOC_VERSION = 1;
 
-export const BASE_SHAPES = ['contour', 'rect', 'capsule', 'oval', 'circle', 'none'];
+export const BASE_SHAPES = ['contour', 'rect', 'capsule', 'oval', 'circle', 'cup', 'none'];
 export const RELIEF_MODES = ['raised', 'engraved', 'flush', 'cut'];
 // Stencils: plate thickness suggested for PLA/PETG, directions of bridges.
 export const STENCIL_THICKNESS = 1.2;
@@ -132,6 +132,9 @@ export const DEFAULTS = {
   back: { relief: 'inlay', depth: 0.6 },
   // Stencil (relief 'cut'): bridges for islands, puzzle pieces when too big.
   stencil: { bridge: 1.2, bridges: 2, direction: 'vertical', split: true, clearance: 0.2, tab: 10 },
+  // Cup or pen holder (base shape 'cup'): outer diameter, height and floor
+  // in mm; the wall is body.thickness, the lettering runs around it.
+  cup: { diameter: 70, height: 100, bottom: 2.4 },
   // Stamp: lettering mirrored, sloped flanks (draft, degrees) on raised
   // lettering, a handle with a peg for the socket in the back (clearance
   // per side, mm).
@@ -311,6 +314,9 @@ export function normalizeDoc(input) {
   out.stencil.split = out.stencil.split !== false;
   out.stencil.clearance = clamp(out.stencil.clearance, 0, 2);
   out.stencil.tab = clamp(out.stencil.tab, 4, 40);
+  out.cup.diameter = clamp(out.cup.diameter, 10, 500);
+  out.cup.height = clamp(out.cup.height, 5, 500);
+  out.cup.bottom = clamp(out.cup.bottom, 0.4, 20);
   out.stamp.enabled = out.stamp.enabled === true;
   out.stamp.kind = oneOf(STAMP_KINDS, out.stamp.kind, 'ink');
   out.stamp.draft = clamp(out.stamp.draft, 0, 30);

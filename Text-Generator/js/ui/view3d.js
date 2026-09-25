@@ -101,8 +101,10 @@ export class View3D {
     const vHalf = (this.camera.fov * Math.PI) / 360;
     const hHalf = Math.atan(Math.tan(vHalf) * (this.camera.aspect || 1));
     const dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * 1.05;
-    const elevation = (52 * Math.PI) / 180;
-    const azimuth = (22 * Math.PI) / 180;
+    // A plate is seen from above, a cup from the front: the lettering runs
+    // around its wall.
+    const elevation = ((model?.cup ? 24 : 52) * Math.PI) / 180;
+    const azimuth = ((model?.cup ? 0 : 22) * Math.PI) / 180;
     const ground = dist * Math.cos(elevation);
     // World (x, y, z) -> three (x, z, -y).
     const target = new THREE.Vector3(cx, top / 2, -cy);

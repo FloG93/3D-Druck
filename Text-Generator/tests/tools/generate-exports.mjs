@@ -129,6 +129,15 @@ cases.stencil_split_grid = {
   check: { bed: 180 },
   export: { flip: true },
 };
+// A cup with engraved lettering and a text all around, cut off at the seam.
+cases.cup_engraved = {
+  ...defaultDoc(),
+  texts: [{ text: 'Werkzeug · Stifte · Pinsel · Kleber', font: roboto, size: 12 }],
+  base: { shape: 'cup' },
+  mount: { type: 'none' },
+  cup: { diameter: 60, height: 80, bottom: 2 },
+  body: { relief: 'engraved', thickness: 2.4, height: 1 },
+};
 const summary = {};
 const qr = {};
 // Rings in mm; mirrored ones are also reversed, so outer rings stay
