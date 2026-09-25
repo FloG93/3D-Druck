@@ -7,9 +7,9 @@ import { BUILTIN_PRESETS } from '../js/core/presets.js';
 import { modelMeshes, toBinarySTL, indexMesh } from '../js/export/mesh.js';
 import { build3MF, export3MF } from '../js/export/threemf.js';
 import { zip, crc32 } from '../js/export/zip.js';
-import { exportSVG } from '../js/export/svg.js';
+import { exportSVG, PX_PER_MM } from '../js/export/svg.js';
 import { exportDXF } from '../js/export/dxf.js';
-import { regionArea, regionRings } from '../js/core/geometry.js';
+import { regionArea, regionRings, regionBounds } from '../js/core/geometry.js';
 import { triangulateShape } from '../js/export/triangulate.js';
 import { encodeDoc, decodeHash } from '../../shared/js/share.js';
 import { loadFonts, meshCheck } from './helpers.mjs';
@@ -105,14 +105,35 @@ test('3MF archive and STL are written', async () => {
   assert.ok(vertices.length / 3 < indices.length, 'vertices are shared');
 });
 
-test('SVG export in millimetres', () => {
+test('SVG export: 1:1 in mm, drawn at 96 dpi, with smooth curves', () => {
   const m = build(defaultDoc());
   const svg = exportSVG(m);
-  assert.match(svg, /width="[\d.]+mm" height="[\d.]+mm"/);
+  const [, w, h, vw, vh] = svg.match(/width="([\d.]+)mm" height="([\d.]+)mm" viewBox="0 0 ([\d.]+) ([\d.]+)"/).map(Number);
+  // Fusion 360 reads 96 px per inch, everyone else the units: both agree.
+  assert.ok(Math.abs(vw - (w * 96) / 25.4) < 0.01 && Math.abs(vh - (h * 96) / 25.4) < 0.01, 'viewBox in px at 96 dpi');
+  assert.ok(Math.abs(w - (m.bounds.maxX - m.bounds.minX + 4)) < 0.01, 'width with 2 mm margin');
   assert.match(svg, /<path id="platte"/);
   assert.match(svg, /<path id="schrift"/);
+  // Curves, not thousands of little lines.
+  const d = svg.match(/<path id="schrift"[^>]* d="([^"]+)"/)[1];
+  assert.ok((d.match(/C/g) || []).length > 10, 'cubic curves');
+  const commands = (d.match(/[LC]/g) || []).length;
+  const points = regionRings(m.text).reduce((n, r) => n + r.length / 2, 0);
+  assert.ok(commands < points / 3, `${commands} curves and lines for ${points} points`);
   const outline = exportSVG(m, { style: 'outline' });
   assert.match(outline, /fill="none" stroke="#000000"/);
+  // Only the lettering, for a sketch on one's own part.
+  const text = exportSVG(m, { style: 'text' });
+  assert.match(text, /<path id="schrift"/);
+  assert.doesNotMatch(text, /id="platte"/);
+  const tb = regionBounds(m.text);
+  assert.ok(Math.abs(Number(text.match(/width="([\d.]+)mm"/)[1]) - (tb.maxX - tb.minX + 4)) < 0.01, 'fits around the lettering');
+  // A straight plate edge ends up exactly where it belongs.
+  const rect = build({ ...defaultDoc(), base: { shape: 'rect', padding: 5, radius: 0 }, mount: { type: 'none' } });
+  const plate = exportSVG(rect, { style: 'outline' }).match(/<path id="platte"[^>]* d="([^"]+)"/)[1];
+  const xs = [...plate.matchAll(/[ML]([-\d.]+) /g)].map((x) => Number(x[1]) / PX_PER_MM);
+  const b = rect.bounds;
+  assert.ok(Math.abs(Math.max(...xs) - Math.min(...xs) - (b.maxX - b.minX)) < 0.002, 'plate width in mm');
 });
 
 /** Closed and open polylines of an R12 DXF: [{ layer, closed, pts }]. */

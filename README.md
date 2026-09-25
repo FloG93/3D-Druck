@@ -9,7 +9,7 @@ Web-Tools, die mühsame Handarbeit beim Konstruieren für den 3D-Druck ersetzen 
 | Werkzeug | Was es macht | Online | Anleitung |
 | --- | --- | --- | --- |
 | **Muster-Generator** | Lochmuster, Rippen, Noppen, Rändelungen und QR-Codes – auf Platten oder nahtlos rundherum auf Zylindern. Export als DXF, STEP, STL, SVG, PNG und Fusion-360-Skript. | [Öffnen](https://flog93.github.io/3D-Druck/MusterGenerator/) | [MusterGenerator](MusterGenerator/README.md) |
-| **Text-Generator** | Schlüsselanhänger, Namens-, Tür-, WLAN- und Kofferschilder, Münzen, Stempel, Becher und Schablonen: jede Google-Schrift, Symbole, QR-Codes, eigene Grafiken, Rückseite, Text im Bogen oder Kreis, Öse, Schrauben oder Magnete, Schrift erhaben, vertieft, bündig oder als Schablone mit Stegen (große in Puzzle-Teilen). Stempel mit Griff, Stifthalter und Windlichter mit Schrift rundherum. 3MF für Bambu Studio mit AMS-Zuordnung, STL, SVG, DXF. | [Öffnen](https://flog93.github.io/3D-Druck/Text-Generator/) | [Text-Generator](Text-Generator/README.md) |
+| **Text-Generator** | Schlüsselanhänger, Namens-, Tür-, WLAN- und Kofferschilder, Münzen, Stempel, Becher und Schablonen: jede Google-Schrift, Symbole, QR-Codes, eigene Grafiken, Rückseite, Text im Bogen oder Kreis, Öse, Schrauben oder Magnete, Schrift erhaben, vertieft, bündig oder als Schablone mit Stegen (große in Puzzle-Teilen). Stempel mit Griff, Stifthalter und Windlichter mit Schrift rundherum. 3MF für Bambu Studio mit AMS-Zuordnung, STL, SVG und STEP für Fusion 360, DXF. | [Öffnen](https://flog93.github.io/3D-Druck/Text-Generator/) | [Text-Generator](Text-Generator/README.md) |
 
 [![Muster-Generator – 2D-Ansicht mit Wirbel-Muster](MusterGenerator/docs/screenshot.png)](https://flog93.github.io/3D-Druck/MusterGenerator/)
 

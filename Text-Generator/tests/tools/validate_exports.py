@@ -9,10 +9,12 @@ triangle count consistent. DXF: read and audited with ezdxf, every outline
 a closed polyline, the area of every layer recomputed from the vertices.
 QR codes: the top view (dark lettering on a light plate) is rendered with
 5, 8 and 16 pixels per module (a phone camera from far to near) and read
-with zxing-cpp.
+with zxing-cpp. STEP: read with OpenCascade (as Fusion 360 and FreeCAD do):
+one component per part with its name, every solid valid (BRepCheck) and
+coloured, the volume of each part as in the model.
 
 Usage: python Text-Generator/tests/tools/validate_exports.py <folder>
-       (pip install lib3mf ezdxf zxing-cpp pillow)
+       (pip install lib3mf ezdxf zxing-cpp pillow cadquery-ocp)
 """
 import json, os, struct, sys, zipfile
 import xml.etree.ElementTree as ET
@@ -122,6 +124,79 @@ for name, q in json.load(open(os.path.join(OUT, 'qr.json'), encoding='utf-8')).i
     print(f"QR  {name[:34]:34} {'OK' if ok else 'FAIL'}  {q['content'][:40]!r} {'' if ok else decoded}")
     if not ok:
         fails.append(name)
+
+# STEP: an assembly of named, coloured components with valid solids.
+from OCP.STEPCAFControl import STEPCAFControl_Reader
+from OCP.TDocStd import TDocStd_Document
+from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_ColorType
+from OCP.TDF import TDF_Label
+try:
+    from OCP.collections import Sequence_TDF_Label
+except ImportError:  # older OCP builds
+    from OCP.TDF import TDF_LabelSequence as Sequence_TDF_Label
+from OCP.TDataStd import TDataStd_Name
+from OCP.TCollection import TCollection_ExtendedString
+from OCP.IFSelect import IFSelect_RetDone
+from OCP.BRepCheck import BRepCheck_Analyzer
+from OCP.GProp import GProp_GProps
+from OCP.BRepGProp import BRepGProp
+from OCP.TopExp import TopExp_Explorer
+from OCP.TopAbs import TopAbs_SOLID, TopAbs_FACE
+from OCP.Quantity import Quantity_Color
+
+
+def label_name(label):
+    attr = TDataStd_Name()
+    return attr.Get().ToExtString() if label.FindAttribute(TDataStd_Name.GetID_s(), attr) else ''
+
+
+for name, exp in summary.items():
+    if not exp.get('step'):
+        continue
+    doc = TDocStd_Document(TCollection_ExtendedString('step'))
+    reader = STEPCAFControl_Reader()
+    reader.SetNameMode(True)
+    reader.SetColorMode(True)
+    ok = reader.ReadFile(os.path.join(OUT, f'{name}.step')) == IFSelect_RetDone and reader.Transfer(doc)
+    shapes = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+    colors = XCAFDoc_DocumentTool.ColorTool_s(doc.Main())
+    free = Sequence_TDF_Label()
+    shapes.GetFreeShapes(free)
+    comps = Sequence_TDF_Label()
+    if free.Length() == 1:
+        shapes.GetComponents_s(free.Value(1), comps)
+    ok = ok and comps.Length() == len(exp['parts'])
+    line = []
+    for i, e in enumerate(exp['parts']):
+        if i >= comps.Length():
+            break
+        ref = TDF_Label()
+        shapes.GetReferredShape_s(comps.Value(i + 1), ref)
+        solids = invalid = faces = coloured = 0
+        vol = 0.0
+        col = Quantity_Color()
+        ex = TopExp_Explorer(shapes.GetShape_s(ref), TopAbs_SOLID)
+        while ex.More():
+            s = ex.Current()
+            solids += 1
+            invalid += 0 if BRepCheck_Analyzer(s).IsValid() else 1
+            p = GProp_GProps()
+            BRepGProp.VolumeProperties_s(s, p)
+            vol += p.Mass()
+            fe = TopExp_Explorer(s, TopAbs_FACE)
+            while fe.More():
+                faces += 1
+                fe.Next()
+            coloured += 1 if colors.GetColor(s, XCAFDoc_ColorType.XCAFDoc_ColorSurf, col) else 0
+            ex.Next()
+        # Exact curves within 0.01 mm and true circles: close to the mesh.
+        good = (label_name(ref) == e['name'] and solids > 0 and invalid == 0 and coloured == solids
+                and abs(vol - e['volume']) <= max(5e-3 * e['volume'], e['stepTol'], 0.5))
+        ok = ok and good
+        line.append(f"{e['name']} {solids}×{faces}F {vol:.1f} mm³ {'OK' if good else 'FAIL'}")
+    print(f"STEP {exp['title'][:21]:21} " + ' | '.join(line) + ('  OK' if ok else '  FAIL'))
+    if not ok:
+        fails.append(f'{name}.step')
 
 print('Alle Exporte gültig.' if not fails else f'FEHLER: {fails}')
 sys.exit(1 if fails else 0)

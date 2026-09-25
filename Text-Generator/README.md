@@ -1,6 +1,6 @@
 # Text-Generator
 
-Schlüsselanhänger, Namens-, Tür-, WLAN- und Kofferschilder, **Münzen**, **Stempel**, **Becher und Stifthalter** und **Schablonen** für den 3D-Druck – direkt im Browser. Jede Google-Schrift, Symbole wie ♥ ⭐ 🐾, **QR-Codes** (auch fürs WLAN), **eigene Grafiken** (SVG) und Beschriftung auf der **Rückseite**; Text gerade, im **Bogen** oder **im Kreis**; Platte als Kontur um die Schrift oder als Rechteck, Kapsel, Oval oder Kreis, mit Öse, Loch, Schlitz, Schraublöchern mit Senkung oder Magnet-Taschen, Rand und Kontur – Schrift **erhaben**, **vertieft**, **bündig eingelegt** oder als **Schablone** ausgeschnitten, mit automatischen Stegen und, wenn sie größer als das Druckbett ist, in Teilen mit **Puzzle-Verbindern**. **Stempel** für Tinte, Kekse und Ton bekommen gespiegelte Schrift, schräge Flanken und einen Griff zum Aufstecken, **Becher** die Schrift rundherum – auch als Windlicht. Die 3MF-Datei bringt Platte, Schrift, Kontur und Rand als eigene Teile mit fester Filament-Nummer mit – in **Bambu Studio** (AMS) nur noch Farben wählen und drucken. Für Laser, Schneideplotter und Fusion 360 gibt es SVG und DXF.
+Schlüsselanhänger, Namens-, Tür-, WLAN- und Kofferschilder, **Münzen**, **Stempel**, **Becher und Stifthalter** und **Schablonen** für den 3D-Druck – direkt im Browser. Jede Google-Schrift, Symbole wie ♥ ⭐ 🐾, **QR-Codes** (auch fürs WLAN), **eigene Grafiken** (SVG) und Beschriftung auf der **Rückseite**; Text gerade, im **Bogen** oder **im Kreis**; Platte als Kontur um die Schrift oder als Rechteck, Kapsel, Oval oder Kreis, mit Öse, Loch, Schlitz, Schraublöchern mit Senkung oder Magnet-Taschen, Rand und Kontur – Schrift **erhaben**, **vertieft**, **bündig eingelegt** oder als **Schablone** ausgeschnitten, mit automatischen Stegen und, wenn sie größer als das Druckbett ist, in Teilen mit **Puzzle-Verbindern**. **Stempel** für Tinte, Kekse und Ton bekommen gespiegelte Schrift, schräge Flanken und einen Griff zum Aufstecken, **Becher** die Schrift rundherum – auch als Windlicht. Die 3MF-Datei bringt Platte, Schrift, Kontur und Rand als eigene Teile mit fester Filament-Nummer mit – in **Bambu Studio** (AMS) nur noch Farben wählen und drucken. Für **Fusion 360** gibt es SVG mit glatten Kurven und STEP mit einem Körper je Teil, für Laser und Schneideplotter SVG und DXF.
 
 ![Text-Generator – Schlüsselanhänger im Sticker-Look: Schrift, weiße Kontur und Platte in drei Farben](docs/screenshot.png)
 
@@ -82,21 +82,32 @@ Tipp: *Black Ops One* ist selbst schon eine Schablonenschrift und braucht keine 
 - **Drucken:** stehend auf dem Boden, ohne Stützen. Wand 2–2,4 mm für Stifthalter und Zahnputzbecher, 1,6 mm für ein Windlicht. Befestigung, Magnete, Rückseite und Stempel entfallen beim Becher.
 - **SVG und DXF** enthalten die abgewickelte Wand 1:1 – beim konischen Becher als **Kreisring-Ausschnitt**, der genau um die Wand passt. Das ergibt eine Vorlage für Folie oder Papier.
 
+## Weg nach Fusion 360
+
+Ganz ohne Skript – drei Wege, je nachdem, was entstehen soll:
+
+| Ziel | Export | So geht's in Fusion 360 |
+| --- | --- | --- |
+| **Schrift auf ein eigenes Teil** (Gehäuse, Deckel, Schild) | **SVG → Nur Schrift** | *Einfügen → SVG einfügen*, die Fläche wählen und die Schrift mit dem Manipulator platzieren – die Größe stimmt ohne Skalieren. Dann *Extrusion*: die Profile der Buchstaben wählen, *Verbinden* für erhabene, *Ausschneiden* für vertiefte Schrift. |
+| **Schrift auf Rundungen** (Zylinder, Griff, Becher) | **SVG → Nur Schrift** – beim Becher die abgewickelte Wand | *Konstruieren → Tangentiale Ebene* an die runde Fläche legen und das SVG darauf einfügen, dann *Erstellen → Prägen*: die Profile und die runde Fläche wählen, erhaben oder vertieft, Tiefe eintragen. |
+| **Das ganze Teil weiterbauen** | **STEP** | *Datei → Öffnen → Von meinem Computer öffnen* – oder die Datei in den Datenbereich hochladen und per Rechtsklick *In aktuelles Design einfügen*. Jedes Teil (Platte, Schrift, Rand, Kontur, Rückseite, Griff, Puzzle-Teile) ist ein eigenes Bauteil mit Körpern in seiner Farbe, jeder Buchstabe ein Körper. Mit *Ändern → Kombinieren* verbinden oder abziehen. |
+
+- **Glatte Kurven:** SVG und STEP beschreiben die Umrisse mit Linien und kubischen Kurven statt tausender kleiner Striche – höchstens 0,01 mm vom Druckmodell entfernt. Ecken bleiben Ecken, Rundungen fließen ineinander; ein Buchstabe hat wenige Seitenflächen, Senkungen sind echte Kegel, der Griff eines Stempels ist ein Drehkörper.
+- **Richtige Größe:** Fusion 360 liest SVG-Dateien mit 96 dpi und übergeht die mm-Angabe. Das SVG ist deshalb in Pixeln mit 96 dpi gezeichnet und trägt zusätzlich Breite und Höhe in mm – Fusion und alle anderen Programme kommen auf dieselbe Größe.
+- **Grenzen:** Die schrägen Flanken eines Stempels sind im STEP wie im 3MF feine Stufen. Becher gibt es nicht als STEP – dort einen Zylinder in Fusion zeichnen und die Wand-SVG aufprägen, oder die 3MF/STL als Netz einfügen.
+
 ## Exporte
 
 | Format | Wofür |
 | --- | --- |
 | **3MF** | Bambu Studio, OrcaSlicer: Teile mit Filament-Zuordnung (mehrfarbig), Schrift oben oder unten; Teile einer großen Schablone und der Griff eines Stempels als eigene Objekte |
 | **STL** | jeder Slicer, einfarbig (alle Teile in einer Datei), Schrift oben oder unten |
-| **SVG** | Draufsicht 1:1 in mm – farbig oder als Umrisse (Laser, Plotter, Fusion 360); nur die Vorderseite, beim Becher die abgewickelte Wand |
-| **DXF** | Umrisse 1:1 in mm als geschlossene Linienzüge (AutoCAD R12) – je Teil eine Ebene (PLATTE, SCHRIFT, RAND, KONTUR, RUECKSEITE), bei Schablonen alle Schnittlinien auf SCHNITT, beim Becher die abgewickelte Wand; für Laser, Schneideplotter und Fusion 360 (*Einfügen → DXF einfügen*) |
+| **SVG** | Draufsicht 1:1 mit glatten Kurven – *Farbig*, *Umrisse* (Laser, Plotter, Fusion 360) oder *Nur Schrift* (Skizze auf einem eigenen Teil); nur die Vorderseite, beim Becher die abgewickelte Wand |
+| **STEP** | Für Fusion 360 und jedes CAD-Programm: je Teil ein Bauteil mit Körpern in seiner Farbe, exakte Kurven (AP214); nicht für Becher |
+| **DXF** | Umrisse 1:1 in mm als geschlossene Linienzüge (AutoCAD R12) – je Teil eine Ebene (PLATTE, SCHRIFT, RAND, KONTUR, RUECKSEITE), bei Schablonen alle Schnittlinien auf SCHNITT, beim Becher die abgewickelte Wand; für Laser, Schneideplotter und CAD (*Einfügen → DXF einfügen*) |
 | **PNG** | Bild der Draufsicht |
 
-Jede Datei wird automatisch geprüft: Alle Teile sind geschlossene Körper (jede Kante genau zweimal, richtig orientiert), das Volumen stimmt mit der Rechnung überein, die 3MF liest die Referenzbibliothek [lib3mf](https://github.com/3MFConsortium/lib3mf) des 3MF-Konsortiums im strikten Modus ohne Warnung, jede DXF liest und prüft [ezdxf](https://ezdxf.mozman.at/) (geschlossene Linienzüge, Fläche je Ebene nachgerechnet), und jeder QR-Code wird mit 5, 8 und 16 Pixeln pro Modul gerastert und mit zxing-cpp gelesen – auch mit runden Punkten und Logo.
-
-## In Arbeit
-
-Als Nächstes kommt der Weg nach **Fusion 360**: saubere Skizzen (DXF und SVG) und ein eigenes Skript *TextImport*.
+Jede Datei wird automatisch geprüft: Alle Teile sind geschlossene Körper (jede Kante genau zweimal, richtig orientiert), das Volumen stimmt mit der Rechnung überein, die 3MF liest die Referenzbibliothek [lib3mf](https://github.com/3MFConsortium/lib3mf) des 3MF-Konsortiums im strikten Modus ohne Warnung, jede DXF liest und prüft [ezdxf](https://ezdxf.mozman.at/) (geschlossene Linienzüge, Fläche je Ebene nachgerechnet), jede STEP-Datei liest [OpenCascade](https://dev.opencascade.org/) wie ein CAD-Programm (je Teil ein Bauteil mit Namen und Farbe, jeder Körper gültig, Volumen wie im Druckmodell), und jeder QR-Code wird mit 5, 8 und 16 Pixeln pro Modul gerastert und mit zxing-cpp gelesen – auch mit runden Punkten und Logo.
 
 ## Lokal starten
 
@@ -109,9 +120,10 @@ Text-Generator/
   index.html, css/, favicon.svg   Web-App (→ flog93.github.io/3D-Druck/Text-Generator/)
   js/core/                  Schriften (opentype.js), Textsatz (auch Bogen und Kreis), QR-Codes und
                             Grafiken (SVG-Import), Geometrie (Clipper), Schablonen (Stege, Puzzle-Teile),
-                            Stempel (Griff), Becher (Kegel, Abwicklung), Modell, Vorlagen
+                            Stempel (Griff), Becher (Kegel, Abwicklung), glatte Kurven aus Polygonen,
+                            Modell, Vorlagen
   js/export/                Netze (geschlossene Körper, beim Becher um die Achse gebogen),
-                            Triangulierung, 3MF, ZIP, STL, SVG, DXF
+                            Triangulierung, 3MF, ZIP, STL, SVG, DXF, STEP (exakte Körper)
   js/ui/                    Oberfläche, 2D-Ansicht, 3D-Vorschau, Schriftauswahl, Dialoge
                             (Design und Bedienelemente aus ../shared/)
   fonts/                    eingebaute Schriften und Symbole (SIL OFL 1.1)
@@ -125,7 +137,8 @@ Im Hauptordner des Repositorys:
 
 ```bash
 npm run test:text       # JavaScript-Tests
-npm run validate:text   # 3MF/STL mit lib3mf, DXF mit ezdxf, QR-Codes mit zxing prüfen (pip install lib3mf ezdxf zxing-cpp pillow)
+npm run validate:text   # 3MF/STL mit lib3mf, DXF mit ezdxf, STEP mit OpenCascade, QR-Codes mit zxing prüfen
+                        # (pip install lib3mf ezdxf zxing-cpp pillow cadquery-ocp)
 ```
 
 Fremdbibliotheken und Lizenzen: [`vendor/README.md`](vendor/README.md), Schriften: [`fonts/README.md`](fonts/README.md).

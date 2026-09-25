@@ -1,7 +1,7 @@
-// Writes 3MF, STL and DXF files of all presets (and a few variants) into a
-// folder for validation with tests/tools/validate_exports.py (lib3mf,
-// ezdxf), plus the top view of every QR code (qr.json) to be read back with
-// zxing.
+// Writes 3MF, STL, DXF and STEP files of all presets (and a few variants)
+// into a folder for validation with tests/tools/validate_exports.py
+// (lib3mf, ezdxf, OpenCascade), plus the top view of every QR code
+// (qr.json) to be read back with zxing.
 // Usage: node Text-Generator/tests/tools/generate-exports.mjs <folder>
 import fs from 'node:fs';
 import { normalizeDoc, defaultDoc } from '../../js/core/document.js';
@@ -12,7 +12,8 @@ import { BUILTIN_PRESETS } from '../../js/core/presets.js';
 import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL } from '../../js/export/mesh.js';
 import { export3MF } from '../../js/export/threemf.js';
 import { exportDXF, dxfLayers } from '../../js/export/dxf.js';
-import { regionArea } from '../../js/core/geometry.js';
+import { exportSTEP, stepSupported } from '../../js/export/step.js';
+import { regionArea, regionRings } from '../../js/core/geometry.js';
 import { loadFonts } from '../helpers.mjs';
 
 const OUT = process.argv[2] || 'build/text-exports';
@@ -182,7 +183,22 @@ for (const [name, input] of Object.entries(cases)) {
   const dxf = Object.fromEntries(dxfLayers(model).map(([layer, , region]) => [layer, regionArea(region)]));
   // One 3MF object, or one per stencil piece plus a stamp's handle.
   const objects = new Set(model.parts.map((p) => p.object ?? p.piece ?? 0)).size;
-  summary[name] = { title, objects, parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume })), dxf };
+  // STEP: exact bodies, one component per part (not for cups).
+  const step = stepSupported(model);
+  if (step) fs.writeFileSync(`${OUT}/${name}.step`, exportSTEP(model, { title }));
+  // STEP outlines are curves within 0.01 mm of the polygons: the volume may
+  // differ by up to outline length × height × that.
+  const outline = (region) => regionRings(region).reduce((sum, r) => {
+    let l = 0;
+    for (let i = 0; i < r.length; i += 2) l += Math.hypot(r[(i + 2) % r.length] - r[i], r[(i + 3) % r.length] - r[i + 1]);
+    return sum + l;
+  }, 0);
+  const stepTol = (p) => 0.012 * p.solids.reduce((t, sd) => (sd.kind === 'handle' ? t : t + outline(sd.region) * (sd.z1 - sd.z0)
+    + (sd.pockets ? outline(sd.pockets) * sd.depth : 0) + (sd.bottom || []).reduce((b, x) => b + outline(x.region) * x.depth, 0)), 0);
+  summary[name] = {
+    title, objects, dxf, step,
+    parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume, color: p.color, stepTol: stepTol(p) })),
+  };
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));
 fs.writeFileSync(`${OUT}/qr.json`, JSON.stringify(qr));

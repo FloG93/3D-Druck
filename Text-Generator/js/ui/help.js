@@ -17,7 +17,7 @@ const HTML = `
       <li><b>Schrift</b>: sechs Schriften sind eingebaut, unter <i>Mehr …</i> gibt es alle Google Fonts mit Vorschau.</li>
       <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis, <b>Becher</b> oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
       <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe – als <b>Schablone</b> ausgeschnitten oder als <b>Stempel</b> gespiegelt.</li>
-      <li><b>Exportieren</b> als 3MF: Platte, Schrift, Kontur und Rand sind eigene Teile mit fester Filament-Nummer – in Bambu Studio nur noch die AMS-Farben wählen. Bei flacher Oberseite wahlweise mit der Schrift nach unten. Für Laser, Schneideplotter und Fusion 360 gibt es <b>SVG</b> und <b>DXF</b>.</li>
+      <li><b>Exportieren</b> als 3MF: Platte, Schrift, Kontur und Rand sind eigene Teile mit fester Filament-Nummer – in Bambu Studio nur noch die AMS-Farben wählen. Bei flacher Oberseite wahlweise mit der Schrift nach unten. Für Fusion 360 gibt es <b>SVG</b> mit glatten Kurven und <b>STEP</b> mit einem Körper je Teil, für Laser und Schneideplotter <b>SVG</b> und <b>DXF</b>.</li>
     </ol>
 
     <h3>Schablonen</h3>
@@ -50,6 +50,13 @@ const HTML = `
       <li>In der 3D-Ansicht steht der fertige Becher. Schrift erhaben, vertieft oder <b>bündig</b> in zweiter Farbe; der <b>Rand</b> wird zu Ringen oben und unten.</li>
       <li>Als <b>Schablone</b> wird ein <b>Windlicht</b> daraus: die Schrift ist aus der Wand geschnitten. Nur ein LED-Teelicht hineinstellen – PLA wird schon bei etwa 60 °C weich.</li>
       <li>Gedruckt wird stehend, ohne Stützen. Wand 2–2,4 mm für Stifthalter, 1,6 mm fürs Windlicht.</li>
+    </ul>
+
+    <h3>Fusion 360</h3>
+    <ul>
+      <li><b>Schrift auf ein eigenes Teil:</b> Export <b>SVG → Nur Schrift</b>, in Fusion <i>Einfügen → SVG einfügen</i> auf die Fläche – die Größe stimmt ohne Skalieren –, dann <i>Extrusion</i> mit <i>Verbinden</i> (erhaben) oder <i>Ausschneiden</i> (vertieft).</li>
+      <li><b>Schrift auf Rundungen:</b> das SVG auf eine <i>tangentiale Ebene</i> an der runden Fläche legen und mit <i>Erstellen → Prägen</i> um die Fläche legen. Beim Becher enthält das SVG die abgewickelte Wand.</li>
+      <li><b>Das ganze Teil weiterbauen:</b> Export <b>STEP</b>, in Fusion <i>Datei → Öffnen</i> oder hochladen und <i>In aktuelles Design einfügen</i>. Jedes Teil ist ein eigenes Bauteil mit Körpern in seiner Farbe, die Umrisse sind exakte Kurven (höchstens 0,01 mm vom Druckmodell entfernt).</li>
     </ul>
 
     <h3>Tipps für den Druck</h3>

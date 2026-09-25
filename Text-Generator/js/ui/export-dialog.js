@@ -7,6 +7,7 @@ import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL } from '../export/me
 import { export3MF } from '../export/threemf.js';
 import { exportSVG } from '../export/svg.js';
 import { exportDXF, dxfLayers } from '../export/dxf.js';
+import { exportSTEP, stepSupported } from '../export/step.js';
 import { drawThumbnail } from './presets.js';
 import { firstLine } from '../core/document.js';
 
@@ -15,8 +16,9 @@ const de = (v, digits = 1) => v.toLocaleString('de-DE', { maximumFractionDigits:
 const FORMATS = [
   { id: '3mf', name: '3MF', desc: 'Für Bambu Studio & OrcaSlicer: Teile mit Filament-Zuordnung (AMS)', tag: 'Empfohlen' },
   { id: 'stl', name: 'STL', desc: 'Ein Körper für jeden Slicer (einfarbig)' },
-  { id: 'svg', name: 'SVG', desc: 'Draufsicht in mm – Doku, Laser, Plotter' },
-  { id: 'dxf', name: 'DXF', desc: 'Umrisse in mm – Laser, Schneideplotter, Fusion 360' },
+  { id: 'svg', name: 'SVG', desc: 'Glatte Kurven 1:1 – Fusion 360, Laser, Plotter, Doku' },
+  { id: 'step', name: 'STEP', desc: 'Körper je Teil, exakte Kurven – Fusion 360 & CAD' },
+  { id: 'dxf', name: 'DXF', desc: 'Umrisse in mm – Laser, Schneideplotter' },
   { id: 'png', name: 'PNG', desc: 'Bild der Draufsicht' },
 ];
 
@@ -38,10 +40,17 @@ const INFO = {
   stl: (m) => (m.stamp?.handle ? `${STAMP} In der STL liegen beide nebeneinander – im Slicer <i>In Objekte teilen</i>.` : m.pieces.length
     ? `${PIECES(m)} Alle Teile liegen auseinandergezogen in einer Datei – im Slicer <i>In Objekte teilen</i> und anordnen. Mit <b>3MF</b> sind es gleich getrennte Objekte.`
     : 'Alle Teile in einer Datei – der Slicer vereint sie zu einem Körper. Für mehrfarbigen Druck lieber <b>3MF</b> nehmen.'),
-  svg: (m) => (m.cup ? `Die abgewickelte Wand des Bechers im Maßstab 1:1${m.cup.conical ? ' – beim konischen Becher ein Kreisring-Ausschnitt, der genau um die Wand passt' : ' (Umfang × Höhe)'}, zum Beispiel als Vorlage für Folie oder Papier.` : `Draufsicht im Maßstab 1:1 (1 SVG-Einheit = 1 mm). <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360 (<i>Einfügen → SVG einfügen</i>)${m.relief === 'cut' ? ' – bei der Schablone alle Schnittlinien mit Stegen' : ''}.`),
+  svg: (m) => (m.cup
+    ? `Die abgewickelte Wand des Bechers im Maßstab 1:1${m.cup.conical ? ' – beim konischen Becher ein Kreisring-Ausschnitt, der genau um die Wand passt' : ' (Umfang × Höhe)'}, zum Beispiel als Vorlage für Folie oder Papier. <b>Für Fusion 360:</b> <b>Nur Schrift</b> auf eine Ebene legen, die den Zylinder berührt, und mit <i>Erstellen → Prägen</i> um die Mantelfläche legen.`
+    : `Draufsicht 1:1 mit glatten Kurven. <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360${m.relief === 'cut' ? ' (bei der Schablone alle Schnittlinien mit Stegen)' : ''}, <b>Nur Schrift</b> für eine Skizze auf deinem eigenen Teil.
+    <br><b>In Fusion 360:</b> <i>Einfügen → SVG einfügen</i>, Fläche wählen – die Größe stimmt ohne Skalieren –, dann <i>Extrusion</i> (Verbinden oder Ausschneiden) oder auf runden Flächen <i>Erstellen → Prägen</i>.`),
+  step: (m) => (stepSupported(m)
+    ? `Für Fusion 360 und andere CAD-Programme: Jedes Teil (${m.parts.map((p) => `<b>${p.name}</b>`).join(', ')}) ist ein eigenes Bauteil mit Körpern in seiner Farbe, die Umrisse sind exakte Kurven – zum Weiterkonstruieren.
+    <br><b>In Fusion 360:</b> <i>Datei → Öffnen → Von meinem Computer öffnen</i> – oder die Datei in den Datenbereich hochladen und per Rechtsklick <i>In aktuelles Design einfügen</i>.${m.stamp?.handle ? ' Der Griff liegt wie im 3MF kopfüber neben dem Stempel.' : ''}`
+    : 'Für Becher gibt es keine STEP-Datei. In Fusion 360 einen Zylinder zeichnen und die Wand als <b>SVG → Nur Schrift</b> mit <i>Erstellen → Prägen</i> aufbringen – oder die 3MF/STL als Netz einfügen.'),
   dxf: (m) => (m.relief === 'cut'
     ? `Alle Schnittlinien der Schablone – Außenkante und Buchstaben mit Stegen – als geschlossene Linienzüge auf der Ebene <b>SCHNITT</b>, 1:1 in mm${m.pieces.length ? ', am Stück (Laser und Plotter schneiden auch große Formate)' : ''}. Für Laser (z. B. LightBurn), Schneideplotter mit Schablonenfolie (z. B. Silhouette Studio, auch in der kostenlosen Version) oder Fusion 360 (<i>Einfügen → DXF einfügen</i>).`
-    : `Umrisse als geschlossene Linienzüge, 1:1 in mm, je Teil eine Ebene (${dxfLayers(m).map(([n]) => `<b>${n}</b>`).join(', ') || '–'}). Für Fusion 360 (<i>Einfügen → DXF einfügen</i>), Laser oder Plotter.`),
+    : `Umrisse als geschlossene Linienzüge, 1:1 in mm, je Teil eine Ebene (${dxfLayers(m).map(([n]) => `<b>${n}</b>`).join(', ') || '–'}). Für Laser, Plotter oder CAD (<i>Einfügen → DXF einfügen</i>, Einheit mm) – in Fusion 360 sind SVG oder STEP mit glatten Kurven leichter.`),
   png: () => 'Bild der Draufsicht mit transparentem Hintergrund.',
 };
 
@@ -72,7 +81,7 @@ export class ExportDialog {
       this.app.commit();
     });
     this.svgSeg = h('div', { class: 'segmented', role: 'group' },
-      ...[['color', 'Farbig'], ['outline', 'Umrisse']].map(([v, t]) => {
+      ...[['color', 'Farbig'], ['outline', 'Umrisse'], ['text', 'Nur Schrift']].map(([v, t]) => {
         const b = h('button', { type: 'button', class: 'seg-btn', 'data-value': v }, t);
         b.addEventListener('click', () => {
           this.svgStyle = v;
@@ -149,7 +158,7 @@ export class ExportDialog {
     this.info.innerHTML = INFO[this.format](m) + (m.warnings.length ? `<br><span class="warn">${m.warnings.join('<br>')}</span>` : '');
     const s = m.stats;
     this.summary.textContent = `${de(s.width)} × ${de(s.height)} × ${de(s.top)} mm${m.pieces.length ? ` · ${m.pieces.length} Teile` : ''} · ≈ ${de(s.grams)} g PLA`;
-    this.download.disabled = !m.parts.length;
+    this.download.disabled = !m.parts.length || (this.format === 'step' && !stepSupported(m));
   }
 
   /** Print upside down (lettering on the bed)? Only for a flat top. */
@@ -177,6 +186,8 @@ export class ExportDialog {
         downloadBlob(new Blob([exportSVG(m, { style: this.svgStyle })], { type: 'image/svg+xml' }), `${base}.svg`);
       } else if (this.format === 'dxf') {
         downloadBlob(new Blob([exportDXF(m)], { type: 'application/dxf' }), `${base}.dxf`);
+      } else if (this.format === 'step') {
+        downloadBlob(new Blob([exportSTEP(m, { title: firstLine(this.app.doc) || 'Text' })], { type: 'application/step' }), `${base}.step`);
       } else if (this.format === 'png') {
         // 20 px per mm, at most 4000 px on the long side.
         const s = m.stats;

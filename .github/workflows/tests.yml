@@ -57,7 +57,7 @@ jobs:
         run: node --test "Text-Generator/tests/*.test.mjs"
 
   text-exports:
-    name: Text-Generator – 3MF mit lib3mf, DXF mit ezdxf und QR-Codes mit zxing prüfen
+    name: Text-Generator – 3MF mit lib3mf, DXF mit ezdxf, STEP mit OpenCascade und QR-Codes mit zxing prüfen
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +68,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Prüfwerkzeuge installieren
-        run: pip install lib3mf ezdxf zxing-cpp pillow
+        run: pip install lib3mf ezdxf zxing-cpp pillow cadquery-ocp
       - name: Beispiel-Exporte erzeugen
         run: node Text-Generator/tests/tools/generate-exports.mjs build/text-exports
-      - name: 3MF (lib3mf, strikt), STL, DXF (ezdxf) und QR-Codes prüfen
+      - name: 3MF (lib3mf, strikt), STL, DXF (ezdxf), STEP (OpenCascade) und QR-Codes prüfen
         run: python Text-Generator/tests/tools/validate_exports.py build/text-exports
