@@ -409,19 +409,30 @@ export function pointInRing(r, x, y) {
  * watertight meshes with pockets.
  */
 export function subtractInterior(base, inner) {
-  const containers = base.map((s) => ({ outer: s.outer, holes: [...s.holes], area: Math.abs(ringArea(s.outer)) }));
+  const containers = base.map((s) => ({ outer: s.outer, holes: [], area: Math.abs(ringArea(s.outer)) }));
   // Counters of the inner region (e.g. inside an "O") stay at full height.
   for (const s of inner) {
     for (const h of s.holes) containers.push({ outer: reverseRing(h), holes: [], area: Math.abs(ringArea(h)) });
   }
-  for (const s of inner) {
-    const x = s.outer[0];
-    const y = s.outer[1];
+  // Every ring becomes a hole of the smallest container around it: a hole
+  // of base inside a counter of inner (a narrower counter one step lower)
+  // belongs to that counter's ledge.
+  const place = (ring) => {
     let best = null;
     for (const c of containers) {
-      if ((!best || c.area < best.area) && pointInRing(c.outer, x, y)) best = c;
+      if ((!best || c.area < best.area) && pointInRing(c.outer, ring[0], ring[1])) best = c;
     }
-    if (best) best.holes.push(reverseRing(s.outer));
+    return best;
+  };
+  for (const s of base) {
+    for (const h of s.holes) {
+      const c = place(h);
+      if (c) c.holes.push(h);
+    }
+  }
+  for (const s of inner) {
+    const c = place(s.outer);
+    if (c) c.holes.push(reverseRing(s.outer));
   }
   return containers.map((c) => ({ outer: c.outer, holes: c.holes }));
 }

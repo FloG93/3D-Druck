@@ -26,12 +26,14 @@ function partsList(model) {
 
 const PIECES = (m) => `Die Schablone besteht aus <b>${m.pieces.length} Teilen</b> (${m.split.nx} × ${m.split.ny}, nummeriert von links oben), die wie ein Puzzle ineinandergreifen.`;
 
+const STAMP = 'Stempelplatte und Griff sind eigene Objekte: die Platte mit der Schrift nach oben drucken, den Griff kopfüber (flache Seite auf dem Druckbett) – beides ohne Stützen. Den Zapfen in die Tasche auf der Rückseite stecken, bei Bedarf mit etwas Sekundenkleber sichern.';
+
 const INFO = {
-  '3mf': (m) => (m.pieces.length
+  '3mf': (m) => (m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
     ? `${PIECES(m)} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I) – jedes Teil ist ein eigenes Objekt. Mit <i>Anordnen</i> (Taste A) auf die Druckplatte verteilen; passen nicht alle darauf, eine weitere Platte hinzufügen und erneut anordnen.`
     : `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
     <br>Ein Teil lässt sich auch in der Objektliste per Rechtsklick → <i>Filament ändern</i> umstellen. OrcaSlicer liest die Datei genauso.`),
-  stl: (m) => (m.pieces.length
+  stl: (m) => (m.stamp?.handle ? `${STAMP} In der STL liegen beide nebeneinander – im Slicer <i>In Objekte teilen</i>.` : m.pieces.length
     ? `${PIECES(m)} Alle Teile liegen auseinandergezogen in einer Datei – im Slicer <i>In Objekte teilen</i> und anordnen. Mit <b>3MF</b> sind es gleich getrennte Objekte.`
     : 'Alle Teile in einer Datei – der Slicer vereint sie zu einem Körper. Für mehrfarbigen Druck lieber <b>3MF</b> nehmen.'),
   svg: (m) => `Draufsicht im Maßstab 1:1 (1 SVG-Einheit = 1 mm). <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360 (<i>Einfügen → SVG einfügen</i>)${m.relief === 'cut' ? ' – bei der Schablone alle Schnittlinien mit Stegen' : ''}.`,

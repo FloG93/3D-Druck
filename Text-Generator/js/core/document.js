@@ -10,6 +10,14 @@ export const RELIEF_MODES = ['raised', 'engraved', 'flush', 'cut'];
 // Stencils: plate thickness suggested for PLA/PETG, directions of bridges.
 export const STENCIL_THICKNESS = 1.2;
 export const BRIDGE_DIRECTIONS = ['vertical', 'horizontal', 'auto'];
+// Stamps: ink, cookies and fondant, clay/soap/leather – each with settings
+// that suit it (applied when chosen).
+export const STAMP_KINDS = ['ink', 'cookie', 'clay'];
+export const STAMP_KIND_DEFAULTS = {
+  ink: { body: { relief: 'raised', thickness: 3, height: 1.5 }, stamp: { draft: 0 }, check: { minStroke: 0.8 } },
+  cookie: { body: { relief: 'raised', thickness: 4, height: 2.5 }, stamp: { draft: 10 }, check: { minStroke: 1.5 } },
+  clay: { body: { relief: 'raised', thickness: 4, height: 2 }, stamp: { draft: 15 }, check: { minStroke: 1.2 } },
+};
 export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws'];
 export const MOUNT_POSITIONS = ['left', 'right', 'top'];
 export const ALIGNS = ['left', 'center', 'right'];
@@ -124,6 +132,10 @@ export const DEFAULTS = {
   back: { relief: 'inlay', depth: 0.6 },
   // Stencil (relief 'cut'): bridges for islands, puzzle pieces when too big.
   stencil: { bridge: 1.2, bridges: 2, direction: 'vertical', split: true, clearance: 0.2, tab: 10 },
+  // Stamp: lettering mirrored, sloped flanks (draft, degrees) on raised
+  // lettering, a handle with a peg for the socket in the back (clearance
+  // per side, mm).
+  stamp: { enabled: false, kind: 'ink', draft: 0, handle: true, handleHeight: 40, clearance: 0.15 },
 };
 
 let idCounter = 0;
@@ -299,5 +311,11 @@ export function normalizeDoc(input) {
   out.stencil.split = out.stencil.split !== false;
   out.stencil.clearance = clamp(out.stencil.clearance, 0, 2);
   out.stencil.tab = clamp(out.stencil.tab, 4, 40);
+  out.stamp.enabled = out.stamp.enabled === true;
+  out.stamp.kind = oneOf(STAMP_KINDS, out.stamp.kind, 'ink');
+  out.stamp.draft = clamp(out.stamp.draft, 0, 30);
+  out.stamp.handle = out.stamp.handle !== false;
+  out.stamp.handleHeight = clamp(out.stamp.handleHeight, 15, 120);
+  out.stamp.clearance = clamp(out.stamp.clearance, 0, 1);
   return out;
 }

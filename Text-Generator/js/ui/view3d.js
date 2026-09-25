@@ -89,10 +89,11 @@ export class View3D {
 
   resetCamera() {
     const { model } = this.app;
-    const b = model && Number.isFinite(model.bounds.minX) ? model.bounds : { minX: -30, minY: -10, maxX: 30, maxY: 10 };
+    // Everything: a stamp's handle stands beside the plate.
+    const b = model && Number.isFinite(model.extent.minX) ? model.extent : { minX: -30, minY: -10, maxX: 30, maxY: 10, top: 3 };
     const W = b.maxX - b.minX;
     const H = b.maxY - b.minY;
-    const top = model ? model.stats.top : 3;
+    const { top } = b;
     const cx = (b.minX + b.maxX) / 2;
     const cy = (b.minY + b.maxY) / 2;
     const size = Math.max(W, H, top, 1);

@@ -2,7 +2,8 @@
 // the way Bambu Studio / OrcaSlicer expect multi-colour prints. The filament
 // (AMS slot) of each part is stored in Metadata/model_settings.config, which
 // Bambu Studio reads from any 3MF, not only from its own projects. The
-// pieces of a split stencil become objects of their own (part.piece).
+// pieces of a split stencil (part.piece) and a stamp's handle (part.object)
+// become objects of their own.
 
 import { indexMesh } from './mesh.js';
 import { zip } from './zip.js';
@@ -55,12 +56,12 @@ export function build3MF(meshes, { title = 'Text', application = '3D-Druck Text-
     }
     out.push('    </triangles>', '   </mesh>', '  </object>');
   });
-  // One object of all parts – or one per piece.
+  // One object of all parts – or one per piece, and a stamp's handle apart.
   const groups = [];
   for (const u of used) {
-    const key = u.part.piece ?? 0;
+    const key = u.part.object ?? u.part.piece ?? 0;
     let g = groups.find((x) => x.key === key);
-    if (!g) groups.push(g = { key, name: u.part.piece ? u.part.name : title, members: [] });
+    if (!g) groups.push(g = { key, name: key ? u.part.name : title, members: [] });
     g.members.push(u);
   }
   let next = used.length + 1;

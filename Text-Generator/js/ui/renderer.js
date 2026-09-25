@@ -136,7 +136,7 @@ export class Renderer {
     const m = this.app.model;
     if (!m) return null;
     const [x, y] = this.toWorld(sx, sy);
-    const px = m.doc.mirror ? -x : x;
+    const px = m.mirrored ? -x : x;
     const tol = 6 / this.scale;
     for (let i = m.layouts.length - 1; i >= 0; i--) {
       if ((m.layouts[i].side || 'front') !== this.side) continue;
@@ -180,7 +180,7 @@ export class Renderer {
       }
       let dx = (sx - drag.sx) / this.scale;
       const dy = -(sy - drag.sy) / this.scale;
-      if (this.app.doc.mirror) dx = -dx;
+      if (this.app.model?.mirrored) dx = -dx;
       if (!drag.moved && Math.hypot(sx - drag.sx, sy - drag.sy) < 3) return;
       drag.moved = true;
       // Snap to 0.5 mm; Shift for free movement.
@@ -268,6 +268,17 @@ export class Renderer {
         ctx.arc(x, y, c.r * this.scale, 0, Math.PI * 2);
         ctx.stroke();
       }
+      ctx.restore();
+    }
+    // Socket for the handle of a stamp (in the back): dashed.
+    if (m.socket.length) {
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      regionPath(ctx, m.socket, S);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
       ctx.restore();
     }
     // Stencil bridges: slightly darker, so you can see where they are.
@@ -368,7 +379,7 @@ export class Renderer {
     if (!lay?.arc || (lay.side || 'front') !== this.side) return;
     // World coordinates like the regions: the back is mirrored, so is a stamp.
     let cx = lay.side === 'back' ? -lay.arc.cx : lay.arc.cx;
-    if (m.doc.mirror && lay.side !== 'back') cx = -cx;
+    if (m.mirrored && lay.side !== 'back') cx = -cx;
     const [x, y] = S(cx, lay.arc.cy);
     const r = lay.arc.r * this.scale;
     const { ctx } = this;
@@ -396,7 +407,7 @@ export class Renderer {
     if (!lay || !Number.isFinite(lay.bounds.minX) || (lay.side || 'front') !== this.side) return;
     const { ctx } = this;
     let { minX, maxX } = lay.bounds;
-    if (m.doc.mirror) [minX, maxX] = [-maxX, -minX];
+    if (m.mirrored) [minX, maxX] = [-maxX, -minX];
     const [ax, ay] = this.toScreen(minX, lay.bounds.maxY);
     const [bx, by] = this.toScreen(maxX, lay.bounds.minY);
     ctx.save();

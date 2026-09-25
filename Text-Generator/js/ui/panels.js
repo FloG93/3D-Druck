@@ -7,7 +7,7 @@ import {
 import { icon } from '../../../shared/js/icons.js';
 import { BUILTIN_FONTS, fontKey, SYMBOLS } from '../core/fonts.js';
 import { KIND_NAMES, QR_MIN_MODULE } from '../core/model.js';
-import { STENCIL_THICKNESS } from '../core/document.js';
+import { STENCIL_THICKNESS, STAMP_KIND_DEFAULTS } from '../core/document.js';
 import { parseSVG } from '../core/svgimport.js';
 
 // Suggested colours for texts with their own filament.
@@ -388,6 +388,12 @@ const SHAPE_NOTES = {
   none: 'Keine Platte: Die Buchstaben selbst sind das Teil. Getrennte Teile (i-Punkte, Umlaute) fallen auseinander – eine Schreibschrift oder „Fettung“ hilft.',
 };
 
+const STAMP_NOTES = {
+  ink: 'Tinten-Stempel: Schrift spiegelverkehrt und 1,5 mm erhaben. Eine kräftige Schrift wählen (Striche ab 0,8 mm); mit TPU für die Platte werden die Abdrücke gleichmäßiger.',
+  cookie: 'Keks- und Fondantstempel: 2,5 mm tief, schräge Flanken lösen sich leichter aus dem Teig. Für Lebensmittel PETG oder PLA mit Lebensmittelfreigabe nehmen, vor dem Stempeln mit Mehl bestäuben, nicht in die Spülmaschine.',
+  clay: 'Für Ton, Seife und Leder: tiefe, robuste Prägung mit schrägen Flanken. Vor dem Prägen leicht einölen oder mit Speisestärke bestäuben, Leder vorher anfeuchten.',
+};
+
 const RELIEF_NOTES = {
   raised: 'Die Schrift steht auf der Platte.',
   engraved: 'Die Schrift ist in die Platte vertieft.',
@@ -474,6 +480,17 @@ export function buildRightPanel(root, app) {
   const hasBack = () => hasBase() && relief() !== 'cut' && doc().texts.some((t) => t.side === 'back');
   const stencil = () => hasBase() && relief() === 'cut';
   const split = () => stencil() && doc().stencil.split;
+  const stampOn = () => hasBase() && relief() !== 'cut' && doc().stamp.enabled;
+  // Settings that suit the kind of stamp, folded into the same undo step.
+  const applyStampKind = (kind) => {
+    const d = STAMP_KIND_DEFAULTS[kind];
+    const cur = doc();
+    Object.assign(cur.body, d.body);
+    Object.assign(cur.stamp, d.stamp);
+    Object.assign(cur.check, d.check);
+    app.changed();
+    app.amend();
+  };
   const border = () => hasBase() && doc().body.border && relief() !== 'cut';
   body.body.append(
     segmented(panel, {
@@ -489,7 +506,18 @@ export function buildRightPanel(root, app) {
         }
       },
     }),
-    note(panel, () => RELIEF_NOTES[relief()], hasBase),
+    note(panel, () => RELIEF_NOTES[relief()], () => hasBase() && !stampOn()),
+    toggle(panel, {
+      label: 'Stempel (Schrift gespiegelt)',
+      title: 'Tinten-, Keks- oder Tonstempel: die Schrift wird gespiegelt, dazu ein Griff zum Aufstecken',
+      bind: bindPath(app, 'stamp.enabled'),
+      visible: () => hasBase() && relief() !== 'cut',
+      onChange: (on) => {
+        if (on) applyStampKind(doc().stamp.kind);
+      },
+    }),
+    segmented(panel, { label: 'Stempel für', bind: bindPath(app, 'stamp.kind'), options: [['ink', 'Tinte'], ['cookie', 'Keks & Fondant'], ['clay', 'Ton, Seife, Leder']], visible: stampOn, onChange: (k) => applyStampKind(k) }),
+    note(panel, () => STAMP_NOTES[doc().stamp.kind], stampOn),
     grid(
       numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: hasBase }),
       numberField(panel, { label: 'Dicke', title: 'Dicke der Buchstaben', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: () => !hasBase() }),
@@ -504,6 +532,18 @@ export function buildRightPanel(root, app) {
       const n = m ? m.islands : 0;
       return `${n ? `${n} Insel${n === 1 ? '' : 'n'} mit Stegen gehalten. ` : ''}Dicke für PLA/PETG: 0,8–1,5 mm – dünner gibt schärfere Kanten, dicker hält mehr aus. Rundherum genug Rand lassen (Randabstand), damit kein Sprühnebel danebengeht.`;
     }, stencil),
+    grid(
+      numberField(panel, { label: 'Schräge Flanken', title: 'Die Buchstaben werden zur Platte hin breiter und lösen sich leichter aus Teig, Ton oder Seife', unit: '°', bind: bindPath(app, 'stamp.draft'), min: 0, max: 30, step: 1, digits: 0, slider: [0, 25], visible: () => stampOn() && relief() === 'raised' }),
+      numberField(panel, { label: 'Griffhöhe', unit: 'mm', bind: bindPath(app, 'stamp.handleHeight'), min: 15, max: 120, step: 1, digits: 0, slider: [20, 80], visible: () => stampOn() && doc().stamp.handle }),
+    ),
+    toggle(panel, { label: 'Griff mit Zapfen', title: 'Eigenes Teil, steckt in einer Tasche auf der Rückseite des Stempels', bind: bindPath(app, 'stamp.handle'), visible: stampOn }),
+    numberField(panel, { label: 'Spiel am Zapfen', title: 'Luft je Seite zwischen Zapfen und Tasche (0,1–0,2 mm: stramm, mit etwas Kleber sicher)', unit: 'mm', bind: bindPath(app, 'stamp.clearance'), min: 0, max: 1, step: 0.05, digits: 2, slider: [0, 0.4], wide: true, visible: () => stampOn() && doc().stamp.handle }),
+    note(panel, () => {
+      const m = app.model;
+      const hd = m?.stamp?.handle;
+      if (!hd) return 'Ohne Griff: die glatte Rückseite z. B. auf einen Holzklotz kleben.';
+      return `Der Griff (Ø ${de(hd.diameter, 0)} mm, ${de(hd.height, 0)} mm hoch) liegt als eigenes Teil daneben – kopfüber gedruckt, ohne Stützen.${hd.socketDepth ? ` Sein Zapfen steckt ${de(hd.socketDepth, 1)} mm tief in der Tasche auf der Rückseite.` : ''}`;
+    }, stampOn),
     toggle(panel, { label: 'In Teile aufteilen, wenn größer als das Druckbett', title: 'Große Schablonen werden in Teile mit Puzzle-Verbindern (Schwalbenschwanz) zerlegt', bind: bindPath(app, 'stencil.split'), visible: stencil }),
     grid(
       numberField(panel, { label: 'Verbinder', title: 'Breite des Schwalbenschwanz-Kopfes – passt er nicht, wird er automatisch kleiner (bis 5 mm)', unit: 'mm', bind: bindPath(app, 'stencil.tab'), min: 4, max: 40, step: 0.5, digits: 1, slider: [5, 20], visible: split }),

@@ -162,7 +162,9 @@ for (const [name, input] of Object.entries(cases)) {
   // Top view as DXF: the area of every layer (outer rings minus holes).
   fs.writeFileSync(`${OUT}/${name}.dxf`, exportDXF(model));
   const dxf = Object.fromEntries(dxfLayers(model).map(([layer, , region]) => [layer, regionArea(region)]));
-  summary[name] = { title, objects: model.pieces.length || 1, parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume })), dxf };
+  // One 3MF object, or one per stencil piece plus a stamp's handle.
+  const objects = new Set(model.parts.map((p) => p.object ?? p.piece ?? 0)).size;
+  summary[name] = { title, objects, parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume })), dxf };
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));
 fs.writeFileSync(`${OUT}/qr.json`, JSON.stringify(qr));

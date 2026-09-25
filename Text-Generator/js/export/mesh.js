@@ -119,25 +119,32 @@ function face(buf, region, sets, z, up) {
  * Adds the closed body of one solid:
  *   region z0..z1               plate outline (outer rings and holes)
  *   pockets, depth              sunk into the top (engraved or inlaid text)
- *   bottom [{ region, depth }]  sunk into the bottom (magnets, lettering of the back)
+ *   bottom [{ region, depth }]  sunk into the bottom (magnets, lettering of the back, stamp socket)
  *   step { region, z }          above z only this smaller region remains
+ *   steps [{ region, z }]       several such steps, each inside the one below (sloped flanks)
  *   countersinks [{cx, cy, r, R, depth}]  screw holes with a 90° cone
  * All faces share their rings, so the body is watertight.
  */
 export function addSolid(buf, solid) {
+  if (solid.kind === 'handle') {
+    addHandle(buf, solid);
+    return;
+  }
   const { region, z0, z1, pockets, depth, bottom = [], step, countersinks = [] } = solid;
-  const upper = step ? step.region : region;
+  const steps = solid.steps || (step ? [step] : []);
   const rings = countersinks.map((c) => {
     const n = countersinkSegments(c.R);
     return { c, n, inner: polygonRing(c.cx, c.cy, c.r, n), outer: polygonRing(c.cx, c.cy, c.R, n) };
   });
   face(buf, withHoles(region, rings.map((k) => k.inner)), bottom, z0, false);
-  const zs = step ? step.z : z1;
-  for (const r of ringsOf(region)) walls(buf, r, z0, zs);
-  if (step) {
-    for (const s of subtractInterior(region, upper)) cap(buf, s, zs, true);
-    for (const r of ringsOf(upper)) walls(buf, r, zs, z1);
-  }
+  for (const r of ringsOf(region)) walls(buf, r, z0, steps.length ? steps[0].z : z1);
+  // Each step: the ledge left over from the region below, then its walls.
+  let upper = region;
+  steps.forEach(({ region: next, z }, i) => {
+    for (const s of subtractInterior(upper, next)) cap(buf, s, z, true);
+    for (const r of ringsOf(next)) walls(buf, r, z, i + 1 < steps.length ? steps[i + 1].z : z1);
+    upper = next;
+  });
   // Countersunk holes: cylinder up to the cone, then the cone to the top.
   for (const { c, n, inner, outer } of rings) {
     const zc = z1 - c.depth;
@@ -155,6 +162,71 @@ export function addSolid(buf, solid) {
 
 export function extrudeRegion(buf, region, z0, z1) {
   addSolid(buf, { region, z0, z1 });
+}
+
+/**
+ * Stamp handle: a body of revolution from its profile [[r, z], …] (from the
+ * flange at z = 0 up to the flat top), with a square peg below the flange
+ * for the socket in the stamp. Built upright, then moved to `at` – turned
+ * upside down with `flip` (flat top on the bed, as it is printed).
+ *   { kind: 'handle', profile, segments, peg: { ring, depth }, at: [x, y], flip }
+ */
+function addHandle(buf, h) {
+  const { profile, segments: n, peg, at = [0, 0], flip = false } = h;
+  const top = profile[profile.length - 1][1];
+  const P = (x, y, z) => (flip ? [at[0] + x, at[1] - y, top - z] : [at[0] + x, at[1] + y, z]);
+  const tri = (a, b, c) => buf.push(...a, ...b, ...c);
+  const rings = profile.map(([r, z]) => ({ ring: polygonRing(0, 0, r, n), z }));
+  // Side: planar trapezoids between neighbouring rings.
+  for (let k = 0; k + 1 < rings.length; k++) {
+    const { ring: lo, z: z0 } = rings[k];
+    const { ring: hi, z: z1 } = rings[k + 1];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const p0 = P(lo[2 * i], lo[2 * i + 1], z0);
+      const q0 = P(lo[2 * j], lo[2 * j + 1], z0);
+      const p1 = P(hi[2 * i], hi[2 * i + 1], z1);
+      const q1 = P(hi[2 * j], hi[2 * j + 1], z1);
+      tri(p0, q0, q1);
+      tri(p0, q1, p1);
+    }
+  }
+  // Flat top.
+  const last = rings[rings.length - 1].ring;
+  const c = P(0, 0, top);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    tri(c, P(last[2 * i], last[2 * i + 1], top), P(last[2 * j], last[2 * j + 1], top));
+  }
+  // Underside of the flange around the peg, facing down.
+  const flat = (shape, z, up) => {
+    const { coords, triangles: t } = triangulateShape(shape);
+    for (let i = 0; i < t.length; i += 3) {
+      let a = t[i];
+      let b = t[i + 1];
+      const d = t[i + 2];
+      const cross = (coords[2 * b] - coords[2 * a]) * (coords[2 * d + 1] - coords[2 * a + 1])
+        - (coords[2 * b + 1] - coords[2 * a + 1]) * (coords[2 * d] - coords[2 * a]);
+      if ((cross < 0) === up) [a, b] = [b, a];
+      tri(P(coords[2 * a], coords[2 * a + 1], z), P(coords[2 * b], coords[2 * b + 1], z), P(coords[2 * d], coords[2 * d + 1], z));
+    }
+  };
+  const base = rings[0].ring;
+  if (peg) {
+    flat([base, reverseRing(peg.ring)], 0, false);
+    // Peg: walls and its end face.
+    const r = peg.ring;
+    for (let i = 0; i < r.length; i += 2) {
+      const j = (i + 2) % r.length;
+      const p0 = P(r[i], r[i + 1], -peg.depth);
+      const q0 = P(r[j], r[j + 1], -peg.depth);
+      const q1 = P(r[j], r[j + 1], 0);
+      const p1 = P(r[i], r[i + 1], 0);
+      tri(p0, q0, q1);
+      tri(p0, q1, p1);
+    }
+    flat([r], -peg.depth, false);
+  } else flat([base], 0, false);
 }
 
 /** Mesh of one part: { positions (Float32Array, 9 per triangle), triangles }. */

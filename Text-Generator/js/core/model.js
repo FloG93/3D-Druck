@@ -13,8 +13,9 @@ import { isSymbolLike, DEFAULT_FONT } from './fonts.js';
 import { qrBlock, graphicBlock, hasQrLogo } from './blocks.js';
 import { bridgeIslands } from './stencil.js';
 import { splitStencil } from './split.js';
+import { stampHandle, handleVolume } from './stamp.js';
 
-export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil' };
+export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil', handle: 'Griff' };
 export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
 // Smallest QR module that prints and scans reliably (mm).
 export const QR_MIN_MODULE = 1;
@@ -502,11 +503,20 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   const mount = addMount(doc, plate0, warnings);
   let base = mount.base;
   if (base.length > 1) warnings.push(`Die Platte zerfällt in ${base.length} Teile.`);
+  // A stamp: mirrored lettering, the handle on the back.
+  const stamp = doc.stamp.enabled && base.length > 0;
+  if (stamp && doc.magnets.enabled) warnings.push('Ein Stempel hat hinten den Griff – keine Magnet-Taschen.');
   // Magnets keep clear of the back (a QR code there needs its quiet zone).
-  const magnets = magnetPockets(doc, base, mount, union(...back.map((l) => l.worldFootprint)), warnings);
+  const magnets = stamp ? { pockets: [], centers: [] } : magnetPockets(doc, base, mount, union(...back.map((l) => l.worldFootprint)), warnings);
 
   const t = body.thickness;
-  const relief = base.length ? body.relief : 'raised';
+  let relief = base.length ? body.relief : 'raised';
+  if (stamp && (relief === 'flush' || relief === 'cut')) {
+    warnings.push('Ein Stempel braucht erhabene oder vertiefte Schrift – hier erhaben.');
+    relief = 'raised';
+  }
+  // Sloped flanks of a raised stamp: the letters get wider towards the plate.
+  const grow = stamp && relief === 'raised' ? body.height * Math.tan((doc.stamp.draft * Math.PI) / 180) : 0;
   const depth = Math.min(body.height, Math.max(t - MIN_FLOOR, 0.1));
   const sunk = relief === 'engraved' || relief === 'flush';
   if (sunk && body.height > depth + 1e-9) {
@@ -530,6 +540,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     else if (relief === 'engraved') area = border.length ? inner : offset(base, -MIN_WALL);
     // A stencil keeps a frame all around.
     else if (relief === 'cut') area = offset(base, -MIN_WALL);
+    // Sloped flanks must not run over the edge.
+    else if (grow > 0) area = offset(plate, -(grow + MIN_WALL));
     else area = plate;
     const keepOut = mount.countersinks.map((c) => circleRing(c.cx, c.cy, c.R + (sunk ? MIN_WALL : 0.4)));
     if (keepOut.length) area = difference(area, keepOut);
@@ -595,7 +607,11 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     for (const g of out) g.region = union(...g.regions);
     return out.filter((g) => g.region.length);
   };
-  const groups = colourGroups(blocks, 'text', PART_NAMES.text, (b) => blockLabel(doc, b));
+  let groups = colourGroups(blocks, 'text', PART_NAMES.text, (b) => blockLabel(doc, b));
+  // A stamp is one piece: all lettering together.
+  if (stamp && groups.length > 1) {
+    groups = [{ ...groups[0], id: 'text', name: PART_NAMES.text, color: doc.colors.text, slot: doc.slots.text, region: union(...groups.map((g) => g.region)) }];
+  }
 
   // Back: sunk into the bottom (or inlaid there in its own colour), never
   // meeting the pockets from the top, the edge, holes or magnet pockets.
@@ -603,7 +619,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let backGroups = [];
   let backDepth = 0;
   if (back.length && base.length && relief === 'cut') warnings.push('Eine Schablone hat keine Rückseite – die Blöcke hinten entfallen.');
-  if (back.length && base.length && relief !== 'cut') {
+  else if (back.length && stamp) warnings.push('Ein Stempel hat hinten den Griff – die Blöcke hinten entfallen.');
+  if (back.length && base.length && relief !== 'cut' && !stamp) {
     const room = t - (sunk ? depth : 0) - MIN_FLOOR;
     backDepth = Math.min(doc.back.depth, room);
     if (backDepth < 0.1) {
@@ -653,13 +670,14 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   }
 
   // Stamps: everything mirrored.
+  const mirror = doc.mirror || stamp;
   let holes = mount.holes;
   let slots = mount.slots;
   let countersinks = mount.countersinks;
   let magnetCenters = magnets.centers;
   let solidBase = mount.solidBase;
   let magnetPocketRegion = magnets.pockets;
-  if (doc.mirror) {
+  if (mirror) {
     const M = [-1, 0, 0, 1, 0, 0];
     const flip = (r) => transformRegion(r, M);
     base = flip(base);
@@ -694,13 +712,34 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     if (split) warnings.push(...split.warnings);
   }
 
+  // Stamp: a socket in the back for the peg of the handle; the handle is an
+  // object of its own beside the stamp, upside down as it is printed.
+  let socket = [];
+  let handle = null;
+  if (stamp && doc.stamp.handle) {
+    const made = stampHandle(doc, solidBase, t - (relief === 'engraved' ? depth : 0), warnings);
+    socket = made.socket;
+    handle = made.handle;
+  }
+
   // Parts.
   const parts = [];
   const add = (id, name, color, slot, solids, extra = {}) => {
-    const ok = solids.filter((s) => s.region.length && s.z1 > s.z0 + 1e-9);
+    const ok = solids.filter((s) => s.kind === 'handle' || (s.region.length && s.z1 > s.z0 + 1e-9));
     if (ok.length) parts.push({ id, name, color, slot, solids: ok, ...extra });
   };
-  const textParts = (z0, z1) => groups.forEach((g) => add(g.id, g.name, g.color, g.slot, [{ region: g.region, z0, z1 }]));
+  // Raised lettering, on a stamp with sloped flanks: thin steps, each a
+  // little narrower, up to the letters themselves.
+  const textSolid = (region, z0, z1) => {
+    if (!(grow > 0)) return { region, z0, z1 };
+    const k = Math.max(2, Math.min(12, Math.round((z1 - z0) / 0.25)));
+    const steps = [];
+    for (let i = 1; i < k; i++) {
+      steps.push({ region: i === k - 1 ? region : offset(region, (grow * (k - 1 - i)) / (k - 1)), z: z0 + (i * (z1 - z0)) / k });
+    }
+    return { region: offset(region, grow), z0, z1, steps };
+  };
+  const textParts = (z0, z1) => groups.forEach((g) => add(g.id, g.name, g.color, g.slot, [textSolid(g.region, z0, z1)]));
   // Magnet pockets never reach the text pockets: at least MIN_CEILING stays.
   const magnetRoom = t - (sunk ? depth : 0) - MIN_CEILING;
   let magnetDepth = doc.magnets.depth;
@@ -715,8 +754,9 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
       magnetDepth = magnetRoom;
     }
   }
-  // Pockets in the bottom: magnets and the lettering of the back.
+  // Pockets in the bottom: magnets, the lettering of the back, the socket of a stamp.
   const bottom = [{ region: magnetPocketRegion, depth: magnetDepth }, { region: backLetters, depth: backDepth }];
+  if (socket.length) bottom.push({ region: socket, depth: handle.socketDepth });
   const plateSolid = { region: solidBase, z0: 0, z1: t, countersinks, bottom };
   const ho = outline.length ? body.outlineHeight : 0;
   if (!base.length) {
@@ -755,6 +795,7 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   if (base.length && backDepth > 0 && doc.back.relief === 'inlay') {
     for (const g of backGroups) add(g.id, g.name, g.color, g.slot, [{ region: g.region, z0: 0, z1: backDepth }]);
   }
+  if (handle) add('handle', PART_NAMES.handle, shade(doc.colors.base, 0.12), doc.slots.base, [handle.solid], { object: 'handle' });
 
   // Checks.
   // Stencils: thin material (bridges, walls between letters); else thin strokes.
@@ -774,8 +815,20 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     part.volume = part.solids.reduce((v, s) => v + solidVolume(s), 0);
     volume += part.volume;
   }
-  const top = parts.reduce((z, part) => Math.max(z, ...part.solids.map((s) => s.z1)), 0);
+  // Height of the sign itself (a stamp's handle stands beside it).
+  const top = parts.filter((p) => p.object !== 'handle').reduce((z, part) => Math.max(z, ...part.solids.map((s) => s.z1)), 0);
   const textBox = letters.length ? regionBounds(letters) : null;
+  // Everything in the 3D view, a stamp's handle included.
+  const extent = { ...bounds, top };
+  if (handle && Number.isFinite(bounds.minX)) {
+    const { at, z1 } = handle.solid;
+    const r = handle.diameter / 2;
+    Object.assign(extent, {
+      minX: Math.min(bounds.minX, at[0] - r), maxX: Math.max(bounds.maxX, at[0] + r),
+      minY: Math.min(bounds.minY, at[1] - r), maxY: Math.max(bounds.maxY, at[1] + r),
+      top: Math.max(top, z1),
+    });
+  }
   return {
     doc,
     layouts,
@@ -786,6 +839,10 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     islands,
     // Pieces of a stencil bigger than the bed (with puzzle connectors).
     pieces: split ? split.pieces : [],
+    // Lettering mirrored (stamps); a stamp's socket and handle.
+    mirrored: mirror,
+    socket,
+    stamp: stamp ? { handle: handle ? { height: handle.height, diameter: handle.diameter, socketDepth: handle.socketDepth } : null, draft: grow > 0 ? doc.stamp.draft : 0 } : null,
     split: split ? { nx: split.nx, ny: split.ny, tabs: split.tabs.length, tabHead: split.tabHead } : null,
     // Back (world coordinates, i.e. mirrored as seen from the front).
     backText: backLetters,
@@ -808,6 +865,7 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     relief,
     depth,
     bounds,
+    extent,
     warnings,
     pending,
     missing,
@@ -828,8 +886,18 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
 
 /** Volume of a solid (see mesh.js addSolid). */
 export function solidVolume(s) {
-  let v = regionArea(s.region) * (s.z1 - s.z0);
-  if (s.step) v -= (regionArea(s.region) - regionArea(s.step.region)) * (s.z1 - s.step.z);
+  if (s.kind === 'handle') return handleVolume(s);
+  // Slabs: the region up to the first step, each step up to the next.
+  const steps = s.steps || (s.step ? [s.step] : []);
+  let v = 0;
+  let region = s.region;
+  let z = s.z0;
+  for (const st of steps) {
+    v += regionArea(region) * (st.z - z);
+    region = st.region;
+    z = st.z;
+  }
+  v += regionArea(region) * (s.z1 - z);
   if (s.pockets) v -= regionArea(s.pockets) * s.depth;
   for (const b of s.bottom || []) if (b.region.length && b.depth > 0) v -= regionArea(b.region) * b.depth;
   for (const c of s.countersinks || []) {
