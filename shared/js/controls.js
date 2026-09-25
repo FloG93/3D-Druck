@@ -199,7 +199,7 @@ export function selectField(panel, opts) {
   }, opts.visible);
 }
 
-/** Segmented buttons. opts: { label, bind, options: [[value, text, iconName?, title?]] } */
+/** Segmented buttons. opts: { label, bind, options: [[value, text, iconName?, title?]], columns? } */
 export function segmented(panel, opts) {
   const buttons = opts.options.map(([v, text, ic, title]) => {
     const b = h('button', {
@@ -216,7 +216,9 @@ export function segmented(panel, opts) {
     });
     return b;
   });
-  const group = h('div', { class: `segmented${opts.iconOnly ? ' icon-only' : ''}`, role: 'group' }, buttons);
+  const group = h('div', { class: `segmented${opts.iconOnly ? ' icon-only' : ''}${opts.columns ? ' grid-seg' : ''}`, role: 'group' }, buttons);
+  // Many options: in rows of `columns`.
+  if (opts.columns) group.style.gridTemplateColumns = `repeat(${opts.columns}, 1fr)`;
   const el = h('div', { class: 'ctl ctl-seg wide' }, opts.label ? h('span', { class: 'ctl-label' }, opts.label) : null, group);
   return panel.register(el, () => {
     const v = String(opts.bind.get());

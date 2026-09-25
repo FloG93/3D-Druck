@@ -15,7 +15,7 @@ const HTML = `
     <ol>
       <li><b>Vorlage</b> wählen oder direkt den <b>Text</b> eintippen. Mehrere Zeilen mit Enter, <b>♥ Symbol</b> fügt Herz, Stern, Pfote &amp; Co. ein. Unter dem Text kommen weitere Blöcke dazu: <b>+ Text</b>, <b>+ QR-Code</b> (Link oder WLAN) und <b>+ Grafik</b> (eigene SVG-Datei, z. B. ein Logo).</li>
       <li><b>Schrift</b>: sechs Schriften sind eingebaut, unter <i>Mehr …</i> gibt es alle Google Fonts mit Vorschau.</li>
-      <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis, <b>Becher</b> oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
+      <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis, <b>Becher</b> oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung oder ein <b>Stecker</b> für Pflanzen und Torten. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
       <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe – als <b>Schablone</b> ausgeschnitten oder als <b>Stempel</b> gespiegelt.</li>
       <li><b>Exportieren</b> als 3MF: Platte, Schrift, Kontur und Rand sind eigene Teile mit fester Filament-Nummer – in Bambu Studio nur noch die AMS-Farben wählen. Bei flacher Oberseite wahlweise mit der Schrift nach unten. Für Fusion 360 gibt es <b>SVG</b> mit glatten Kurven und <b>STEP</b> mit einem Körper je Teil, für Laser und Schneideplotter <b>SVG</b> und <b>DXF</b>.</li>
     </ol>

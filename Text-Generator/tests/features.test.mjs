@@ -278,3 +278,27 @@ test('engraved lettering keeps the minimum floor also with magnets', () => {
   assert.ok(4 - 1 - 2.2 >= MIN_FLOOR);
   assertSolid(m, 'engraved with magnets');
 });
+
+test('stake below the plate: plant marker and cake topper', () => {
+  const plain = build({ texts: [{ text: 'Tomaten', font: font('pacifico'), size: 13 }], base: { shape: 'capsule', padding: 3 }, mount: { type: 'none' }, body: { thickness: 3.2 } });
+  const one = build({ texts: [{ text: 'Tomaten', font: font('pacifico'), size: 13 }], base: { shape: 'capsule', padding: 3 }, mount: { type: 'stake', stakeLength: 80, stakeWidth: 8, stakes: 1 }, body: { thickness: 3.2 } });
+  assert.deepEqual(one.warnings, []);
+  assert.equal(one.base.length, 1, 'stake and plate in one piece');
+  const p = regionBounds(plain.base);
+  const b = regionBounds(one.base);
+  near(p.minY - b.minY, 80, 1e-3, 'reaches the length below the plate');
+  near(b.minX, p.minX, 1e-6, 'no wider');
+  // Pointed: the lowest millimetre is narrower than the stake.
+  const tipArea = regionArea(one.base.map((s) => s)) - regionArea(plain.base);
+  assert.ok(tipArea < 8 * 80 + 8 * 12, `stake area ${tipArea}`);
+  assertSolid(one, 'plant marker');
+  // Two stakes for a cake topper, a warning for a thin plate.
+  const two = build({ texts: [{ text: 'Happy', font: font('pacifico'), size: 15 }], base: { shape: 'contour', padding: 2.5 }, mount: { type: 'stake', stakeLength: 50, stakeWidth: 5, stakes: 2 }, body: { thickness: 2 } });
+  assert.equal(two.base.length, 1);
+  assert.ok(two.warnings.some((w) => w.includes('Stecker bricht')));
+  const low = regionBounds(two.base).minY;
+  const bottoms = [];
+  for (const s of two.base) for (let i = 1; i < s.outer.length; i += 2) if (Math.abs(s.outer[i] - low) < 1e-6) bottoms.push(s.outer[i - 1]);
+  assert.equal(new Set(bottoms.map((x) => Math.round(x))).size, 2, 'two tips');
+  assertSolid(two, 'cake topper');
+});

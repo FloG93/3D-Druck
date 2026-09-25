@@ -18,7 +18,7 @@ export const STAMP_KIND_DEFAULTS = {
   cookie: { body: { relief: 'raised', thickness: 4, height: 2.5 }, stamp: { draft: 10 }, check: { minStroke: 1.5 } },
   clay: { body: { relief: 'raised', thickness: 4, height: 2 }, stamp: { draft: 15 }, check: { minStroke: 1.2 } },
 };
-export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws'];
+export const MOUNT_TYPES = ['none', 'eyelet', 'hole', 'slot', 'screws', 'stake'];
 export const MOUNT_POSITIONS = ['left', 'right', 'top'];
 export const ALIGNS = ['left', 'center', 'right'];
 export const LAYOUTS = ['line', 'bend', 'arcTop', 'arcBottom'];
@@ -104,6 +104,10 @@ export const DEFAULTS = {
     length: 14, // slot length
     countersink: true, // screws: 90° countersink
     head: 8.5, // screw head diameter (countersink)
+    // Stake below the plate (plant marker, cake topper): one or two.
+    stakeLength: 60,
+    stakeWidth: 8,
+    stakes: 1,
   },
   magnets: {
     enabled: false, // round pockets on the back
@@ -294,6 +298,9 @@ export function normalizeDoc(input) {
   out.mount.ring = clamp(out.mount.ring, 0.4, 100);
   out.mount.length = clamp(out.mount.length, 1, 500);
   out.mount.head = clamp(out.mount.head, 1, 100);
+  out.mount.stakeLength = clamp(out.mount.stakeLength, 5, 300);
+  out.mount.stakeWidth = clamp(out.mount.stakeWidth, 2, 40);
+  out.mount.stakes = out.mount.stakes === 2 ? 2 : 1;
   out.magnets.count = Math.round(clamp(out.magnets.count, 1, 12));
   out.magnets.diameter = clamp(out.magnets.diameter, 1, 100);
   out.magnets.depth = clamp(out.magnets.depth, 0.2, 50);

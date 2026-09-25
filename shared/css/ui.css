@@ -294,6 +294,7 @@ button { cursor: pointer; }
   background: var(--panel-2);
   border: 1px solid var(--line);
 }
+.segmented.grid-seg { display: grid; }
 .seg-btn {
   flex: 1;
   display: inline-flex;

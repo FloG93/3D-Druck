@@ -487,24 +487,31 @@ export function buildRightPanel(root, app) {
   const mtype = () => doc().mount.type;
   const mountOn = () => hasBase() && !cup() && mtype() !== 'none';
   const screws = () => hasBase() && !cup() && mtype() === 'screws';
+  const stake = () => hasBase() && !cup() && mtype() === 'stake';
   const MOUNT_NOTES = {
     eyelet: 'Die Öse sitzt außen an der Platte – für Schlüsselring oder Band.',
     hole: 'Das Loch liegt in der Platte; sie wird dafür verlängert.',
     slot: 'Längliches Loch für Band, Lanyard oder Clip.',
     screws: 'Zwei Schraublöcher links und rechts; mit Senkung für Senkkopfschrauben (90°).',
+    stake: 'Spitze unten an der Platte – für Pflanzenstecker oder Tortenaufsatz. Mindestens 2,4 mm Plattendicke, in Erde besser 3 mm, damit der Stecker nicht bricht; für Lebensmittel PETG oder PLA mit Lebensmittelfreigabe.',
   };
   mount.body.append(
-    segmented(panel, { label: 'Art', bind: bindPath(app, 'mount.type'), options: [['none', 'Keine'], ['eyelet', 'Öse'], ['hole', 'Loch'], ['slot', 'Schlitz'], ['screws', 'Schrauben']], visible: () => hasBase() && !cup() }),
+    segmented(panel, { label: 'Art', bind: bindPath(app, 'mount.type'), options: [['none', 'Keine'], ['eyelet', 'Öse'], ['hole', 'Loch'], ['slot', 'Schlitz'], ['screws', 'Schrauben'], ['stake', 'Stecker']], columns: 3, visible: () => hasBase() && !cup() }),
     note(panel, 'Ein Becher braucht keine Befestigung.', cup),
     note(panel, () => (shape() === 'contour' && (mtype() === 'hole' || mtype() === 'slot' || mtype() === 'screws')
       ? `${MOUNT_NOTES[mtype()]} Bei der Kontur wird dafür eine Lasche angesetzt.`
       : MOUNT_NOTES[mtype()] || ''), mountOn),
-    segmented(panel, { label: 'Position', bind: bindPath(app, 'mount.position'), options: [['left', 'Links'], ['right', 'Rechts'], ['top', 'Oben']], visible: () => mountOn() && !screws() }),
+    segmented(panel, { label: 'Position', bind: bindPath(app, 'mount.position'), options: [['left', 'Links'], ['right', 'Rechts'], ['top', 'Oben']], visible: () => mountOn() && !screws() && !stake() }),
     grid(
-      numberField(panel, { label: 'Loch-Ø', unit: 'mm', bind: bindPath(app, 'mount.diameter'), min: 0.5, max: 50, step: 0.1, digits: 2, slider: [2, 10], visible: () => mountOn() && mtype() !== 'slot' }),
+      numberField(panel, { label: 'Länge', title: 'Wie weit der Stecker unter der Platte herausragt', unit: 'mm', bind: bindPath(app, 'mount.stakeLength'), min: 5, max: 300, step: 1, digits: 1, slider: [20, 150], visible: stake }),
+      numberField(panel, { label: 'Breite', unit: 'mm', bind: bindPath(app, 'mount.stakeWidth'), min: 2, max: 40, step: 0.5, digits: 1, slider: [4, 20], visible: stake }),
+    ),
+    segmented(panel, { label: 'Anzahl', bind: bindPath(app, 'mount.stakes'), options: [[1, 'Einer (Mitte)'], [2, 'Zwei (stabiler)']], visible: stake }),
+    grid(
+      numberField(panel, { label: 'Loch-Ø', unit: 'mm', bind: bindPath(app, 'mount.diameter'), min: 0.5, max: 50, step: 0.1, digits: 2, slider: [2, 10], visible: () => mountOn() && mtype() !== 'slot' && !stake() }),
       numberField(panel, { label: 'Schlitzbreite', unit: 'mm', bind: bindPath(app, 'mount.diameter'), min: 0.5, max: 50, step: 0.1, digits: 2, slider: [2, 8], visible: () => mountOn() && mtype() === 'slot' }),
       numberField(panel, { label: 'Schlitzlänge', unit: 'mm', bind: bindPath(app, 'mount.length'), min: 1, max: 200, step: 0.5, digits: 1, slider: [6, 40], visible: () => mountOn() && mtype() === 'slot' }),
-      numberField(panel, { label: 'Ringbreite', title: 'Material rund um das Loch', unit: 'mm', bind: bindPath(app, 'mount.ring'), min: 0.4, max: 20, step: 0.1, digits: 2, slider: [1, 5], visible: mountOn }),
+      numberField(panel, { label: 'Ringbreite', title: 'Material rund um das Loch', unit: 'mm', bind: bindPath(app, 'mount.ring'), min: 0.4, max: 20, step: 0.1, digits: 2, slider: [1, 5], visible: () => mountOn() && !stake() }),
     ),
     toggle(panel, { label: 'Senkung für Senkkopfschrauben', bind: bindPath(app, 'mount.countersink'), visible: screws }),
     numberField(panel, { label: 'Kopf-Ø', title: 'Durchmesser des Schraubenkopfs (Senkung 90°)', unit: 'mm', bind: bindPath(app, 'mount.head'), min: 1, max: 40, step: 0.1, digits: 2, slider: [5, 14], visible: () => screws() && doc().mount.countersink }),

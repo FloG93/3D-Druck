@@ -253,6 +253,36 @@ function addMount(doc, base, warnings) {
   const f = Math.min(1.5, m.ring);
   const fillet = (region) => offset(offset(region, f), -f);
 
+  if (m.type === 'stake') {
+    // Stakes below the plate – a plant marker, a cake topper: pointed, as
+    // thick as the plate, the joints rounded so they do not snap off.
+    const bb = regionBounds(base);
+    const w = m.stakeWidth;
+    const L = m.stakeLength;
+    const W = bb.maxX - bb.minX;
+    const xs = m.stakes === 2 ? [bb.minX + W / 4, bb.maxX - W / 4] : [(bb.minX + bb.maxX) / 2];
+    const tip = Math.min(L / 2, 1.5 * w);
+    const r = Math.min(3, w / 2);
+    const stakes = [];
+    const joints = [];
+    for (const x of xs) {
+      const ys = crossingsAtX(base, x);
+      const y0 = ys.length ? ys[0] : bb.minY;
+      const reach = ys.length > 1 ? Math.min(2 * w, (ys[1] - ys[0]) / 2) : 0;
+      // All tips level, the length below the lowest point of the plate.
+      const end = bb.minY - L;
+      stakes.push([x - w / 2, y0 + reach, x - w / 2, end + tip, x, end, x + w / 2, end + tip, x + w / 2, y0 + reach]);
+      joints.push([x - w / 2 - 3 * r, y0 - 2 * r, x + w / 2 + 3 * r, y0 - 2 * r, x + w / 2 + 3 * r, y0 + 2 * r, x - w / 2 - 3 * r, y0 + 2 * r]);
+    }
+    const joined = union(base, stakes);
+    // Round only where a stake meets the plate.
+    const plate = union(joined, intersection(offset(offset(joined, r), -r), union(joints)));
+    if (doc.body.thickness < 2.4 - 1e-9) warnings.push('Ein Stecker bricht leicht – die Platte mindestens 2,4 mm dick machen (für Erde besser 3 mm).');
+    result.base = plate;
+    result.solidBase = plate;
+    return result;
+  }
+
   if (m.type === 'screws') {
     const R = countersinkRadius(doc);
     if (m.countersink && R < m.head / 2 - 1e-9) warnings.push('Die Senkung ist für die Plattendicke zu groß und wurde verkleinert.');
