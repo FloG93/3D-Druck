@@ -160,6 +160,16 @@ cases.cup_conical_lantern = {
   cup: { diameter: 90, height: 90, bottom: 2, conical: true, top: 70 },
   body: { relief: 'cut', thickness: 1.6 },
 };
+// A stamp in a script font with sloped flanks: in the STEP exact flanks
+// where growing keeps a letter, fine steps where it does not.
+cases.stamp_script_draft = {
+  ...defaultDoc(),
+  texts: [{ text: 'Mia', font: { id: 'pacifico', family: 'Pacifico', weight: 400, style: 'normal' }, size: 10 }],
+  base: { shape: 'rect', padding: 3, radius: 2 },
+  mount: { type: 'none' },
+  body: { relief: 'raised', thickness: 4, height: 2.5 },
+  stamp: { enabled: true, kind: 'cookie', draft: 8 },
+};
 // A series: six keychains from a list, one object each, side by side.
 cases.series_keychains = {
   ...BUILTIN_PRESETS.find((p) => p.name === 'Schlüsselanhänger'),

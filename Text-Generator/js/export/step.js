@@ -13,13 +13,14 @@
 // rings counter-clockwise, holes clockwise, seen from +Z); a wall face is
 //   bottom_i(+), vertical_{i+1}(+), top_i(-), vertical_i(-)
 // and every edge is used exactly twice with opposite orientation.
-// Cups (bent walls): see step-cup.js.
+// Cups (bent walls): see step-cup.js; sloped flanks of stamps: step-draft.js.
 
 import { real, str } from '../../../shared/js/step.js';
 import { union, difference, ringArea, containsPoint } from '../core/geometry.js';
 import { fitRing, reverseSegments } from '../core/curves.js';
-import { BrepWriter, EPS, canonical, slabsOf, insidePoint, ringRuns, slabRings, edgeLoop } from './brep.js';
+import { BrepWriter, EPS, canonical, slabsOf, insidePoint, ringRuns, slabRings, edgeLoop, storedRing } from './brep.js';
 import { cupContext, cupBodies } from './step-cup.js';
+import { draftedBodies } from './step-draft.js';
 
 /** Curve of a fitted segment at height z. */
 function segCurve(w, seg, z) {
@@ -112,11 +113,15 @@ function flatSolids(w, s, name) {
   const slabs = slabsOf(s).filter((sl) => sl.region.length);
   if (!slabs.length) return [];
   const pieces = union(...slabs.map((sl) => sl.region));
-  if (pieces.length === 1) return [flatSolid(w, s, slabs, name)];
-  return pieces.map((piece) => {
+  // Sloped flanks of a stamp: exact where growing keeps the letters.
+  const drafted = (piece) => (s.draft ? draftedBodies(w, s, piece, name) : null);
+  if (pieces.length === 1) return drafted(pieces[0]) || [flatSolid(w, s, slabs, name)];
+  return pieces.flatMap((piece) => {
+    const exact = drafted(piece);
+    if (exact) return exact;
     const own = slabs.map((sl) => ({ ...sl, region: sl.region.filter((shape) => containsPoint([piece], ...insidePoint(shape))) }));
     const countersinks = (s.countersinks || []).filter((c) => containsPoint([piece], c.cx, c.cy));
-    return flatSolid(w, { ...s, countersinks }, own.filter((sl) => sl.region.length), name);
+    return [flatSolid(w, { ...s, countersinks }, own.filter((sl) => sl.region.length), name)];
   });
 }
 
@@ -155,8 +160,7 @@ function flatSolid(w, s, slabs, name) {
     for (const [region, up] of [[above.length ? difference(below, above) : below, true], [below.length ? difference(above, below) : above, false]]) {
       for (const shape of region) {
         const loops = [shape.outer, ...shape.holes].map((r) => {
-          const c = canonical(r);
-          const entry = stored.get(c.key);
+          const entry = storedRing(stored, r);
           if (!entry) throw new Error('Umriss ohne Wand');
           // The face on the left of its outline (outer ccw, holes cw); a
           // face pointing up runs that way, one pointing down the other.

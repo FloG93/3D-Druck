@@ -133,6 +133,143 @@ export class BrepWriter extends StepWriter {
   }
 }
 
+/** Point of a fitted segment (line or cubic, see curves.js) – ends exact. */
+export function segPoint(seg, s) {
+  const p = seg.p;
+  if (s === 0) return p[0];
+  if (s === 1) return p[p.length - 1];
+  if (seg.type === 'line') return [p[0][0] + (p[1][0] - p[0][0]) * s, p[0][1] + (p[1][1] - p[0][1]) * s];
+  const u = 1 - s;
+  const b = [u * u * u, 3 * u * u * s, 3 * u * s * s, s * s * s];
+  return [0, 1].map((c) => b[0] * p[0][c] + b[1] * p[1][c] + b[2] * p[2][c] + b[3] * p[3][c]);
+}
+
+/** First derivative of a fitted segment by its parameter. */
+export function segD1(seg, s) {
+  const p = seg.p;
+  if (seg.type === 'line') return [p[1][0] - p[0][0], p[1][1] - p[0][1]];
+  const u = 1 - s;
+  return [0, 1].map((c) => 3 * (u * u * (p[1][c] - p[0][c]) + 2 * u * s * (p[2][c] - p[1][c]) + s * s * (p[3][c] - p[2][c])));
+}
+
+/** Second derivative of a fitted segment by its parameter. */
+export function segD2(seg, s) {
+  const p = seg.p;
+  if (seg.type === 'line') return [0, 0];
+  return [0, 1].map((c) => 6 * ((1 - s) * (p[2][c] - 2 * p[1][c] + p[0][c]) + s * (p[3][c] - 2 * p[2][c] + p[1][c])));
+}
+
+/**
+ * Cubic through f(s0) and f(s1) with the tangents there (Hermite): its four
+ * Bézier points. f(s) → point, df(s) → derivative by s.
+ */
+export function hermitePiece({ f, df }, s0, s1) {
+  const h = (s1 - s0) / 3;
+  const p0 = f(s0);
+  const p3 = f(s1);
+  const d0 = df(s0);
+  const d3 = df(s1);
+  return [p0, p0.map((v, i) => v + d0[i] * h), p3.map((v, i) => v - d3[i] * h), p3];
+}
+
+function hermiteError(curve, s0, s1) {
+  const b = hermitePiece(curve, s0, s1);
+  let worst = 0;
+  for (let i = 1; i < 8; i++) {
+    const t = i / 8;
+    const u = 1 - t;
+    const c = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+    const exact = curve.f(s0 + (s1 - s0) * t);
+    worst = Math.max(worst, Math.hypot(...exact.map((v, k) => v - (c[0] * b[0][k] + c[1] * b[1][k] + c[2] * b[2][k] + c[3] * b[3][k]))));
+  }
+  return worst;
+}
+
+/**
+ * Parameters on [a, b] where Hermite pieces meet: each piece as long as it
+ * can be while it stays within tol of every one of the curves.
+ */
+export function hermiteBreakpoints(curves, a, b, tol) {
+  const ok = (s0, s1) => curves.every((c) => hermiteError(c, s0, s1) <= tol);
+  const out = [a];
+  let s0 = a;
+  while (s0 < b) {
+    let s1 = b;
+    if (!ok(s0, b)) {
+      let lo = s0;
+      let hi = b;
+      for (let i = 0; i < 30 && hi - lo > 1e-6 * (b - a); i++) {
+        const mid = (lo + hi) / 2;
+        if (ok(s0, mid)) lo = mid;
+        else hi = mid;
+      }
+      s1 = lo > s0 ? lo : hi;
+    }
+    out.push(s1);
+    s0 = s1;
+  }
+  return out;
+}
+
+/**
+ * The Hermite pieces on the breakpoints as one cubic B-spline: double
+ * knots, so it is tangent continuous and passes through every joint.
+ */
+export function hermiteSpline(curve, bps) {
+  const points = [];
+  for (let i = 0; i + 1 < bps.length; i++) {
+    const b = hermitePiece(curve, bps[i], bps[i + 1]);
+    if (i === 0) points.push(b[0]);
+    points.push(b[1], b[2]);
+    if (i + 2 === bps.length) points.push(b[3]);
+  }
+  return { points, mults: bps.map((_, i) => (i === 0 || i === bps.length - 1 ? 4 : 2)), knots: bps };
+}
+
+/**
+ * The stored outline (walls, at one height) a face's ring runs along:
+ * the same ring – or, where Clipper moved a point of it by a hair while
+ * cutting one slab from the next, the ring whose points are all within
+ * 1 µm (at least 95 % of them exactly).
+ */
+export function storedRing(stored, r) {
+  const c = canonical(r);
+  const hit = stored.get(c.key);
+  if (hit) return hit;
+  const n = r.length / 2;
+  const box = (q) => {
+    const b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < q.length; i += 2) {
+      b[0] = Math.min(b[0], q[i]);
+      b[1] = Math.min(b[1], q[i + 1]);
+      b[2] = Math.max(b[2], q[i]);
+      b[3] = Math.max(b[3], q[i + 1]);
+    }
+    return b;
+  };
+  const rb = box(r);
+  for (const [key, entry] of stored) {
+    const q = key.split(',').map(Number);
+    if (Math.abs(q.length / 2 - n) > Math.max(2, n * 0.05)) continue;
+    const qb = box(q);
+    if (qb.some((v, i) => Math.abs(v - rb[i]) > 1e-3)) continue;
+    const exact = new Set();
+    for (let i = 0; i < q.length; i += 2) exact.add(`${q[i]},${q[i + 1]}`);
+    let same = 0;
+    let near = true;
+    for (let i = 0; i < r.length && near; i += 2) {
+      if (exact.has(`${r[i]},${r[i + 1]}`)) same++;
+      else {
+        let best = Infinity;
+        for (let j = 0; j < q.length; j += 2) best = Math.min(best, Math.hypot(q[j] - r[i], q[j + 1] - r[i + 1]));
+        near = best < 1e-3;
+      }
+    }
+    if (near && same >= 0.95 * n) return entry;
+  }
+  return undefined;
+}
+
 /** A loop of stored edges; forward keeps their direction. */
 export function edgeLoop(w, edges, forward) {
   return forward ? w.loop(edges.map((e) => w.oe(e, true))) : w.loop([...edges].reverse().map((e) => w.oe(e, false)));

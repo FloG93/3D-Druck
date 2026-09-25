@@ -9,11 +9,25 @@ import { buildModel } from '../js/core/model.js';
 import { BUILTIN_PRESETS } from '../js/core/presets.js';
 import { exportSTEP, stepSupported } from '../js/export/step.js';
 import { bender, bentCurve, cupFloor } from '../js/export/step-cup.js';
+import { planLetter } from '../js/export/step-draft.js';
+import { offset } from '../js/core/geometry.js';
 import { str } from '../../shared/js/step.js';
-import { loadFonts } from './helpers.mjs';
+import { loadFonts, font } from './helpers.mjs';
 
 const lib = await loadFonts();
 const preset = (name) => buildModel(normalizeDoc(BUILTIN_PRESETS.find((p) => p.name === name)), (ref) => lib.peek(ref));
+const stamp = (text, id, draft, size = 12) => buildModel(normalizeDoc({
+  texts: [{ text, font: font(id), size }],
+  base: { shape: 'rect', padding: 3 },
+  mount: { type: 'none' },
+  body: { relief: 'raised', thickness: 4, height: 2.5 },
+  stamp: { enabled: true, kind: 'cookie', draft, handle: false },
+}), (ref) => lib.peek(ref));
+/** The plan of every letter of a stamp (its own foot as Clipper grows it). */
+const letterPlans = (m) => {
+  const { draft } = m.parts.find((p) => p.id === 'text').solids[0];
+  return draft.region.map((shape) => planLetter(shape, offset([shape], draft.grow), draft.grow));
+};
 
 /** Entities of a STEP file: id → { type, args }. */
 function parse(text) {
@@ -160,5 +174,45 @@ test('STEP of a cup: bent outlines within 0.4 µm, floor up to the inside of the
     assert.ok(Math.abs(f.z0) < 1e-9 && Math.abs(f.z1 - floor) < 1e-9, name);
     // (The wall's height is rounded to the 0.1 µm grid of the outlines.)
     assert.ok(Math.abs(f.r0 - inside(0)) < 1e-5 && Math.abs(f.r1 - inside(floor)) < 1e-5, name);
+  }
+});
+
+test('STEP of a stamp: sloped flanks as exact faces, every letter a body', () => {
+  for (const name of ['Keksstempel', 'Seifenstempel']) {
+    const m = preset(name);
+    // Every letter can have exact flanks – also where the feet of two
+    // letters grow together (they stay bodies of their own).
+    const plans = letterPlans(m);
+    for (const p of plans) assert.ok(p.planned, `${name}: ${p.why}`);
+    const entities = parse(exportSTEP(m, { title: name }));
+    const all = [...entities.values()];
+    const count = (type) => all.filter((e) => e.type === type).length;
+    assert.equal(checkShells(entities), count('MANIFOLD_SOLID_BREP'), name);
+    // Plate, handle and one body per letter.
+    assert.equal(count('MANIFOLD_SOLID_BREP'), 2 + plans.length, name);
+    // Outer corners are pieces of cones; a few faces instead of hundreds of steps.
+    assert.ok(count('CONICAL_SURFACE') > plans.length, name);
+    assert.ok(count('ADVANCED_FACE') < 400, `${name}: ${count('ADVANCED_FACE')} faces`);
+  }
+});
+
+test('STEP of a stamp: cuts across smooth joints, letters that keep their steps', () => {
+  // A script letter: the cuts of inner corners run on across smooth joints,
+  // short pieces of the outline end above the foot.
+  const k = letterPlans(stamp('K', 'pacifico', 10))[0];
+  assert.ok(k.planned, k.why);
+  const ends = k.planned.plans.flatMap((p) => p.bounds).filter((b) => !b.foot);
+  assert.ok(ends.length > 0, 'pieces that end above the foot');
+  assert.equal(checkShells(parse(exportSTEP(stamp('K', 'pacifico', 10)))) > 0, true);
+  // A counter that closes as the letter grows keeps the fine steps.
+  const e = letterPlans(stamp('e', 'montserrat', 15, 10))[0];
+  assert.equal(e.why, 'eine Öffnung wächst zu');
+  assert.ok(exportSTEP(stamp('e', 'montserrat', 15, 10)).includes('MANIFOLD_SOLID_BREP'));
+  // Script lettering with sloped flanks exports (Clipper moves a point of
+  // an outline by a hair between two steps – the wall is still found).
+  for (const [text, id, draft] of [['Mia', 'pacifico', 8], ['Lobster', 'lobster', 15]]) {
+    const m = stamp(text, id, draft, 10);
+    const entities = parse(exportSTEP(m));
+    assert.equal(checkShells(entities), [...entities.values()].filter((e) => e.type === 'MANIFOLD_SOLID_BREP').length, text);
   }
 });

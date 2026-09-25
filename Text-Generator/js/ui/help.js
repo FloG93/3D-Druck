@@ -45,7 +45,7 @@ const HTML = `
     <h3>Stempel</h3>
     <ul>
       <li><b>Körper → Stempel</b> spiegelt die Schrift, damit der Abdruck richtig herum steht. <b>Tinte</b>: 1,5 mm erhaben. <b>Keks &amp; Fondant</b>: 2,5 mm mit schrägen Flanken. <b>Ton, Seife, Leder</b>: tiefe Prägung mit schrägen Flanken.</li>
-      <li><b>Schräge Flanken</b> machen die Buchstaben zur Platte hin breiter – stabiler, und sie lösen sich leichter aus Teig, Ton oder Seife.</li>
+      <li><b>Schräge Flanken</b> machen die Buchstaben zur Platte hin breiter – stabiler, und sie lösen sich leichter aus Teig, Ton oder Seife. Im STEP sind es – wo die Buchstaben dabei nicht zuwachsen – echte Schrägen, im 3MF feine Stufen.</li>
       <li>Der <b>Griff</b> ist ein eigenes Teil und wird kopfüber ohne Stützen gedruckt. Sein eckiger Zapfen steckt in der Tasche auf der Rückseite und kann sich nicht drehen; 0,15 mm <b>Spiel</b> machen ihn stramm, ein Tropfen Kleber sichert ihn.</li>
       <li>Für Lebensmittel PETG oder PLA mit Lebensmittelfreigabe nehmen, vor dem Stempeln mit Mehl bestäuben, nicht in die Spülmaschine.</li>
     </ul>

@@ -799,7 +799,8 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     for (let i = 1; i < k; i++) {
       steps.push({ region: i === k - 1 ? region : offset(region, (grow * (k - 1 - i)) / (k - 1)), z: z0 + (i * (z1 - z0)) / k });
     }
-    return { region: offset(region, grow), z0, z1, steps };
+    // The STEP export makes exact sloping faces from the letters on top.
+    return { region: offset(region, grow), z0, z1, steps, draft: { region, grow } };
   };
   const textParts = (z0, z1) => groups.forEach((g) => add(g.id, g.name, g.color, g.slot, [textSolid(g.region, z0, z1)]));
   // Magnet pockets never reach the text pockets: at least MIN_CEILING stays.

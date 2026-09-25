@@ -20,7 +20,7 @@
 import { real, str } from '../../../shared/js/step.js';
 import { union, difference, ringArea, containsPoint } from '../core/geometry.js';
 import { fitRing, reverseSegments } from '../core/curves.js';
-import { canonical, slabsOf, insidePoint, ringRuns, slabRings, edgeLoop } from './brep.js';
+import { slabsOf, insidePoint, ringRuns, slabRings, edgeLoop, storedRing, hermiteBreakpoints, hermiteSpline, segPoint, segD1 } from './brep.js';
 
 // Largest distance of a B-spline from the bent curve it stands for (mm),
 // below the accuracy the file declares (1e-6 mm).
@@ -61,90 +61,25 @@ export function bender(wrap) {
   };
 }
 
-/** Point of a fitted segment (ends exact). */
-function segAt(seg, s) {
-  const p = seg.p;
-  if (s === 0) return p[0];
-  if (s === 1) return p[p.length - 1];
-  if (seg.type === 'line') return [p[0][0] + (p[1][0] - p[0][0]) * s, p[0][1] + (p[1][1] - p[0][1]) * s];
-  const u = 1 - s;
-  const b = [u * u * u, 3 * u * u * s, 3 * u * s * s, s * s * s];
-  return [0, 1].map((c) => b[0] * p[0][c] + b[1] * p[1][c] + b[2] * p[2][c] + b[3] * p[3][c]);
-}
-
-/** Derivative of a fitted segment by its parameter. */
-function segDerivative(seg, s) {
-  const p = seg.p;
-  if (seg.type === 'line') return [p[1][0] - p[0][0], p[1][1] - p[0][1]];
-  const u = 1 - s;
-  return [0, 1].map((c) => 3 * (u * u * (p[1][c] - p[0][c]) + 2 * u * s * (p[2][c] - p[1][c]) + s * s * (p[3][c] - p[2][c])));
-}
-
-/** Cubic through the bent ends of [s0, s1] with the bent tangents there. */
-function hermite(bend, seg, z, s0, s1) {
-  const h = (s1 - s0) / 3;
-  const [xa, ya] = segAt(seg, s0);
-  const [xb, yb] = segAt(seg, s1);
-  const p0 = bend.point(xa, ya, z);
-  const p3 = bend.point(xb, yb, z);
-  const d0 = bend.derivative(xa, ya, z, ...segDerivative(seg, s0));
-  const d3 = bend.derivative(xb, yb, z, ...segDerivative(seg, s1));
-  return [p0, p0.map((v, i) => v + d0[i] * h), p3.map((v, i) => v - d3[i] * h), p3];
-}
-
-function hermiteError(bend, seg, z, s0, s1) {
-  const b = hermite(bend, seg, z, s0, s1);
-  let worst = 0;
-  for (let i = 1; i < 8; i++) {
-    const t = i / 8;
-    const u = 1 - t;
-    const c = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
-    const exact = bend.point(...segAt(seg, s0 + (s1 - s0) * t), z);
-    worst = Math.max(worst, Math.hypot(...exact.map((v, k) => v - (c[0] * b[0][k] + c[1] * b[1][k] + c[2] * b[2][k] + c[3] * b[3][k]))));
-  }
-  return worst;
+/** The bent segment at height z: point and derivative by its parameter. */
+function bentAt(bend, seg, z) {
+  return {
+    f: (s) => bend.point(...segPoint(seg, s), z),
+    df: (s) => {
+      const [x, y] = segPoint(seg, s);
+      return bend.derivative(x, y, z, ...segD1(seg, s));
+    },
+  };
 }
 
 /**
- * Parameters where the pieces meet: each piece as long as it can be while
- * every level stays within TOL.
+ * The bent segment at height z as a cubic B-spline on the breakpoints
+ * (tangent continuous, the joints on the curve).
  */
-function breakpoints(bend, seg, levels) {
-  const ok = (s0, s1) => levels.every((z) => hermiteError(bend, seg, z, s0, s1) <= TOL);
-  const out = [0];
-  let s0 = 0;
-  while (s0 < 1) {
-    let s1 = 1;
-    if (!ok(s0, 1)) {
-      let lo = s0;
-      let hi = 1;
-      for (let i = 0; i < 30 && hi - lo > 1e-6; i++) {
-        const mid = (lo + hi) / 2;
-        if (ok(s0, mid)) lo = mid;
-        else hi = mid;
-      }
-      s1 = lo > s0 ? lo : hi;
-    }
-    out.push(s1);
-    s0 = s1;
-  }
-  return out;
-}
+const bentSpline = (bend, seg, z, bps) => hermiteSpline(bentAt(bend, seg, z), bps);
 
-/**
- * The bent segment at height z as a cubic B-spline: Hermite pieces, joined
- * with double knots (tangent continuous, the joints on the curve).
- */
-function bentSpline(bend, seg, z, bps) {
-  const points = [];
-  for (let i = 0; i + 1 < bps.length; i++) {
-    const b = hermite(bend, seg, z, bps[i], bps[i + 1]);
-    if (i === 0) points.push(b[0]);
-    points.push(b[1], b[2]);
-  }
-  points.push(bend.point(...segAt(seg, 1), z));
-  return { points, mults: bps.map((_, i) => (i === 0 || i === bps.length - 1 ? 4 : 2)), knots: bps };
-}
+/** Breakpoints so that the segment stays within TOL at every level. */
+const breakpoints = (bend, seg, levels) => hermiteBreakpoints(levels.map((z) => bentAt(bend, seg, z)), 0, 1, TOL);
 
 /** A bent segment at height z as a B-spline (for tests). */
 export function bentCurve(bend, seg, z) {
@@ -357,8 +292,7 @@ function bentSolid(w, cup, slabs, name) {
     const above = i < slabs.length ? slabs[i].region : [];
     const stored = at.get(z) || new Map();
     const island = (r, up) => {
-      const c = canonical(r);
-      const entry = stored.get(c.key);
+      const entry = storedRing(stored, r);
       if (!entry) throw new Error('Umriss ohne Wand');
       return edgeLoop(w, entry.edges, (entry.ccw === (ringArea(r) > 0)) === up);
     };
