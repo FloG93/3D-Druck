@@ -9,11 +9,13 @@ import {
   circleRing, ellipseRing, roundedRectRing, crossingsAtY, crossingsAtX, thinParts, transformRegion,
 } from './geometry.js';
 import { layoutBlock } from './layout.js';
-import { isSymbolLike } from './fonts.js';
-import { qrBlock, graphicBlock } from './blocks.js';
+import { isSymbolLike, DEFAULT_FONT } from './fonts.js';
+import { qrBlock, graphicBlock, hasQrLogo } from './blocks.js';
 
 export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite' };
 export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
+// Smallest QR module that prints and scans reliably (mm).
+export const QR_MIN_MODULE = 1;
 export const RELIEF_NAMES = { raised: 'erhaben', engraved: 'vertieft', flush: 'bündig', cut: 'durchbrochen' };
 // PLA, for the weight estimate.
 export const DENSITY = 1.24;
@@ -392,7 +394,19 @@ function luminance(hex) {
  */
 function blockLayout(block, getFace, keepCurves, warnings, missing) {
   if (block.kind === 'qr') {
-    const q = qrBlock(block);
+    // Logo in the middle: a symbol (laid out with the default font, which
+    // falls back to the symbol font) or an imported graphic.
+    let logo = null;
+    if (hasQrLogo(block) && block.qrLogo === 'symbol') {
+      const face = getFace(DEFAULT_FONT);
+      if (!face) return 'pending';
+      const lay = layoutBlock({ text: block.qrLogoSymbol, size: 10, letterSpacing: 0, lineSpacing: 1.2, align: 'center', layout: 'line' }, face);
+      for (const ch of lay.missing) missing.add(ch);
+      logo = lay.region;
+    } else if (hasQrLogo(block)) {
+      logo = graphicBlock({ graphic: block.qrLogoGraphic, size: 100, x: 0, y: 0, rotation: 0 }).region;
+    }
+    const q = qrBlock(block, { logo });
     if (q.error) {
       warnings.push(`${KIND_NAMES.qr}: ${q.error}`);
       return null;
@@ -576,8 +590,9 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   for (const lay of layouts) {
     if (!lay.qr) continue;
     const label = blockLabel(doc, lay.block);
-    if (doc.check.minStroke && lay.qr.module < doc.check.minStroke - 1e-9) {
-      warnings.push(`${label}: Die Module sind nur ${fmt(lay.qr.module)} mm groß – für einen sicheren Druck mindestens ${fmt(doc.check.minStroke)} mm (größer machen oder weniger Inhalt).`);
+    const minModule = Math.max(QR_MIN_MODULE, doc.check.minStroke || 0);
+    if (lay.qr.module < minModule - 1e-9) {
+      warnings.push(`${label}: Die Module sind nur ${fmt(lay.qr.module)} mm groß – für einen sicheren Druck mindestens ${fmt(minModule)} mm (größer machen oder weniger Inhalt).`);
     }
     const others = layouts.filter((l) => l !== lay && l.side === lay.side);
     if (others.length && regionArea(intersection(union(...others.map((l) => l.world)), lay.worldFootprint)) > 0.01) {

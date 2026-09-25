@@ -28,7 +28,7 @@ const HTML = `
       <li>Magnete einkleben statt Druckpause: Tasche = Magnet + 0,2 mm (z. B. 6,2 × 2,2 mm für 6 × 2 mm). Über der Tasche bleiben mindestens 0,6 mm Material.</li>
       <li><b>Schrift unten</b> (Export): Die Schriftseite liegt auf dem Druckbett – glatt oder mit der Struktur der Druckplatte.</li>
       <li><b>Rückseite:</b> Bei jedem Block „Seite: Hinten“ wählen, z. B. für die Telefonnummer auf der Hundemarke. Sie wird gespiegelt in den Boden eingelegt – farbig in den ersten Schichten oder vertieft. Unten in der Vorschau zwischen <i>Vorne</i> und <i>Hinten</i> umschalten.</li>
-      <li><b>QR-Codes</b> mit Modulen ab etwa 1 mm lesen sich sicher – dunkel auf hell, bündig oder erhaben in zweiter Farbe. Das Programm warnt bei zu kleinen Modulen und zu wenig Kontrast.</li>
+      <li><b>QR-Codes</b> mit Modulen ab 1 mm lesen sich sicher – dunkel auf hell, bündig oder erhaben in zweiter Farbe. Runde Punkte und ein Logo in der Mitte sind möglich; mit Logo den Code etwas größer machen. Das Programm warnt bei zu kleinen Modulen und zu wenig Kontrast.</li>
       <li><b>Grafiken (SVG):</b> Dunkle Flächen und Linien werden gedruckt, weiße darauf sparen aus. Texte in der SVG vorher in Pfade umwandeln.</li>
       <li>Die Kontur verbindet getrennte Wörter automatisch mit Stegen. Mehr Randabstand macht daraus eine geschlossene Form.</li>
     </ul>

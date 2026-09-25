@@ -61,6 +61,28 @@ test('QR block: modules as one region, quiet zone in the footprint', () => {
   assert.match(long.error, /zu lang/);
 });
 
+test('QR with round dots and a logo in the middle', () => {
+  const text = 'https://flog93.github.io/3D-Druck/';
+  const square = qrBlock(createBlock('qr', { qrText: text, size: 30 }));
+  const dots = qrBlock(createBlock('qr', { qrText: text, size: 30, qrStyle: 'dots', qrDot: 0.8 }));
+  // Same code, smaller dark area; the three finder patterns stay solid.
+  assert.equal(dots.modules, square.modules);
+  assert.ok(regionArea(dots.region) < regionArea(square.region) * 0.85);
+  const m = dots.module;
+  const corner = [[-15, 15 - 7 * m, -15 + 7 * m, 15 - 7 * m, -15 + 7 * m, 15, -15, 15]];
+  near(regionArea(intersection(dots.region, union(corner))), regionArea(intersection(square.region, union(corner))), 1e-3, 'finder pattern solid');
+  // Logo: error correction H, the middle is cleared except for the logo.
+  const logo = [{ outer: circleRing(0, 0, 1), holes: [] }];
+  const withLogo = qrBlock(createBlock('qr', { qrText: text, size: 30, qrLevel: 'L', qrLogo: 'symbol', qrLogoSymbol: '♥', qrLogoSize: 0.24 }), { logo });
+  assert.equal(withLogo.level, 'H');
+  const plain = qrBlock(createBlock('qr', { qrText: text, size: 30, qrLevel: 'H' }));
+  assert.equal(withLogo.modules, plain.modules);
+  const k = regionBounds(intersection(withLogo.region, union([[-4, -4, 4, -4, 4, 4, -4, 4]])));
+  // Only the fitted logo (a circle) remains in the middle.
+  near(k.maxX - k.minX, k.maxY - k.minY, 1e-3, 'round logo');
+  assert.ok(k.maxX - k.minX < 30 * 0.24, 'logo inside the cleared square');
+});
+
 test('QR sign: plate covers the quiet zone, closed meshes, warnings', () => {
   const qr = createBlock('qr', { qrMode: 'wifi', wifiSsid: 'Zuhause', wifiPassword: 'geheim123', size: 30, y: -6 });
   const title = { text: 'WLAN', font: font('montserrat'), size: 8, y: 16 };
@@ -72,6 +94,12 @@ test('QR sign: plate covers the quiet zone, closed meshes, warnings', () => {
     near(regionArea(quiet), regionArea(lay.worldFootprint), 0.01, `${relief}: quiet zone on the plate`);
     assertSolid(m, `qr ${relief}`);
   }
+  // Dots and a logo from the symbol font still give closed meshes.
+  // (error correction H: more modules, so the code is made a bit larger)
+  const fancy = build({ base: { shape: 'rect' }, texts: [{ ...qr, size: 36, qrStyle: 'dots', qrLogo: 'symbol', qrLogoSymbol: '🐾' }], colors: { base: '#ffffff', text: '#111111' } });
+  assert.deepEqual(fancy.warnings, [], fancy.warnings.join(' | '));
+  assert.equal(fancy.layouts[0].qr.level, 'H');
+  assertSolid(fancy, 'qr dots + logo');
   const tiny = build({ base: { shape: 'rect' }, texts: [{ ...qr, size: 12 }] });
   assert.ok(tiny.warnings.some((w) => w.includes('Module')), tiny.warnings.join(' | '));
   const inverted = build({ base: { shape: 'rect' }, texts: [qr], colors: { base: '#111111', text: '#ffffff' } });

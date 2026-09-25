@@ -4,7 +4,7 @@
 
 import { qrMatrix, wifiPayload } from '../../../shared/js/qr.js';
 import {
-  TOLERANCE, union, difference, offset, fillRings, strokePaths, transformRegion,
+  TOLERANCE, union, difference, offset, fillRings, strokePaths, transformRegion, regionBounds, circleRing,
 } from './geometry.js';
 import { flattenCommands, flattenPaths } from './layout.js';
 import { pathCommands } from './svgimport.js';
@@ -27,33 +27,50 @@ export function qrContent(block) {
   return String(block.qrText || '');
 }
 
+/** Does the QR code carry a logo in the middle? */
+export const hasQrLogo = (block) => (block.qrLogo === 'symbol' && Boolean(block.qrLogoSymbol))
+  || (block.qrLogo === 'graphic' && Boolean(block.qrLogoGraphic));
+
 /**
  * QR code: dark modules as one region (block.size = edge length in mm, the
  * quiet zone of block.quiet modules around it belongs to the footprint).
- * Returns { region, footprint, modules, module, version, content, error }.
+ * Round dots keep the three finder patterns solid. A logo (region in any
+ * frame, see buildModel) is fitted into a cleared middle; the code then
+ * uses error correction H.
+ * Returns { region, footprint, modules, module, version, content, level, error }.
  */
-export function qrBlock(block) {
+export function qrBlock(block, { logo = null } = {}) {
   const content = qrContent(block);
   if (!content) return { region: [], footprint: [], error: block.qrMode === 'wifi' ? 'Netzwerkname (SSID) fehlt.' : 'Kein Inhalt.' };
+  const withLogo = Boolean(logo && logo.length);
+  const level = withLogo ? 'H' : block.qrLevel;
   let matrix;
   try {
-    matrix = qrMatrix(content, block.qrLevel);
+    matrix = qrMatrix(content, level);
   } catch (err) {
     return { region: [], footprint: [], error: err.message };
   }
   const n = matrix.size;
   const m = block.size / n;
   const half = block.size / 2;
+  // Cleared middle for the logo: whole modules, centred.
+  let k = withLogo ? Math.round(n * block.qrLogoSize) : 0;
+  if (k && (n - k) % 2) k += 1;
+  const c0 = (n - k) / 2;
+  const cleared = (r, c) => k > 0 && r >= c0 && r < c0 + k && c >= c0 && c < c0 + k;
+  const finder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+  const dots = block.qrStyle === 'dots';
+  const dark = (r, c) => matrix.dark(r, c) && !cleared(r, c) && !(dots && !finder(r, c));
   // Runs of dark modules per row as rectangles.
   const rects = [];
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n;) {
-      if (!matrix.dark(r, c)) {
+      if (!dark(r, c)) {
         c++;
         continue;
       }
       let e = c;
-      while (e + 1 < n && matrix.dark(r, e + 1)) e++;
+      while (e + 1 < n && dark(r, e + 1)) e++;
       const x0 = -half + c * m;
       const x1 = -half + (e + 1) * m;
       const y1 = half - r * m;
@@ -66,7 +83,28 @@ export function qrBlock(block) {
   // round joins; square ones would leave the corners touching), so no
   // outline touches itself: clean meshes. Outer corners stay sharp.
   const eps = Math.min(0.02, m / 40);
-  const region = offset(offset(union(rects), eps), -eps);
+  let region = rects.length ? offset(offset(union(rects), eps), -eps) : [];
+  if (dots) {
+    const circles = [];
+    const rd = (m * block.qrDot) / 2;
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (matrix.dark(r, c) && !cleared(r, c) && !finder(r, c)) circles.push(circleRing(-half + (c + 0.5) * m, half - (r + 0.5) * m, rd));
+      }
+    }
+    region = union(region, circles);
+  }
+  if (withLogo) {
+    // Fitted into the cleared square, one module of light margin around it.
+    const b = regionBounds(logo);
+    const room = Math.max(k - 2, 1) * m;
+    const s = room / Math.max(b.maxX - b.minX, b.maxY - b.minY, 1e-9);
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    // Centre of the cleared square (the code is centred on the origin).
+    const mid = -half + (c0 + k / 2) * m;
+    region = union(region, transformRegion(logo, [s, 0, 0, s, mid - s * cx, -mid - s * cy]));
+  }
   const q = half + Math.max(0, Number(block.quiet) || 0) * m;
   const M = blockMatrix(block);
   return {
@@ -76,6 +114,7 @@ export function qrBlock(block) {
     module: m,
     version: matrix.version,
     content,
+    level,
   };
 }
 

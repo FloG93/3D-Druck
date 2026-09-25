@@ -8,7 +8,7 @@
 
 import { defaultDoc, normalizeDoc, createBlock } from '../core/document.js';
 import { buildModel } from '../core/model.js';
-import { FontLibrary, fontKey, isSymbolLike } from '../core/fonts.js';
+import { FontLibrary, fontKey, isSymbolLike, DEFAULT_FONT } from '../core/fonts.js';
 import { History } from '../../../shared/js/history.js';
 import { safeStorage } from '../../../shared/js/util.js';
 
@@ -114,7 +114,7 @@ export class App {
       extra.text = 'Text';
       if (lastText) extra.font = { ...lastText.font };
     } else {
-      size = kind === 'qr' ? 25 : 20;
+      size = kind === 'qr' ? 30 : 20;
     }
     const block = createBlock(kind, { ...extra, size, ...overrides });
     if (last) {
@@ -160,7 +160,11 @@ export class App {
 
   /** Builds the model now; missing fonts are loaded and trigger a rebuild. */
   build() {
-    for (const t of this.doc.texts) if (t.kind === 'text') this.ensureFont(t.font);
+    for (const t of this.doc.texts) {
+      if (t.kind === 'text') this.ensureFont(t.font);
+      // Symbols in a QR code are laid out with the default font.
+      else if (t.kind === 'qr' && t.qrLogo === 'symbol') this.ensureFont(DEFAULT_FONT);
+    }
     this.loadSymbolsFor(this.doc);
     this.model = buildModel(this.doc, (ref) => this.fonts.peek(ref), { symbolsLoading: this.symbolsLoading > 0 });
     this.emit('model', this.model);

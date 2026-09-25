@@ -163,3 +163,5 @@
 @media (max-width: 860px) {
   .side-switch { bottom: auto; top: 10px; }
 }
+
+.symbol-grid.chooser .symbol.active { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }

@@ -54,6 +54,31 @@ cases.qr_back_engraved_magnets = {
   back: { relief: 'inlay', depth: 0.6 },
   body: { thickness: 3.4 },
 };
+cases.qr_dots_logo_symbol = {
+  ...defaultDoc(),
+  texts: [{ kind: 'qr', qrText: 'https://flog93.github.io/3D-Druck/', size: 32, qrStyle: 'dots', qrLogo: 'symbol', qrLogoSymbol: '♥' }],
+  base: { shape: 'rect', padding: 3 },
+  mount: { type: 'none' },
+  body: { relief: 'flush', thickness: 2.4, height: 0.6 },
+  colors: { base: '#ffffff', text: '#000000' },
+};
+cases.qr_logo_graphic = {
+  ...defaultDoc(),
+  texts: [{
+    kind: 'qr',
+    qrMode: 'wifi',
+    wifiSsid: 'Café Sonnenschein',
+    wifiPassword: 'Kaffee&Kuchen!',
+    size: 34,
+    qrLogo: 'graphic',
+    qrLogoSize: 0.3,
+    qrLogoGraphic: parseSVG('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21h18v-2H3zM20 8h-2V5h2zm0-5H4v10a4 4 0 0 0 4 4h6a4 4 0 0 0 4-4v-3h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>', { name: 'tasse' }),
+  }],
+  base: { shape: 'rect', padding: 3 },
+  mount: { type: 'none' },
+  body: { relief: 'raised', thickness: 2.4, height: 1 },
+  colors: { base: '#ffffff', text: '#000000' },
+};
 cases.back_engraved = {
   ...defaultDoc(),
   texts: [{ text: 'Vorne', font: roboto, size: 10 }, { text: 'Hinten 123', font: roboto, size: 6, side: 'back' }],
@@ -91,7 +116,8 @@ for (const [name, input] of Object.entries(cases)) {
   for (const block of doc.texts.filter((b) => b.kind === 'qr')) {
     const back = block.side === 'back';
     const dark = back ? model.backText : model.text;
-    qr[`${name}_${block.id}`] = { content: qrContent(block), dark: ringsOf(dark, back) };
+    const lay = model.layouts.find((l) => l.block === block);
+    qr[`${name}_${block.id}`] = { content: qrContent(block), module: lay.qr.module, dark: ringsOf(dark, back) };
   }
   if (model.missing.size || model.pending) throw new Error(`${name}: fehlende Zeichen ${[...model.missing].join(' ')}`);
   let meshes = modelMeshes(model);

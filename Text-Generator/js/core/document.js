@@ -16,6 +16,8 @@ export const BLOCK_KINDS = ['text', 'qr', 'graphic'];
 export const SIDES = ['front', 'back'];
 export const QR_MODES = ['link', 'wifi'];
 export const WIFI_SECURITY = ['WPA', 'WEP', 'nopass'];
+export const QR_STYLES = ['square', 'dots'];
+export const QR_LOGOS = ['none', 'symbol', 'graphic'];
 export const BACK_RELIEFS = ['engraved', 'inlay'];
 
 // Shared by all kinds of blocks.
@@ -52,8 +54,14 @@ export const QR_DEFAULTS = {
   wifiSecurity: 'WPA',
   wifiHidden: false,
   qrLevel: 'M',
-  size: 25, // edge length in mm (without quiet zone)
+  size: 30, // edge length in mm (without quiet zone)
   quiet: 2, // light margin in modules, part of the plate
+  qrStyle: 'square', // or 'dots' (round modules, finder patterns stay solid)
+  qrDot: 0.8, // dot diameter as a fraction of the module
+  qrLogo: 'none', // 'symbol' or 'graphic' in the middle (error correction H)
+  qrLogoSymbol: '♥',
+  qrLogoGraphic: null,
+  qrLogoSize: 0.24, // width of the cleared middle as a fraction of the code
   ...COMMON,
 };
 
@@ -222,6 +230,12 @@ export function normalizeText(t) {
     out.qrLevel = oneOf(QR_LEVELS, out.qrLevel, 'M');
     out.size = clamp(out.size, 3, 1000);
     out.quiet = Math.round(clamp(out.quiet, 0, 8));
+    out.qrStyle = oneOf(QR_STYLES, out.qrStyle, 'square');
+    out.qrDot = clamp(out.qrDot, 0.5, 1);
+    out.qrLogo = oneOf(QR_LOGOS, out.qrLogo, 'none');
+    out.qrLogoSymbol = [...out.qrLogoSymbol].slice(0, 2).join('');
+    out.qrLogoGraphic = normalizeGraphic(isObject(t) ? t.qrLogoGraphic : null);
+    out.qrLogoSize = clamp(out.qrLogoSize, 0.1, 0.35);
   } else {
     out.graphic = normalizeGraphic(isObject(t) ? t.graphic : null);
     out.size = clamp(out.size, 0.5, 1000);

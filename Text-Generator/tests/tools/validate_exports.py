@@ -5,7 +5,8 @@ mode, every part must be a manifold, correctly oriented mesh with the
 expected volume; Metadata/model_settings.config must assign the right AMS
 filament to each part (read by Bambu Studio / OrcaSlicer). STL: size and
 triangle count consistent. QR codes: the top view (dark lettering on a
-light plate) is rendered at several resolutions and read with zxing-cpp.
+light plate) is rendered with 5, 8 and 16 pixels per module (a phone
+camera from far to near) and read with zxing-cpp.
 
 Usage: python Text-Generator/tests/tools/validate_exports.py <folder>
        (pip install lib3mf zxing-cpp pillow)
@@ -72,7 +73,8 @@ for name, q in json.load(open(os.path.join(OUT, 'qr.json'), encoding='utf-8')).i
     quiet = 6.0
     x0, y1 = min(xs) - quiet, max(ys) + quiet
     decoded = {}
-    for scale in (4, 8, 16):
+    for px in (5, 8, 16):
+        scale = px / q['module']
         size = (int((max(xs) - min(xs) + 2 * quiet) * scale), int((max(ys) - min(ys) + 2 * quiet) * scale))
         img = Image.new('L', size, 255)
         draw = ImageDraw.Draw(img)
@@ -83,7 +85,7 @@ for name, q in json.load(open(os.path.join(OUT, 'qr.json'), encoding='utf-8')).i
             pts = [((r[i] - x0) * scale, (y1 - r[i + 1]) * scale) for i in range(0, len(r), 2)]
             draw.polygon(pts, fill=0 if area(r) > 0 else 255)
         found = [b.text for b in zxingcpp.read_barcodes(img) if b.format == zxingcpp.BarcodeFormat.QRCode]
-        decoded[scale] = found[0] if found else None
+        decoded[px] = found[0] if found else None
     ok = all(v == q['content'] for v in decoded.values())
     print(f"QR  {name[:34]:34} {'OK' if ok else 'FAIL'}  {q['content'][:40]!r} {'' if ok else decoded}")
     if not ok:

@@ -6,7 +6,7 @@ import {
 } from '../../../shared/js/controls.js';
 import { icon } from '../../../shared/js/icons.js';
 import { BUILTIN_FONTS, fontKey, SYMBOLS } from '../core/fonts.js';
-import { KIND_NAMES } from '../core/model.js';
+import { KIND_NAMES, QR_MIN_MODULE } from '../core/model.js';
 import { parseSVG } from '../core/svgimport.js';
 
 // Suggested colours for texts with their own filament.
@@ -198,9 +198,42 @@ function textFields(panel, app, id, index, bind, openFontDialog) {
   ];
 }
 
+/** Grid of the built-in symbols; the chosen one is highlighted. */
+function symbolChooser(panel, bind, visible) {
+  const grid = h('div', { class: 'symbol-grid chooser', role: 'group', 'aria-label': 'Symbol für die Mitte' });
+  const buttons = [...SYMBOLS].map((ch) => {
+    const b = h('button', { type: 'button', class: 'symbol', title: `„${ch}“`, 'data-ch': ch }, ch);
+    b.addEventListener('click', () => {
+      bind.set(ch);
+      panel.app.commit();
+    });
+    grid.append(b);
+    return b;
+  });
+  const el = h('div', { class: 'ctl wide' }, grid);
+  return panel.register(el, () => {
+    const cur = bind.get();
+    for (const b of buttons) b.classList.toggle('active', b.dataset.ch === cur);
+  }, visible);
+}
+
 function qrFields(panel, app, id, bind) {
-  const wifi = () => app.text(id)?.qrMode === 'wifi';
+  const block = () => app.text(id);
+  const wifi = () => block()?.qrMode === 'wifi';
+  const logo = () => (block()?.qrLogo || 'none') !== 'none';
   const info = () => app.model?.layouts.find((l) => l.block.id === id)?.qr;
+  const pickLogo = h('button', { type: 'button', class: 'btn small', html: `${icon('open')}<span>SVG laden …</span>` });
+  pickLogo.addEventListener('click', async () => {
+    const g = await pickGraphic(app);
+    if (!g) return;
+    app.setText(id, 'qrLogoGraphic', g);
+    app.commit();
+  });
+  const logoName = h('span', { class: 'graphic-name' });
+  const logoRow = panel.register(h('div', { class: 'ctl wide graphic-row' }, logoName, pickLogo), () => {
+    const g = block()?.qrLogoGraphic;
+    logoName.textContent = g ? (g.name || 'Grafik') : 'Noch keine Grafik';
+  }, () => block()?.qrLogo === 'graphic');
   return [
     segmented(panel, { label: 'Inhalt', bind: bind('qrMode'), options: [['link', 'Link / Text'], ['wifi', 'WLAN']] }),
     textArea(panel, { bind: bind('qrText'), label: 'Inhalt des QR-Codes', placeholder: 'https://… oder beliebiger Text', symbols: false, visible: () => !wifi() }),
@@ -211,14 +244,22 @@ function qrFields(panel, app, id, bind) {
     note(panel, 'Handy-Kamera auf das Schild – schon ist man im WLAN. Das Passwort steht auch im Teilen-Link und in Projektdateien.', wifi),
     grid(
       numberField(panel, { label: 'Größe', title: 'Kantenlänge des QR-Codes (ohne Rand)', unit: 'mm', bind: bind('size'), min: 3, max: 1000, step: 1, digits: 1, slider: [10, 80] }),
-      selectField(panel, { label: 'Fehlerkorrektur', title: 'Mehr Korrektur: robuster, aber mehr (kleinere) Module', bind: bind('qrLevel'), options: [['L', 'L – 7 %'], ['M', 'M – 15 %'], ['Q', 'Q – 25 %'], ['H', 'H – 30 %']], wide: false }),
+      selectField(panel, { label: 'Fehlerkorrektur', title: 'Mehr Korrektur: robuster, aber mehr (kleinere) Module', bind: bind('qrLevel'), options: [['L', 'L – 7 %'], ['M', 'M – 15 %'], ['Q', 'Q – 25 %'], ['H', 'H – 30 %']], wide: false, visible: () => !logo() }),
     ),
+    segmented(panel, { label: 'Stil', bind: bind('qrStyle'), options: [['square', 'Quadrate'], ['dots', 'Runde Punkte']] }),
+    numberField(panel, { label: 'Punktgröße', title: 'Durchmesser der Punkte, bezogen auf ein Modul (die Positionsmarken bleiben massiv)', unit: '%', percent: true, bind: bind('qrDot'), min: 0.5, max: 1, step: 5, digits: 0, slider: [0.5, 1], wide: true, visible: () => block()?.qrStyle === 'dots' }),
+    segmented(panel, { label: 'Logo in der Mitte', bind: bind('qrLogo'), options: [['none', 'Keins'], ['symbol', 'Symbol'], ['graphic', 'Grafik']] }),
+    symbolChooser(panel, bind('qrLogoSymbol'), () => block()?.qrLogo === 'symbol'),
+    logoRow,
+    numberField(panel, { label: 'Logo-Größe', title: 'Breite der freien Mitte, bezogen auf den Code', unit: '%', percent: true, bind: bind('qrLogoSize'), min: 0.1, max: 0.35, step: 1, digits: 0, slider: [0.1, 0.35], wide: true, visible: logo }),
+    note(panel, 'Mit Logo nutzt der Code die höchste Fehlerkorrektur (H) – dadurch mehr und kleinere Module; den Code dafür etwas größer machen.', logo),
     note(panel, () => {
       const q = info();
       if (!q) return '';
-      const ok = !app.doc.check.minStroke || q.module >= app.doc.check.minStroke;
+      const min = Math.max(QR_MIN_MODULE, app.doc.check.minStroke || 0);
+      const ok = q.module >= min - 1e-9;
       return `${q.modules} × ${q.modules} Module à <span class="${ok ? 'ok' : 'warn'}">${de(q.module, 2)} mm</span>`
-        + (ok ? ' – gut druckbar.' : ` – größer machen (Module ab ${de(app.doc.check.minStroke, 1)} mm).`)
+        + (ok ? ' – gut druckbar.' : ` – größer machen (Module ab ${de(min, 1)} mm).`)
         + ' Am besten dunkel auf hell, bündig oder erhaben in zweiter Farbe.';
     }),
   ];
