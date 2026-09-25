@@ -86,6 +86,7 @@ Tipp: *Black Ops One* ist selbst schon eine Schablonenschrift und braucht keine 
 - **Schrift:** erhaben, vertieft oder **bündig** in einer zweiten Farbe; der **Rand** wird zu Ringen oben und unten. Als **Schablone** wird ein **Windlicht** daraus – die Schrift ist aus der Wand geschnitten, Stege halten das Innere von O, A und B. Nur ein LED-Teelicht hineinstellen: PLA wird schon bei etwa 60 °C weich.
 - **Drucken:** stehend auf dem Boden, ohne Stützen. Wand 2–2,4 mm für Stifthalter und Zahnputzbecher, 1,6 mm für ein Windlicht. Befestigung, Magnete, Rückseite und Stempel entfallen beim Becher.
 - **SVG und DXF** enthalten die abgewickelte Wand 1:1 – beim konischen Becher als **Kreisring-Ausschnitt**, der genau um die Wand passt. Das ergibt eine Vorlage für Folie oder Papier.
+- **STEP** enthält den Becher als exakte Körper: Wand, Schrift, Kontur und Ringe liegen auf echten Zylinder- bzw. Kegelflächen, waagerechte Kanten der Buchstaben sind Kreisbögen, senkrechte gerade Linien, alle anderen B-Splines (höchstens 0,4 µm von der gebogenen Kurve entfernt). Der Boden reicht bis an die Innenseite der Wand – in Fusion 360 mit *Ändern → Kombinieren* zu einem Körper verbinden.
 
 ## Weg nach Fusion 360
 
@@ -95,11 +96,12 @@ Ganz ohne Skript – drei Wege, je nachdem, was entstehen soll:
 | --- | --- | --- |
 | **Schrift auf ein eigenes Teil** (Gehäuse, Deckel, Schild) | **SVG → Nur Schrift** | *Einfügen → SVG einfügen*, die Fläche wählen und die Schrift mit dem Manipulator platzieren – die Größe stimmt ohne Skalieren. Dann *Extrusion*: die Profile der Buchstaben wählen, *Verbinden* für erhabene, *Ausschneiden* für vertiefte Schrift. |
 | **Schrift auf Rundungen** (Zylinder, Griff, Becher) | **SVG → Nur Schrift** – beim Becher die abgewickelte Wand | *Konstruieren → Tangentiale Ebene* an die runde Fläche legen und das SVG darauf einfügen, dann *Erstellen → Prägen*: die Profile und die runde Fläche wählen, erhaben oder vertieft, Tiefe eintragen. |
-| **Das ganze Teil weiterbauen** | **STEP** | *Datei → Öffnen → Von meinem Computer öffnen* – oder die Datei in den Datenbereich hochladen und per Rechtsklick *In aktuelles Design einfügen*. Jedes Teil (Platte, Schrift, Rand, Kontur, Rückseite, Griff, Puzzle-Teile) ist ein eigenes Bauteil mit Körpern in seiner Farbe, jeder Buchstabe ein Körper. Mit *Ändern → Kombinieren* verbinden oder abziehen. |
+| **Das ganze Teil weiterbauen** | **STEP** | *Datei → Öffnen → Von meinem Computer öffnen* – oder die Datei in den Datenbereich hochladen und per Rechtsklick *In aktuelles Design einfügen*. Jedes Teil (Platte, Schrift, Rand, Kontur, Rückseite, Griff, Puzzle-Teile, beim Becher auch der Boden) ist ein eigenes Bauteil mit Körpern in seiner Farbe, jeder Buchstabe ein Körper. Mit *Ändern → Kombinieren* verbinden oder abziehen. |
 
 - **Glatte Kurven:** SVG und STEP beschreiben die Umrisse mit Linien und kubischen Kurven statt tausender kleiner Striche – höchstens 0,01 mm vom Druckmodell entfernt. Ecken bleiben Ecken, Rundungen fließen ineinander; ein Buchstabe hat wenige Seitenflächen, Senkungen sind echte Kegel, der Griff eines Stempels ist ein Drehkörper.
 - **Richtige Größe:** Fusion 360 liest SVG-Dateien mit 96 dpi und übergeht die mm-Angabe. Das SVG ist deshalb in Pixeln mit 96 dpi gezeichnet und trägt zusätzlich Breite und Höhe in mm – Fusion und alle anderen Programme kommen auf dieselbe Größe.
-- **Grenzen:** Die schrägen Flanken eines Stempels sind im STEP wie im 3MF feine Stufen. Becher gibt es nicht als STEP – dort einen Zylinder in Fusion zeichnen und die Wand-SVG aufprägen, oder die 3MF/STL als Netz einfügen.
+- **Becher** kommen im STEP fertig gebogen an: Wand und Schrift auf echten Zylinder- bzw. Kegelflächen, die Naht hinten geschlossen.
+- **Grenzen:** Die schrägen Flanken eines Stempels sind im STEP wie im 3MF feine Stufen.
 
 ## Exporte
 
@@ -108,11 +110,11 @@ Ganz ohne Skript – drei Wege, je nachdem, was entstehen soll:
 | **3MF** | Bambu Studio, OrcaSlicer: Teile mit Filament-Zuordnung (mehrfarbig), Schrift oben oder unten; Teile einer großen Schablone und der Griff eines Stempels als eigene Objekte |
 | **STL** | jeder Slicer, einfarbig (alle Teile in einer Datei), Schrift oben oder unten |
 | **SVG** | Draufsicht 1:1 mit glatten Kurven – *Farbig*, *Umrisse* (Laser, Plotter, Fusion 360) oder *Nur Schrift* (Skizze auf einem eigenen Teil); nur die Vorderseite, beim Becher die abgewickelte Wand |
-| **STEP** | Für Fusion 360 und jedes CAD-Programm: je Teil ein Bauteil mit Körpern in seiner Farbe, exakte Kurven (AP214); nicht für Becher |
+| **STEP** | Für Fusion 360 und jedes CAD-Programm: je Teil ein Bauteil mit Körpern in seiner Farbe, exakte Kurven (AP214); Becher auf Zylinder- und Kegelflächen |
 | **DXF** | Umrisse 1:1 in mm als geschlossene Linienzüge (AutoCAD R12) – je Teil eine Ebene (PLATTE, SCHRIFT, RAND, KONTUR, RUECKSEITE), bei Schablonen alle Schnittlinien auf SCHNITT, beim Becher die abgewickelte Wand; für Laser, Schneideplotter und CAD (*Einfügen → DXF einfügen*) |
 | **PNG** | Bild der Draufsicht |
 
-Jede Datei wird automatisch geprüft: Alle Teile sind geschlossene Körper (jede Kante genau zweimal, richtig orientiert), das Volumen stimmt mit der Rechnung überein, die 3MF liest die Referenzbibliothek [lib3mf](https://github.com/3MFConsortium/lib3mf) des 3MF-Konsortiums im strikten Modus ohne Warnung, jede DXF liest und prüft [ezdxf](https://ezdxf.mozman.at/) (geschlossene Linienzüge, Fläche je Ebene nachgerechnet), jede STEP-Datei liest [OpenCascade](https://dev.opencascade.org/) wie ein CAD-Programm (je Teil ein Bauteil mit Namen und Farbe, jeder Körper gültig, Volumen wie im Druckmodell), und jeder QR-Code wird mit 5, 8 und 16 Pixeln pro Modul gerastert und mit zxing-cpp gelesen – auch mit runden Punkten und Logo.
+Jede Datei wird automatisch geprüft: Alle Teile sind geschlossene Körper (jede Kante genau zweimal, richtig orientiert), das Volumen stimmt mit der Rechnung überein, die 3MF liest die Referenzbibliothek [lib3mf](https://github.com/3MFConsortium/lib3mf) des 3MF-Konsortiums im strikten Modus ohne Warnung, jede DXF liest und prüft [ezdxf](https://ezdxf.mozman.at/) (geschlossene Linienzüge, Fläche je Ebene nachgerechnet), jede STEP-Datei liest [OpenCascade](https://dev.opencascade.org/) wie ein CAD-Programm (je Teil ein Bauteil mit Namen und Farbe, jeder Körper gültig, Volumen und Schwerpunkt wie im Druckmodell), und jeder QR-Code wird mit 5, 8 und 16 Pixeln pro Modul gerastert und mit zxing-cpp gelesen – auch mit runden Punkten und Logo.
 
 ## Lokal starten
 
@@ -128,13 +130,14 @@ Text-Generator/
                             Stempel (Griff), Becher (Kegel, Abwicklung), glatte Kurven aus Polygonen,
                             Modell, Vorlagen
   js/export/                Netze (geschlossene Körper, beim Becher um die Achse gebogen),
-                            Triangulierung, 3MF, ZIP, STL, SVG, DXF, STEP (exakte Körper)
+                            Triangulierung, 3MF, ZIP, STL, SVG, DXF, STEP (exakte Körper,
+                            Becher auf Zylinder- und Kegelflächen)
   js/ui/                    Oberfläche, 2D-Ansicht, 3D-Vorschau, Schriftauswahl, Dialoge
                             (Design und Bedienelemente aus ../shared/)
   fonts/                    eingebaute Schriften und Symbole (SIL OFL 1.1)
   tests/tools/              Export-Prüfung, Bau der Symbol-Schrift (build_symbols.py)
   vendor/                   opentype.js, Clipper
-  tests/                    Tests (Node) und Export-Prüfung (Python: lib3mf, ezdxf, zxing)
+  tests/                    Tests (Node) und Export-Prüfung (Python: lib3mf, ezdxf, OpenCascade, zxing)
   docs/                     Bilder für diese Anleitung
 ```
 

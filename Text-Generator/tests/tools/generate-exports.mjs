@@ -9,10 +9,11 @@ import { buildModel } from '../../js/core/model.js';
 import { qrContent } from '../../js/core/blocks.js';
 import { parseSVG } from '../../js/core/svgimport.js';
 import { BUILTIN_PRESETS } from '../../js/core/presets.js';
-import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL } from '../../js/export/mesh.js';
+import { modelMeshes, flipMeshes, spreadPieces, toBinarySTL, partMesh } from '../../js/export/mesh.js';
 import { export3MF } from '../../js/export/threemf.js';
 import { exportDXF, dxfLayers } from '../../js/export/dxf.js';
 import { exportSTEP, stepSupported } from '../../js/export/step.js';
+import { cupFloor } from '../../js/export/step-cup.js';
 import { seriesModels, seriesMeshes, seriesSheet } from '../../js/export/series.js';
 import { regionArea, regionRings } from '../../js/core/geometry.js';
 import { loadFonts } from '../helpers.mjs';
@@ -140,6 +141,16 @@ cases.cup_engraved = {
   cup: { diameter: 60, height: 80, bottom: 2 },
   body: { relief: 'engraved', thickness: 2.4, height: 1 },
 };
+// A conical cup, wider at the top, lettering inlaid with a contour and
+// rings: in the STEP the wall steps down under the rings.
+cases.cup_flush_contour_rings = {
+  ...defaultDoc(),
+  texts: [{ text: 'Anna', font: { id: 'pacifico', family: 'Pacifico', weight: 400, style: 'normal' }, size: 18 }],
+  base: { shape: 'cup' },
+  mount: { type: 'none' },
+  cup: { diameter: 70, height: 80, bottom: 2.4, conical: true, top: 90 },
+  body: { relief: 'flush', thickness: 2.4, height: 0.6, outline: true, border: true },
+};
 // A conical lantern, narrower at the top: SVG and DXF as a ring sector.
 cases.cup_conical_lantern = {
   ...defaultDoc(),
@@ -206,7 +217,7 @@ for (const [name, input] of Object.entries(cases)) {
   const dxf = Object.fromEntries(dxfLayers(model).map(([layer, , region]) => [layer, regionArea(region)]));
   // One 3MF object, or one per stencil piece plus a stamp's handle.
   const objects = new Set(model.parts.map((p) => p.object ?? p.piece ?? 0)).size;
-  // STEP: exact bodies, one component per part (not for cups).
+  // STEP: exact bodies, one component per part.
   const step = stepSupported(model);
   if (step) fs.writeFileSync(`${OUT}/${name}.step`, exportSTEP(model, { title }));
   // STEP outlines are curves within 0.01 mm of the polygons: the volume may
@@ -218,9 +229,29 @@ for (const [name, input] of Object.entries(cases)) {
   }, 0);
   const stepTol = (p) => 0.012 * p.solids.reduce((t, sd) => (sd.kind === 'handle' ? t : t + outline(sd.region) * (sd.z1 - sd.z0)
     + (sd.pockets ? outline(sd.pockets) * sd.depth : 0) + (sd.bottom || []).reduce((b, x) => b + outline(x.region) * x.depth, 0)), 0);
+  // In the STEP a cup's floor only reaches the inside of the wall (in the
+  // mesh halfway into it): a frustum.
+  const floor = cupFloor(model);
+  const stepVolume = (p) => (p.id === 'floor' && floor ? (Math.PI * (floor.z1 - floor.z0) * (floor.r0 ** 2 + floor.r0 * floor.r1 + floor.r1 ** 2)) / 3 : p.volume);
+  // Centre of mass of a part's mesh, where the STEP body must be too (not
+  // for a stamp's handle, placed by the assembly, or a cup's floor).
+  const centroid = (p) => {
+    if (p.object === 'handle' || (p.id === 'floor' && floor)) return null;
+    const { positions: q, triangles } = partMesh(p);
+    let v = 0;
+    const c = [0, 0, 0];
+    for (let i = 0; i < triangles * 9; i += 9) {
+      const t = (q[i] * (q[i + 4] * q[i + 8] - q[i + 5] * q[i + 7]) - q[i + 1] * (q[i + 3] * q[i + 8] - q[i + 5] * q[i + 6]) + q[i + 2] * (q[i + 3] * q[i + 7] - q[i + 4] * q[i + 6])) / 6;
+      v += t;
+      for (let k = 0; k < 3; k++) c[k] += (t * (q[i + k] + q[i + 3 + k] + q[i + 6 + k])) / 4;
+    }
+    return c.map((x) => x / v);
+  };
   summary[name] = {
     title, objects, dxf, step,
-    parts: model.parts.map((p) => ({ name: p.name, slot: p.slot, volume: p.volume, color: p.color, stepTol: stepTol(p) })),
+    parts: model.parts.map((p) => ({
+      name: p.name, slot: p.slot, volume: p.volume, color: p.color, stepTol: stepTol(p), stepVolume: stepVolume(p), centroid: step ? centroid(p) : null,
+    })),
   };
 }
 fs.writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 1));

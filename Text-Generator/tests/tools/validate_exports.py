@@ -11,7 +11,8 @@ QR codes: the top view (dark lettering on a light plate) is rendered with
 5, 8 and 16 pixels per module (a phone camera from far to near) and read
 with zxing-cpp. STEP: read with OpenCascade (as Fusion 360 and FreeCAD do):
 one component per part with its name, every solid valid (BRepCheck) and
-coloured, the volume of each part as in the model.
+coloured, the volume and the centre of mass of each part as in the model
+(cups included: the wall on cylinders and cones).
 
 Usage: python Text-Generator/tests/tools/validate_exports.py <folder>
        (pip install lib3mf ezdxf zxing-cpp pillow cadquery-ocp)
@@ -174,6 +175,7 @@ for name, exp in summary.items():
         shapes.GetReferredShape_s(comps.Value(i + 1), ref)
         solids = invalid = faces = coloured = 0
         vol = 0.0
+        moment = [0.0, 0.0, 0.0]
         col = Quantity_Color()
         ex = TopExp_Explorer(shapes.GetShape_s(ref), TopAbs_SOLID)
         while ex.More():
@@ -183,6 +185,8 @@ for name, exp in summary.items():
             p = GProp_GProps()
             BRepGProp.VolumeProperties_s(s, p)
             vol += p.Mass()
+            g = p.CentreOfMass()
+            moment = [moment[0] + g.X() * p.Mass(), moment[1] + g.Y() * p.Mass(), moment[2] + g.Z() * p.Mass()]
             fe = TopExp_Explorer(s, TopAbs_FACE)
             while fe.More():
                 faces += 1
@@ -190,10 +194,12 @@ for name, exp in summary.items():
             coloured += 1 if colors.GetColor(s, XCAFDoc_ColorType.XCAFDoc_ColorSurf, col) else 0
             ex.Next()
         # Exact curves within 0.01 mm and true circles: close to the mesh.
+        expected = e.get('stepVolume', e['volume'])
+        shift = max(abs(m / vol - c) for m, c in zip(moment, e['centroid'])) if e.get('centroid') and vol else 0.0
         good = (label_name(ref) == e['name'] and solids > 0 and invalid == 0 and coloured == solids
-                and abs(vol - e['volume']) <= max(5e-3 * e['volume'], e['stepTol'], 0.5))
+                and abs(vol - expected) <= max(5e-3 * expected, e['stepTol'], 0.5) and shift < 0.05)
         ok = ok and good
-        line.append(f"{e['name']} {solids}×{faces}F {vol:.1f} mm³ {'OK' if good else 'FAIL'}")
+        line.append(f"{e['name']} {solids}×{faces}F {vol:.1f} mm³{f' Δ{shift:.3f}' if shift >= 0.005 else ''} {'OK' if good else 'FAIL'}")
     print(f"STEP {exp['title'][:21]:21} " + ' | '.join(line) + ('  OK' if ok else '  FAIL'))
     if not ok:
         fails.append(f'{name}.step')

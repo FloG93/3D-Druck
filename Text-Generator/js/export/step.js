@@ -13,75 +13,19 @@
 // rings counter-clockwise, holes clockwise, seen from +Z); a wall face is
 //   bottom_i(+), vertical_{i+1}(+), top_i(-), vertical_i(-)
 // and every edge is used exactly twice with opposite orientation.
-// Cups (bent walls) have no exact body here.
+// Cups (bent walls): see step-cup.js.
 
-import { StepWriter, real, str } from '../../../shared/js/step.js';
+import { real, str } from '../../../shared/js/step.js';
 import { union, difference, ringArea, containsPoint } from '../core/geometry.js';
 import { fitRing, reverseSegments } from '../core/curves.js';
+import { BrepWriter, EPS, canonical, slabsOf, insidePoint, ringRuns, slabRings, edgeLoop } from './brep.js';
+import { cupContext, cupBodies } from './step-cup.js';
 
-const EPS = 1e-9;
-
-/** A ring as its points, starting at the lowest-left one, counter-clockwise. */
-function canonical(r) {
-  const n = r.length / 2;
-  let m = 0;
-  for (let i = 1; i < n; i++) {
-    if (r[2 * i] < r[2 * m] || (r[2 * i] === r[2 * m] && r[2 * i + 1] < r[2 * m + 1])) m = i;
-  }
-  const ccw = ringArea(r) > 0;
-  const out = [];
-  for (let k = 0; k < n; k++) {
-    const i = ccw ? (m + k) % n : (m - k + n) % n;
-    out.push(r[2 * i], r[2 * i + 1]);
-  }
-  return { key: out.join(','), ring: out, ccw };
-}
-
-/** Slabs of constant cross-section: [{ z0, z1, region }] from bottom to top. */
-function slabsOf(s) {
-  const steps = s.steps || (s.step ? [s.step] : []);
-  const pockets = s.pockets && s.pockets.length && s.depth > 0 ? s.pockets : null;
-  const bottom = (s.bottom || []).filter((b) => b.region.length && b.depth > 0);
-  const levels = [s.z0, s.z1, ...steps.map((st) => st.z), ...(pockets ? [s.z1 - s.depth] : []), ...bottom.map((b) => s.z0 + b.depth)];
-  const zs = [...new Set(levels.filter((z) => z >= s.z0 - EPS && z <= s.z1 + EPS))].sort((a, b) => a - b)
-    .filter((z, i, all) => i === 0 || z - all[i - 1] > 1e-7);
-  const slabs = [];
-  for (let i = 0; i + 1 < zs.length; i++) {
-    const zm = (zs[i] + zs[i + 1]) / 2;
-    let region = s.region;
-    for (const st of steps) if (zm > st.z) region = st.region;
-    const cut = [];
-    if (pockets && zm > s.z1 - s.depth) cut.push(...pockets);
-    for (const b of bottom) if (zm < s.z0 + b.depth) cut.push(...b.region);
-    slabs.push({ z0: zs[i], z1: zs[i + 1], region: cut.length ? difference(region, cut) : union(region) });
-  }
-  return slabs;
-}
-
-class BrepWriter extends StepWriter {
-  line(p, q) {
-    const dx = q[0] - p[0];
-    const dy = q[1] - p[1];
-    const dz = q[2] - p[2];
-    const l = Math.hypot(dx, dy, dz);
-    return this.add(`LINE('',${this.pt(...p)},${this.add(`VECTOR('',${this.dir(dx / l, dy / l, dz / l)},${real(l)})`)})`);
-  }
-
-  /** Curve of a fitted segment at height z. */
-  segCurve(seg, z) {
-    const [p, ...rest] = seg.p;
-    if (seg.type === 'line') return this.line([p[0], p[1], z], [rest[0][0], rest[0][1], z]);
-    const pts = seg.p.map((c) => this.pt(c[0], c[1], z));
-    return this.add(`B_SPLINE_CURVE_WITH_KNOTS('',3,(${pts.join(',')}),.UNSPECIFIED.,.F.,.F.,(4,4),(0.,1.),.UNSPECIFIED.)`);
-  }
-
-  edge(v0, v1, curve) {
-    return this.add(`EDGE_CURVE('',${v0},${v1},${curve},.T.)`);
-  }
-
-  plane(z, up) {
-    return this.add(`PLANE('',${this.axis(0, 0, z, [0, 0, up ? 1 : -1], [1, 0, 0])})`);
-  }
+/** Curve of a fitted segment at height z. */
+function segCurve(w, seg, z) {
+  const [p, ...rest] = seg.p;
+  if (seg.type === 'line') return w.line([p[0], p[1], z], [rest[0][0], rest[0][1], z]);
+  return w.bspline(seg.p.map((c) => [c[0], c[1], z]), [4, 4], [0, 1]);
 }
 
 /**
@@ -90,7 +34,7 @@ class BrepWriter extends StepWriter {
  */
 function ringEdges(w, segs, z) {
   const vertices = segs.map((s) => w.vertex(s.p[0][0], s.p[0][1], z));
-  const edges = segs.map((s, i) => w.edge(vertices[i], vertices[(i + 1) % segs.length], w.segCurve(s, z)));
+  const edges = segs.map((s, i) => w.edge(vertices[i], vertices[(i + 1) % segs.length], segCurve(w, s, z)));
   return { vertices, edges };
 }
 
@@ -111,16 +55,11 @@ function wallFaces(w, segs, bottom, top, z0, z1) {
       const uy = (q[1] - p[1]) / l;
       surface = w.add(`PLANE('',${w.axis(p[0], p[1], z0, [uy, -ux, 0], [ux, uy, 0])})`);
     } else {
-      surface = w.add(`SURFACE_OF_LINEAR_EXTRUSION('',${w.segCurve(s, z0)},${w.add(`VECTOR('',${w.dir(0, 0, 1)},${real(z1 - z0)})`)})`);
+      surface = w.add(`SURFACE_OF_LINEAR_EXTRUSION('',${segCurve(w, s, z0)},${w.add(`VECTOR('',${w.dir(0, 0, 1)},${real(z1 - z0)})`)})`);
     }
     faces.push(w.face(loop, [], surface, true));
   }
   return faces;
-}
-
-/** A loop of stored edges; forward keeps their direction. */
-function edgeLoop(w, edges, forward) {
-  return forward ? w.loop(edges.map((e) => w.oe(e, true))) : w.loop([...edges].reverse().map((e) => w.oe(e, false)));
 }
 
 /**
@@ -165,15 +104,6 @@ function roundHole(w, c, z0, z1) {
   };
 }
 
-/** A point just inside a shape (beside the middle of its first edge). */
-function insidePoint(shape) {
-  const r = shape.outer;
-  const [x0, y0, x1, y1] = [r[0], r[1], r[2], r[3]];
-  const l = Math.hypot(x1 - x0, y1 - y0) || 1;
-  const k = ringArea(r) > 0 ? 1e-4 : -1e-4; // to the left of a counter-clockwise ring
-  return [(x0 + x1) / 2 - ((y1 - y0) / l) * k, (y0 + y1) / 2 + ((x1 - x0) / l) * k];
-}
-
 /**
  * A flat solid of the model as bodies: one MANIFOLD_SOLID_BREP per
  * connected piece (every letter of the lettering on its own).
@@ -192,19 +122,8 @@ function flatSolids(w, s, name) {
 
 /** One connected flat solid (its slabs) as a MANIFOLD_SOLID_BREP. */
 function flatSolid(w, s, slabs, name) {
-  // Every outline of every slab, oriented with the material on its left.
-  const rings = new Map();
-  slabs.forEach((sl, i) => {
-    for (const shape of sl.region) {
-      for (const [r, outer] of [[shape.outer, true], ...shape.holes.map((h) => [h, false])]) {
-        const c = canonical(r);
-        let info = rings.get(c.key);
-        if (!info) rings.set(c.key, info = { ring: c.ring, uses: [] });
-        info.uses.push({ slab: i, ccw: outer });
-      }
-    }
-  });
-  // Walls: an outline runs up as long as it lasts in the same direction.
+  // Walls: every outline of every slab (material on its left) runs up as
+  // long as it lasts in the same direction.
   const faces = [];
   const at = new Map(); // height → key → { edges, ccw }
   const store = (z, key, entry) => {
@@ -212,22 +131,15 @@ function flatSolid(w, s, slabs, name) {
     if (at.get(z).has(key)) throw new Error('Umriss doppelt an einer Stufe');
     at.get(z).set(key, entry);
   };
-  for (const [key, info] of rings) {
+  for (const [key, info] of slabRings(slabs)) {
     const segsCCW = fitRing(info.ring);
-    let k = 0;
-    while (k < info.uses.length) {
-      let e = k;
-      while (e + 1 < info.uses.length && info.uses[e + 1].slab === info.uses[e].slab + 1 && info.uses[e + 1].ccw === info.uses[k].ccw) e++;
-      const { ccw } = info.uses[k];
-      const z0 = slabs[info.uses[k].slab].z0;
-      const z1 = slabs[info.uses[e].slab].z1;
+    for (const { ccw, z0, z1 } of ringRuns(info.uses, slabs)) {
       const segs = ccw ? segsCCW : reverseSegments(segsCCW);
       const bottom = ringEdges(w, segs, z0);
       const top = ringEdges(w, segs, z1);
       faces.push(...wallFaces(w, segs, bottom, top, z0, z1));
       store(z0, key, { edges: bottom.edges, ccw });
       store(z1, key, { edges: top.edges, ccw });
-      k = e + 1;
     }
   }
   // Round holes (countersunk screws): through all slabs.
@@ -315,9 +227,9 @@ const rgb = (hex) => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => c / 255);
 };
 
-/** Can this model be written as exact bodies? (Not a bent cup.) */
+/** Is there anything to write as exact bodies? */
 export function stepSupported(model) {
-  return Boolean(model.parts.length && !model.cup);
+  return model.parts.length > 0;
 }
 
 /**
@@ -325,7 +237,7 @@ export function stepSupported(model) {
  * and coloured like the parts. opts: { title }.
  */
 export function exportSTEP(model, { title = '' } = {}) {
-  if (!stepSupported(model)) throw new Error('Für Becher gibt es keine STEP-Datei.');
+  if (!stepSupported(model)) throw new Error('Nichts zu exportieren.');
   const name = title || model.doc.name || 'Text';
   const w = new BrepWriter();
   const appContext = w.add("APPLICATION_CONTEXT('core data for automotive mechanical design processes')");
@@ -348,9 +260,12 @@ export function exportSTEP(model, { title = '' } = {}) {
   const topOrigin = w.axis(0, 0, 0, [0, 0, 1], [1, 0, 0]);
   const children = [];
   const styled = [];
+  // A cup: every part bent around the axis, on shared cones.
+  const cup = model.cup ? cupContext(w, model) : null;
   for (const part of model.parts) {
     const handle = part.solids[0]?.kind === 'handle' ? part.solids[0] : null;
-    const bodies = handle ? [handleSolid(w, handle, part.name)] : part.solids.flatMap((s) => flatSolids(w, s, part.name));
+    const bodies = cup ? cupBodies(w, cup, model, part)
+      : handle ? [handleSolid(w, handle, part.name)] : part.solids.flatMap((s) => flatSolids(w, s, part.name));
     if (!bodies.length) continue;
     const comp = product(part.name);
     const origin = w.axis(0, 0, 0, [0, 0, 1], [1, 0, 0]);

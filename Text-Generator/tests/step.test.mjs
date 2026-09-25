@@ -8,6 +8,7 @@ import { normalizeDoc } from '../js/core/document.js';
 import { buildModel } from '../js/core/model.js';
 import { BUILTIN_PRESETS } from '../js/core/presets.js';
 import { exportSTEP, stepSupported } from '../js/export/step.js';
+import { bender, bentCurve, cupFloor } from '../js/export/step-cup.js';
 import { str } from '../../shared/js/step.js';
 import { loadFonts } from './helpers.mjs';
 
@@ -86,12 +87,78 @@ test('STEP: every letter a body, pockets, countersinks, stamp handle, stencil pi
   }
 });
 
-test('STEP: names beyond ASCII, no STEP for cups', () => {
+test('STEP: names beyond ASCII', () => {
   assert.equal(str('Rückseite'), "'R\\X2\\00FC\\X0\\ckseite'");
   assert.equal(str("Tim's"), "'Tim''s'");
   const m = preset('Hundemarke');
   assert.match(exportSTEP(m), /PRODUCT\('R\\X2\\00FC\\X0\\ckseite'/);
-  const cup = preset('Stifthalter');
-  assert.equal(stepSupported(cup), false);
-  assert.throws(() => exportSTEP(cup), /Becher/);
+});
+
+test('STEP of a cup: wall, lettering, border and floor bent around the axis', () => {
+  for (const name of ['Stifthalter', 'Zahnputzbecher', 'Windlicht', 'Übertopf']) {
+    const m = preset(name);
+    assert.ok(stepSupported(m), name);
+    const entities = parse(exportSTEP(m, { title: name }));
+    const all = [...entities.values()];
+    const count = (type) => all.filter((e) => e.type === type).length;
+    // One component per part, every body closed.
+    const products = all.filter((e) => e.type === 'PRODUCT').map((e) => e.args.split(',')[0]);
+    assert.deepEqual(products, [str(name), ...m.parts.map((p) => str(p.name))], name);
+    assert.equal(checkShells(entities), count('MANIFOLD_SOLID_BREP'), name);
+    // Faces at a constant distance from the wall lie on cylinders or cones,
+    // the side faces of letters are ruled B-spline surfaces.
+    if (m.cup.conical) assert.ok(count('CONICAL_SURFACE') > 0 && count('CYLINDRICAL_SURFACE') === 0, name);
+    else assert.ok(count('CYLINDRICAL_SURFACE') > 0 && count('CONICAL_SURFACE') === 0, name);
+    assert.ok(count('B_SPLINE_SURFACE_WITH_KNOTS') > 0, name);
+    // The wall closes at the back: faces all the way round use their seam
+    // line twice, once in each direction.
+    const refs = (s) => [...s.matchAll(/#\d+/g)].map((x) => x[0]);
+    const seamFaces = all.filter((e) => e.type === 'EDGE_LOOP').filter((loop) => {
+      const edges = refs(loop.args).map((oe) => refs(entities.get(oe).args)[0]);
+      return new Set(edges).size < edges.length;
+    });
+    assert.ok(seamFaces.length >= 2, `${name}: ${seamFaces.length} faces with a seam`);
+  }
+});
+
+test('STEP of a cup: bent outlines within 0.4 µm, floor up to the inside of the wall', () => {
+  // A cubic of the design bent onto a cone: the B-spline stays on the curve.
+  const bend = bender({ seam: [-120, 120], radius: 240 / (2 * Math.PI), t: 2.4, height: 90, sin: 0.2, cos: Math.sqrt(1 - 0.04) });
+  const seg = { type: 'cubic', p: [[-30, -20], [-8, 25], [10, -30], [35, 18]] };
+  const { points, mults, knots } = bentCurve(bend, seg, 3.6);
+  assert.ok(knots.length > 2, 'several pieces');
+  const U = knots.flatMap((k, i) => Array(mults[i]).fill(k));
+  const deBoor = (s) => {
+    let k = 3;
+    while (k < points.length - 1 && s >= U[k + 1]) k++;
+    const d = points.slice(k - 3, k + 1).map((p) => [...p]);
+    for (let r = 1; r <= 3; r++) {
+      for (let j = 3; j >= r; j--) {
+        const a = (s - U[j + k - 3]) / (U[j + 1 + k - r] - U[j + k - 3]);
+        d[j] = d[j].map((v, c) => (1 - a) * d[j - 1][c] + a * v);
+      }
+    }
+    return d[3];
+  };
+  let worst = 0;
+  for (let i = 0; i <= 400; i++) {
+    const s = i / 400;
+    const u = 1 - s;
+    const b = [u * u * u, 3 * u * u * s, 3 * u * s * s, s * s * s];
+    const x = b.reduce((v, w, j) => v + w * seg.p[j][0], 0);
+    const y = b.reduce((v, w, j) => v + w * seg.p[j][1], 0);
+    const exact = bend.point(x, y, 3.6);
+    worst = Math.max(worst, Math.hypot(...deBoor(s).map((v, c) => v - exact[c])));
+  }
+  assert.ok(worst <= 4.5e-7, `${worst} mm`);
+  // The floor: a disc touching the inside of the wall.
+  for (const name of ['Stifthalter', 'Übertopf']) {
+    const m = preset(name);
+    const { shape, wall, floor } = m.cup;
+    const f = cupFloor(m);
+    const inside = (z) => shape.r0 + (z * shape.sin) / shape.cos - wall / shape.cos;
+    assert.ok(Math.abs(f.z0) < 1e-9 && Math.abs(f.z1 - floor) < 1e-9, name);
+    // (The wall's height is rounded to the 0.1 µm grid of the outlines.)
+    assert.ok(Math.abs(f.r0 - inside(0)) < 1e-5 && Math.abs(f.r1 - inside(floor)) < 1e-5, name);
+  }
 });

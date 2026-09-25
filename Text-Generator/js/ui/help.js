@@ -63,7 +63,7 @@ const HTML = `
     <ul>
       <li><b>Schrift auf ein eigenes Teil:</b> Export <b>SVG → Nur Schrift</b>, in Fusion <i>Einfügen → SVG einfügen</i> auf die Fläche – die Größe stimmt ohne Skalieren –, dann <i>Extrusion</i> mit <i>Verbinden</i> (erhaben) oder <i>Ausschneiden</i> (vertieft).</li>
       <li><b>Schrift auf Rundungen:</b> das SVG auf eine <i>tangentiale Ebene</i> an der runden Fläche legen und mit <i>Erstellen → Prägen</i> um die Fläche legen. Beim Becher enthält das SVG die abgewickelte Wand.</li>
-      <li><b>Das ganze Teil weiterbauen:</b> Export <b>STEP</b>, in Fusion <i>Datei → Öffnen</i> oder hochladen und <i>In aktuelles Design einfügen</i>. Jedes Teil ist ein eigenes Bauteil mit Körpern in seiner Farbe, die Umrisse sind exakte Kurven (höchstens 0,01 mm vom Druckmodell entfernt).</li>
+      <li><b>Das ganze Teil weiterbauen:</b> Export <b>STEP</b>, in Fusion <i>Datei → Öffnen</i> oder hochladen und <i>In aktuelles Design einfügen</i>. Jedes Teil ist ein eigenes Bauteil mit Körpern in seiner Farbe, die Umrisse sind exakte Kurven (höchstens 0,01 mm vom Druckmodell entfernt). Auch Becher: Wand und Schrift liegen auf echten Zylinder- bzw. Kegelflächen.</li>
     </ul>
 
     <h3>Tipps für den Druck</h3>
