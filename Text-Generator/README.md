@@ -72,7 +72,7 @@ Tipp: *Black Ops One* ist selbst schon eine Schablonenschrift und braucht keine 
   | Keks & Fondant | 4 mm | 2,5 mm erhaben | 10° schräg | 1,5 mm |
   | Ton, Seife, Leder | 4 mm | 2 mm erhaben | 15° schräg | 1,2 mm |
 
-  **Schräge Flanken** machen die Buchstaben zur Platte hin breiter: stabiler, und sie lösen sich leichter aus Teig, Ton oder Seife. Vertiefte Schrift geht auch (für einen erhabenen Abdruck). Im 3MF sind die Flanken feine Stufen (0,25 mm, feiner als die Schichten), im STEP echte Schrägen – siehe *Weg nach Fusion 360*.
+  **Schräge Flanken** machen die Buchstaben zur Platte hin breiter: stabiler, und sie lösen sich leichter aus Teig, Ton oder Seife. Vertiefte Schrift geht auch (für einen erhabenen Abdruck). Im 3MF sind die Flanken feine Stufen (je etwa 0,25 mm hoch), im STEP echte Schrägen – siehe *Weg nach Fusion 360*.
 - **Griff:** ein eigenes Objekt im 3MF, kopfüber und ohne Stützen gedruckt, Höhe einstellbar. Sein eckiger Zapfen steckt in einer Tasche auf der Rückseite des Stempels und kann sich nicht drehen; 0,15 mm **Spiel** je Seite machen ihn stramm, ein Tropfen Sekundenkleber sichert ihn. Ohne Griff bleibt die Rückseite glatt, z. B. zum Aufkleben auf einen Holzklotz.
 - **Lebensmittel:** PETG oder PLA mit Lebensmittelfreigabe nehmen, vor dem Stempeln mit Mehl bestäuben, nicht in die Spülmaschine. Ton und Seife: den Stempel leicht einölen oder mit Speisestärke bestäuben, Leder vorher anfeuchten.
 
