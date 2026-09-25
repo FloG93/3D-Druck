@@ -15,8 +15,8 @@ const HTML = `
     <ol>
       <li><b>Vorlage</b> wählen oder direkt den <b>Text</b> eintippen. Mehrere Zeilen mit Enter, <b>♥ Symbol</b> fügt Herz, Stern, Pfote &amp; Co. ein. Unter dem Text kommen weitere Blöcke dazu: <b>+ Text</b>, <b>+ QR-Code</b> (Link oder WLAN) und <b>+ Grafik</b> (eigene SVG-Datei, z. B. ein Logo).</li>
       <li><b>Schrift</b>: sechs Schriften sind eingebaut, unter <i>Mehr …</i> gibt es alle Google Fonts mit Vorschau.</li>
-      <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
-      <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe – oder als <b>Schablone</b> ausgeschnitten.</li>
+      <li><b>Grundform</b> (Kontur, Rechteck, Kapsel, Oval, Kreis, <b>Becher</b> oder ohne Platte) und <b>Befestigung</b>: Öse, Loch, Schlitz für Band oder Clip, zwei Schraublöcher mit Senkung. Dazu auf Wunsch <b>Magnet-Taschen</b> hinten.</li>
+      <li><b>Körper (3D)</b>: Schrift erhaben, vertieft oder <b>bündig</b> (zweifarbig mit glatter Oberfläche), Rand und <b>Kontur um die Schrift</b> als dritte Farbe – als <b>Schablone</b> ausgeschnitten oder als <b>Stempel</b> gespiegelt.</li>
       <li><b>Exportieren</b> als 3MF: Platte, Schrift, Kontur und Rand sind eigene Teile mit fester Filament-Nummer – in Bambu Studio nur noch die AMS-Farben wählen. Bei flacher Oberseite wahlweise mit der Schrift nach unten. Für Laser, Schneideplotter und Fusion 360 gibt es <b>SVG</b> und <b>DXF</b>.</li>
     </ol>
 
@@ -27,6 +27,28 @@ const HTML = `
       <li>Zu schmale Stege und Stellen zwischen Buchstaben werden orange markiert. Genug <b>Randabstand</b> lassen (10 mm und mehr), damit kein Sprühnebel danebengeht.</li>
       <li>Größer als das Druckbett? Die Schablone wird in <b>Teile mit Puzzle-Verbindern</b> (Schwalbenschwanz) zerlegt. Die Nähte laufen möglichst zwischen den Buchstaben, die Verbinder sitzen im vollen Material, 0,2 mm <b>Spiel</b> lassen die Teile ineinandergleiten. Die Nummern in der Vorschau zeigen die Reihenfolge; im 3MF ist jedes Teil ein eigenes Objekt. Das Druckbett wählst du unter <i>Prüfung</i>.</li>
       <li>Für einen Laser oder Schneideplotter mit Schablonenfolie: <b>DXF</b> oder <b>SVG (Umrisse)</b> – alle Schnittlinien am Stück.</li>
+    </ul>
+
+    <h3>Bogen und Kreis</h3>
+    <ul>
+      <li>Bei jedem Text unter <b>Form</b>: <b>Bogen</b> biegt den Text an seiner Stelle – die <b>Biegung</b> in Grad, positiv nach oben gewölbt, negativ nach unten.</li>
+      <li><b>Kreis oben</b> und <b>Kreis unten</b> setzen den Text auf einen Kreis um seine Position (gestrichelt in der Vorschau). Für Münzen und Siegel: ein Text oben, einer unten, beide mit derselben Position und demselben <b>Radius</b> – der untere bleibt von links nach rechts lesbar. Vorlage: <i>Glücksmünze</i>.</li>
+    </ul>
+
+    <h3>Stempel</h3>
+    <ul>
+      <li><b>Körper → Stempel</b> spiegelt die Schrift, damit der Abdruck richtig herum steht. <b>Tinte</b>: 1,5 mm erhaben. <b>Keks &amp; Fondant</b>: 2,5 mm mit schrägen Flanken. <b>Ton, Seife, Leder</b>: tiefe Prägung mit schrägen Flanken.</li>
+      <li><b>Schräge Flanken</b> machen die Buchstaben zur Platte hin breiter – stabiler, und sie lösen sich leichter aus Teig, Ton oder Seife.</li>
+      <li>Der <b>Griff</b> ist ein eigenes Teil und wird kopfüber ohne Stützen gedruckt. Sein eckiger Zapfen steckt in der Tasche auf der Rückseite und kann sich nicht drehen; 0,15 mm <b>Spiel</b> machen ihn stramm, ein Tropfen Kleber sichert ihn.</li>
+      <li>Für Lebensmittel PETG oder PLA mit Lebensmittelfreigabe nehmen, vor dem Stempeln mit Mehl bestäuben, nicht in die Spülmaschine.</li>
+    </ul>
+
+    <h3>Becher und Stifthalter</h3>
+    <ul>
+      <li><b>Grundform → Becher</b>: Durchmesser, Höhe und Boden eingeben. Die Vorschau zeigt die Wand <b>abgewickelt</b>: die Mitte ist vorne, links und rechts treffen sich hinten an der Naht (dort bleiben 1,5 mm frei). Schiebst du einen Text nach links oder rechts, wandert er um den Becher herum.</li>
+      <li>In der 3D-Ansicht steht der fertige Becher. Schrift erhaben, vertieft oder <b>bündig</b> in zweiter Farbe; der <b>Rand</b> wird zu Ringen oben und unten.</li>
+      <li>Als <b>Schablone</b> wird ein <b>Windlicht</b> daraus: die Schrift ist aus der Wand geschnitten. Nur ein LED-Teelicht hineinstellen – PLA wird schon bei etwa 60 °C weich.</li>
+      <li>Gedruckt wird stehend, ohne Stützen. Wand 2–2,4 mm für Stifthalter, 1,6 mm fürs Windlicht.</li>
     </ul>
 
     <h3>Tipps für den Druck</h3>
