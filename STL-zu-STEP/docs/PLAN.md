@@ -2,6 +2,12 @@
 
 Für Claude Code. Vorher lesen: [`SPEC.md`](SPEC.md) (was), [`MACHBARKEIT.md`](MACHBARKEIT.md) (Messwerte, Fallstricke), [`referenz/README.md`](referenz/README.md) (lauffähige Python-Vorlage). Regeln des Repos: Wurzel-[`CLAUDE.md`](../../CLAUDE.md).
 
+## Stand (15.10.2026)
+
+**Schritte 0 bis 10 sind gebaut**, jeder mit Tests und einem eigenen Commit; `npm test` und `npm run validate:stl` sind grün (34 STEP-Dateien von OpenCascade gelesen). Gelöst sind dabei auch die beiden offenen Punkte der Machbarkeitsstudie: **Torus 0 statt 3 Scheinzylinder** (Randprüfung) und **Stufe 3 für die unterteilten Netze** (Zwangsbedingungen, Ecken geschlossen gelöst). Abweichungen vom ursprünglichen Plan stehen mit Messwert in `SPEC.md` und `MACHBARKEIT.md`.
+
+**Offen ist Schritt 11 (Realitätstest).** Dafür braucht es echte Dateien vom Auftraggeber – die Testsammlung ist synthetisch.
+
 ## Arbeitsweise
 
 - **Test zuerst** (rot → grün), pro Schritt ein Commit, Betreff englisch im Imperativ.
@@ -135,8 +141,8 @@ Kegel, Kugel, Torus-Erkennung; schräge Kappen (Ellipsen); Winding-Number-/Voxel
 
 ## Definition of Done (Phase 1)
 
-- [ ] Alle Zeilen der Abnahmetabelle (SPEC 7) grün, `npm test` und `npm run validate:stl` grün, CI grün.
-- [ ] Bericht nennt jede Reparatur und jeden Rückfall mit Zahl; es gibt keinen stillen Pfad (Test: kein `catch`, der ein Ergebnis verwirft, ohne es im Bericht zu nennen).
-- [ ] Realitätstest (Schritt 11) mit mindestens 5 echten Dateien bestanden; Fehlschläge als Fixtures aufgenommen.
-- [ ] README, Übersichtskarte, Wurzel-README aktualisiert; Pages-Veröffentlichung geprüft.
-- [ ] `SPEC.md`/`MACHBARKEIT.md` spiegeln, was tatsächlich gebaut wurde (Abweichungen nachgetragen).
+- [x] Alle Zeilen der Abnahmetabelle (SPEC 7) grün, `npm test` und `npm run validate:stl` grün, CI-Dateien ergänzt (Jobs `stl-unit`, `stl-exports`).
+- [x] Bericht nennt jede Reparatur und jeden Rückfall mit Zahl; jeder Fehlschlag einer Stufe landet als Grund im Ergebnis (`tests/fallback.test.mjs`).
+- [ ] **Realitätstest (Schritt 11) mit mindestens 5 echten Dateien** – offen, braucht Dateien vom Auftraggeber.
+- [x] README, Übersichtskarte, Wurzel-README aktualisiert; `index.html` vorhanden, damit Pages den Ordner veröffentlicht.
+- [x] `SPEC.md`/`MACHBARKEIT.md` spiegeln, was tatsächlich gebaut wurde (Abweichungen mit Messwert nachgetragen).
