@@ -9,7 +9,9 @@ Per file (summary.json maps a file name to its expectations, see ../fixtures/exp
     Radii are matched within `toleranz_radius_prozent` (default 0.05 %), because a radius fitted from a subdivided
     mesh carries the chord height: measured -0.18 % on platte-unterteilt2.stl (see docs/MACHBARKEIT.md section 2)
   - `max_flaechen`: upper bound for the number of faces (guards against the faceted fallback sneaking in)
-  - `stufe` (1 faceted, 2 planar, 3 cylinders): the exporter reports which tier it delivered; checked against `mindest_stufe`
+  - `stufe` (1 faceted, 2 planar, 3 cylinders): the exporter reports which tier it delivered
+  - `erwarte_offen`: the file is an open shell on purpose (tier "offen"). Then it must NOT contain a solid, but has to be
+    readable and carry faces; the volume is not checked, because an open shell has none
 
 Usage: python STL-zu-STEP/tests/tools/validate_step.py <folder with .step files and summary.json>
        (pip install cadquery-ocp; written against OCP 8)
@@ -59,6 +61,13 @@ def main(folder):
         got = inspect(path) if os.path.exists(path) else None
         if got is None: fails.append(f'{name}: STEP missing or unreadable'); continue
         bad = []
+        if exp.get('erwarte_offen'):
+            # An open shell on purpose: readable, with faces, and no solid.
+            if got['solids'] != 0: bad.append(f"open shell expected, but {got['solids']} solid(s) found")
+            if got['faces'] == 0: bad.append('open shell without faces')
+            print(('FAIL ' if bad else 'ok   ') + f"{name}: open shell, {got['faces']} faces ({got['planes']} planar, {dict(got['cyl'])}, {got['other']} other)")
+            fails += [f'{name}: {b}' for b in bad]
+            continue
         if not got['valid']: bad.append('BRepCheck: invalid solid')
         if 'koerper' in exp and got['solids'] != exp['koerper']: bad.append(f"solids {got['solids']} != {exp['koerper']}")
         if 'volumen' in exp:

@@ -88,5 +88,12 @@ for (const name of Object.keys(all)) {
   console.log(`${name.padEnd(32)} Stufe ${info.tiers.join('+').padEnd(5)} ${String(info.faces).padStart(5)} Flächen  ${String(Math.round(info.bytes / 1024)).padStart(5)} kB${extra.length ? `  + ${extra.join(', ')}` : ''}`);
 }
 
+// The open shell as well: forced through the whole fallback chain, so the
+// validator sees that an open result is readable and is NOT a solid (PLAN
+// step 9).
+const openResult = convert(loadFixture('platte.stl'), 'platte.stl', { forceFail: { tier3: true, tier2: true, tier1: true } });
+const openInfo = write('platte.stl', openResult, all['platte.stl'], { tier: 'offen', forced: true });
+console.log(`${'platte.stl (erzwungen offen)'.padEnd(32)} Stufe offen ${String(openInfo.faces).padStart(5)} Flächen  ${String(Math.round(openInfo.bytes / 1024)).padStart(5)} kB`);
+
 fs.writeFileSync(path.join(OUT, 'summary.json'), `${JSON.stringify(summary, null, 1)}\n`);
 console.log(`\n${Object.keys(summary).length} STEP-Dateien nach ${OUT}`);
