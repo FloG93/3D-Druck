@@ -30,7 +30,7 @@ Vorbereitet liegen bereits: `tests/fixtures/` (23 Dateien + `expected.json`, erz
 
 **Tests zuerst** (`tests/parse.test.mjs`): `wuerfel.stl`, `wuerfel-ascii.stl`, `wuerfel-quads.obj` → je 12 Dreiecke, Volumen 1000; binäre Datei, die mit `solid` beginnt, wird als binär erkannt (Längenformel); Datei mit NaN → Dreieck verworfen + Warnung; Bounding-Box-Diagonale < 1 → Einheitenwarnung; abgeschnittene Datei → klarer Fehler, kein Absturz.
 **Implementierung:** SPEC 5.1. Rückgabe `{ tris: Float64Array, warnings, unit }`.
-**Abnahme:** alle drei Würfel-Formate liefern identische Dreiecksmengen (bis auf Reihenfolge).
+**Abnahme:** alle drei Würfel-Formate liefern dieselbe Punktmenge, Dreieckszahl und dasselbe Volumen (zu den Dreiecken selbst siehe Nachtrag in SPEC 5.1).
 
 ## Schritt 2 – `core/weld.js`, `core/meshops.js`
 

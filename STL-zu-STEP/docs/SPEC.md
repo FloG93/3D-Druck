@@ -100,6 +100,7 @@ Alle Zahlen stammen aus den Messungen in `MACHBARKEIT.md`; als Konstanten in ein
 - OBJ: `v`, `f` (auch `a/b/c`, `a//c`, negative Indizes), Vielecke per Fächer in Dreiecke. Vierecke ergeben 2 Dreiecke.
 - Warnungen: Bounding-Box-Diagonale < 1 oder > 5000 (Einheit prüfen: Zoll? Meter?), NaN/Inf-Werte (Dreieck verwerfen, zählen), leere Datei.
 - float32 → Float64.
+- *Nachtrag 15.10.2026:* Die drei Würfel-Dateien liefern **nicht** dieselben Dreiecke: die Vierecke im OBJ werden entlang der anderen Diagonale geteilt als bei der Tessellierung der STL-Dateien. Gleich sind Punktmenge (8 Ecken), Dreieckszahl und Volumen – das prüft `tests/parse.test.mjs`.
 
 ### 5.2 weld.js
 Räumliches Hash-Gitter, Zellgröße = `tol`; `tol = 1e-5 · bboxDiagonale` (Standard). Messung: Punkte, die je Dreieck um 2e-5 verrutscht sind, werden damit wieder eins (264 Punkte wie bei der sauberen Datei). Union-Find über Nachbarzellen; Repräsentant = erster Punkt.
