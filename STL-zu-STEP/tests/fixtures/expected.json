@@ -1,0 +1,781 @@
+{
+ "platte.stl": {
+  "dreiecke": 532,
+  "netzvolumen": 7401.8573,
+  "beschreibung": "Platte 40x20x10, vier Rundungen r=2, zwei Bohrungen r=3 (sauber)",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "platte-unterteilt1.stl": {
+  "dreiecke": 2128,
+  "netzvolumen": 7401.8573,
+  "beschreibung": "wie platte.stl, jede Kante einmal halbiert (Mittelpunkte auf Sehnen)",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "toleranz_radius_prozent": 0.2,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "platte-unterteilt2.stl": {
+  "dreiecke": 8512,
+  "netzvolumen": 7401.8573,
+  "beschreibung": "zweimal halbiert",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "toleranz_radius_prozent": 0.3,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-verrutscht.stl": {
+  "dreiecke": 532,
+  "netzvolumen": 7401.8471,
+  "beschreibung": "jeder Dreieckspunkt einzeln um ~2e-5 verrutscht (ungeschweisste Punkte)",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-loch.stl": {
+  "dreiecke": 529,
+  "netzvolumen": 7418.6342,
+  "beschreibung": "3 Dreiecke fehlen",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-gedreht.stl": {
+  "dreiecke": 532,
+  "netzvolumen": 7162.3686,
+  "beschreibung": "5% der Dreiecke mit falscher Umlaufrichtung",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-doppelt.stl": {
+  "dreiecke": 542,
+  "netzvolumen": 7420.2234,
+  "beschreibung": "10 Dreiecke doppelt",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-nulldreiecke.stl": {
+  "dreiecke": 537,
+  "netzvolumen": 7401.8573,
+  "beschreibung": "5 Dreiecke ohne Flaeche (Punkte auf einer Geraden)",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-tkreuzung.stl": {
+  "dreiecke": 533,
+  "netzvolumen": 7401.8573,
+  "beschreibung": "Kante eines Dreiecks geteilt, Nachbar nicht (T-Kreuzung)",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-invertiert.stl": {
+  "dreiecke": 532,
+  "netzvolumen": -7401.8573,
+  "beschreibung": "alle Dreiecke verkehrt herum (Netzvolumen negativ)",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ]
+ },
+ "defekt-zweikoerper.stl": {
+  "dreiecke": 1064,
+  "netzvolumen": 14803.7146,
+  "beschreibung": "zwei sich durchdringende Koerper in einer Datei",
+  "volumen": 7400.177,
+  "koerper": 2,
+  "erwartung": "zwei Solids; Gesamtvolumen = Summe der Netzvolumina, nicht Vereinigung"
+ },
+ "defekt-nichtmanifold.stl": {
+  "dreiecke": 533,
+  "netzvolumen": 7401.8573,
+  "beschreibung": "eine Kante gehoert zu drei Dreiecken",
+  "volumen": 7400.177,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": [
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 2.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ],
+  "erwartung": "das ueberzaehlige Dreieck entfernen, Rest unveraendert"
+ },
+ "kugel.stl": {
+  "dreiecke": 1662,
+  "netzvolumen": 2126.4726,
+  "beschreibung": "Kugel r=8",
+  "volumen": 2144.6606,
+  "koerper": 1,
+  "zylinder": []
+ },
+ "kegel.stl": {
+  "dreiecke": 314,
+  "netzvolumen": 540.1906,
+  "beschreibung": "Kegelstumpf r1=6 r2=2 h=10",
+  "volumen": 544.5427,
+  "koerper": 1,
+  "zylinder": []
+ },
+ "torus.stl": {
+  "dreiecke": 3780,
+  "netzvolumen": 627.2585,
+  "beschreibung": "Torus R=8 r=2",
+  "volumen": 631.6547,
+  "koerper": 1,
+  "zylinder": [],
+  "bekannte_schwaeche": "Prototyp erkennt 3 Scheinzylinder; Ziel 0"
+ },
+ "loch-sechseck.stl": {
+  "dreiecke": 40,
+  "netzvolumen": 7766.1732,
+  "beschreibung": "Platte mit 6-eckigem Loch (Vieleck oder grober Zylinder?)",
+  "volumen": 7766.1731,
+  "koerper": 1,
+  "zylinder": []
+ },
+ "loch-achteck.stl": {
+  "dreiecke": 48,
+  "netzvolumen": 7745.4415,
+  "beschreibung": "Platte mit 8-eckigem Loch (Vieleck oder grober Zylinder?)",
+  "volumen": 7745.4416,
+  "koerper": 1,
+  "zylinder": [
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ],
+  "vertrauen": "unsicher"
+ },
+ "loch-zwoelfeck.stl": {
+  "dreiecke": 64,
+  "netzvolumen": 7730.0,
+  "beschreibung": "Platte mit 12-eckigem Loch (Vieleck oder grober Zylinder?)",
+  "volumen": 7730.0,
+  "koerper": 1,
+  "zylinder": [
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ],
+  "vertrauen": "sicher"
+ },
+ "loch-sechzehneck.stl": {
+  "dreiecke": 80,
+  "netzvolumen": 7724.4679,
+  "beschreibung": "Platte mit 16-eckigem Loch (Vieleck oder grober Zylinder?)",
+  "volumen": 7724.4679,
+  "koerper": 1,
+  "zylinder": [
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ],
+  "vertrauen": "sicher"
+ },
+ "loch-zweiunddreissigeck.stl": {
+  "dreiecke": 144,
+  "netzvolumen": 7719.0699,
+  "beschreibung": "Platte mit 32-eckigem Loch (Vieleck oder grober Zylinder?)",
+  "volumen": 7719.0699,
+  "koerper": 1,
+  "zylinder": [
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ],
+  "vertrauen": "sicher"
+ },
+ "wuerfel.stl": {
+  "dreiecke": 12,
+  "netzvolumen": 1000.0,
+  "beschreibung": "Wuerfel 10 mm",
+  "volumen": 1000.0,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": []
+ },
+ "wuerfel-ascii.stl": {
+  "dreiecke": 12,
+  "beschreibung": "derselbe Wuerfel als ASCII-STL",
+  "volumen": 1000.0,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": []
+ },
+ "wuerfel-quads.obj": {
+  "dreiecke": 12,
+  "beschreibung": "Wuerfel als OBJ mit sechs Vierecken (muessen zu 12 Dreiecken werden)",
+  "volumen": 1000.0,
+  "koerper": 1,
+  "ebenen": 6,
+  "zylinder": []
+ }
+}
