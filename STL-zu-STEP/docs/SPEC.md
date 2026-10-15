@@ -147,8 +147,8 @@ Gemessene Stückzahlen (JS, geheiltes Netz; identisch zur Referenz `probe4.py`):
 In dieser Reihenfolge, jede einzeln abschaltbar und im Bericht gezählt:
 1. **Parallel/Koaxial:** Achsen mit Winkel < 0.5° parallel setzen; Mittellinien < 0.01·r zusammenlegen.
 2. **Rechtwinklig:** Ebenen mit Normale < 0.5° neben der Achsrichtung exakt ⟂/∥ zur Achse setzen.
-3. **Tangential:** Wandebene mit Normale ⟂ Achse und Abstand zur Achse `|d − r| < 0.01·r` → Ebene so verschieben, dass `d = r` exakt (Rundung/Wand).
-4. **Eckpunkte** auf den Schnitt der Nachbarmodelle rücken (abwechselnde Projektion, 200 Schritte; Referenz `referenz/recon.py::snap_corners`). Bei tangentialen Paaren Winkel direkt aus der Ebenennormale setzen (alternierende Projektion konvergiert dort langsam).
+3. **Tangential:** Wandebene mit Normale ⟂ Achse und Abstand zur Achse `|d − r| < 0.01·r` → **Achse** so verschieben, dass `d = r` exakt (bei zwei unabhängigen Wandnormalen ein 2×2-System, sonst Verschiebung längs der Normale). *Nachtrag 15.10.2026:* Ursprünglich sollte die **Ebene** wandern; gemessen blieben damit 8 der 16 Ecken der Platte um 1e-7 daneben, weil eine Wand zwei Rundungen trägt und nur die erste exakt tangiert werden kann. Die Wand ist außerdem die besser bestimmte Fläche (viele Punkte).
+4. **Eckpunkte** auf den Schnitt der Nachbarmodelle rücken. Wo ein Muster passt, **geschlossen gelöst** (`solveCorner`): drei Ebenen = 3×3-System, {Zylinder, Kappe ⟂ Achse, tangentiale Wand} = Kappenhöhe auf der Berührlinie. Sonst abwechselnde Projektion, 200 Schritte (Referenz `referenz/recon.py::snap_corners`). *Gemessen:* geschlossen 0 bzw. 1e-15 Restfehler, alternierende Projektion 1e-8 nach 200 Runden.
 5. **Optional, nur mit Zustimmung:** Radius auf runden Wert einrasten (Schritt `0.05 mm` bzw. 1/64 Zoll), wenn Abweichung `≤ uncertainty`.
 
 *Messung:* Ohne 1–3 schließen die Rundungen unterteilter Netze nicht (Abstand ~4e-4 zwischen Wandebene und Zylinder). Mit ihnen ist Stufe 3 Ziel für `platte-unterteilt1/2.stl`.
@@ -182,6 +182,8 @@ Schwellen als Optionen, Standard:
 | Volumen Brep ↔ Netz (Brep-Volumen analytisch mit Bogenstücken berechnen) | `≤ 1 %` | Sehnenfehler ≤ 0,3 % gemessen; 1 % fängt verlorene Körper und Fehlbau |
 | Größter Abstand: Netzpunkte ↔ Brep-Fläche ihrer Region | `≤ max(1e-3·diag, 3·uncertainty)` | Erkennungsfehler |
 | Anzahl Flächen vs. Stufe | Stufe 3 darf nicht mehr Flächen haben als Stufe 2 | Schutz vor versehentlichem Rückfall |
+
+*Nachtrag 15.10.2026:* Die letzte Zeile ist **keine** Prüfung in `verify.js`, sondern ein Test über die ganze Testsammlung (`tests/exact.test.mjs`). Grund: Die Stufen werden von oben nach unten probiert – wenn Stufe 3 geprüft wird, ist Stufe 2 noch nicht gebaut, und wenn Stufe 2 geprüft wird, ist Stufe 3 schon durchgefallen. Der Test baut für jede Datei alle drei Stufen und verlangt `Flächen(3) ≤ Flächen(2) ≤ Flächen(1)`.
 
 Unabhängig von `verify.js` prüft **CI** das geschriebene STEP mit OpenCascade (`tests/tools/validate_step.py`).
 

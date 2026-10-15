@@ -133,9 +133,15 @@ add('kegel.stl', tessellate(cone), beschreibung='Kegelstumpf r1=6 r2=2 h=10', vo
 torus = BRepPrimAPI_MakeTorus(8.0, 2.0).Shape()
 add('torus.stl', tessellate(torus), beschreibung='Torus R=8 r=2', volumen=round(volume(torus), 4), koerper=1, zylinder=[], bekannte_schwaeche='Prototyp erkennt 3 Scheinzylinder; Ziel 0')
 
+# A recognised cylinder changes the volume: the bore is then round, not a polygon prism.
+AS_CYLINDER = round(8000 - np.pi * 3.0 ** 2 * 10, 4)
+AS_CYLINDER_NOTE = ('Vieleck oder Zylinder ist aus den Daten nicht entscheidbar: wird das Loch als Zylinder r=3 '
+                    'erkannt, hat der Koerper das Volumen volumen_als_zylinder (Platte 40x20x10 minus pi*9*10), '
+                    'sonst volumen (Vieleck-Prisma).')
 for k, label in ((6, 'sechseck'), (8, 'achteck'), (12, 'zwoelfeck'), (16, 'sechzehneck'), (32, 'zweiunddreissigeck')):
     s = plate_with_polygon_hole(k)
     info = dict(zylinder=[]) if k == 6 else (dict(zylinder=[dict(r=3.0, achse=[0, 0, 1])], vertrauen='unsicher') if k == 8 else dict(zylinder=[dict(r=3.0, achse=[0, 0, 1])], vertrauen='sicher'))
+    if k > 6: info.update(volumen_als_zylinder=AS_CYLINDER, erwartung=AS_CYLINDER_NOTE)
     add(f'loch-{label}.stl', tessellate(s), beschreibung=f'Platte mit {k}-eckigem Loch (Vieleck oder grober Zylinder?)', volumen=round(volume(s), 4), koerper=1, **info)
 
 # Cube 10 mm: binary (above style), ASCII and OBJ with quads – the parsers must read all of them.

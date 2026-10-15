@@ -14,7 +14,8 @@ import { healMesh } from './heal.js';
 import { growPatches } from './patches.js';
 import { detectCylinders } from './cylinders.js';
 import { facetedBrep, brepCounts, brepVolume } from './brep.js';
-import { buildTopology, buildBrep, planeModel, patchFlatness } from './topology.js';
+import { buildTopology, buildBrep, planeModel, cylinderModel, patchFlatness, classifyChain } from './topology.js';
+import { applyConstraints } from './constraints.js';
 import { verifyBrep } from './verify.js';
 import { signedVolume, openEdges, bbox, triangleNormals } from './meshops.js';
 
@@ -120,7 +121,6 @@ function convertComponent(part, healReport, opts, progress = () => {}) {
   }
 
   const wanted = opts.tier ? [opts.tier] : TIERS;
-  let facesOfLowerTier;
   for (const tier of wanted) {
     const builder = TIER_BUILDERS[tier];
     if (!builder) continue;
@@ -137,20 +137,19 @@ function convertComponent(part, healReport, opts, progress = () => {}) {
       continue;
     }
     const check = verifyBrep(built.brep, mesh, {
+      surfaceTolerance: built.surfaceTolerance,
       ...(opts.verify || {}),
       regionOfTriangle: built.regionOfTriangle,
       uncertainty: Math.max(0, ...features.cylinders.map((c) => c.uncertainty)),
-      facesOfLowerTier,
       forceFail: opts.forceFail?.[`tier${tier}`],
     });
-    facesOfLowerTier = check.counts.faces;
     if (check.ok) {
       return {
         tier,
         brep: built.brep,
         healReport,
-        features,
-        fallbackReasons,
+        features: built.cylinders ? { ...features, cylinders: built.cylinders } : features,
+        fallbackReasons: [...fallbackReasons, ...(built.notes ?? [])],
         meshVolume,
         brepVolume: check.volume,
         maxDeviation: check.maxDeviation,
@@ -188,9 +187,109 @@ function convertComponent(part, healReport, opts, progress = () => {}) {
  * plan; the chain always ends at tier 1, which works for every closed mesh.
  */
 export const TIER_BUILDERS = {
-  1: (mesh) => ({ brep: facetedBrep(mesh, 'Körper'), regionOfTriangle: null }),
+  // Tier 1 is exact by construction: every face IS a triangle of the mesh.
+  1: (mesh) => ({ brep: facetedBrep(mesh, 'Körper'), regionOfTriangle: null, surfaceTolerance: 1e-9 }),
   2: (mesh, analysis, opts) => buildPlanarTier(mesh, analysis, opts),
+  3: (mesh, analysis, opts) => buildExactTier(mesh, analysis, opts),
 };
+
+/**
+ * Tier 3: recognised cylinders become real cylindrical faces with arcs as
+ * edges, everything flat around them one planar face each. Before the build
+ * the constraints of SPEC 5.6 run, because the fitted surfaces otherwise
+ * almost – but not exactly – fit together (MACHBARKEIT section 4).
+ */
+export function buildExactTier(mesh, analysis, opts = {}) {
+  const accepted = analysis?.detected?.cylinders ?? [];
+  if (accepted.length === 0) return null; // nothing to gain over tier 2
+  const patchResult = analysis.patches;
+  const diagonal = bbox(mesh.V).diagonal;
+  const limit = (opts.planarTolerance ?? PLANAR_TOLERANCE_RELATIVE) * diagonal;
+  const { N } = triangleNormals(mesh.V, mesh.F);
+  const regionNotes = [];
+
+  // A cylindrical region whose boundary is a shape tier 3 cannot build (SPEC
+  // 5.7 step 7) falls back on its own: its patches stay planar patches, and
+  // the rest of the part keeps tier 3.
+  let cylinders = accepted;
+  let setup = null;
+  for (let round = 0; round < 4; round += 1) {
+    setup = regionsFor(mesh, patchResult, cylinders, limit, N);
+    const unbuildable = cylinders.filter((_, i) => !buildableBoundary(setup.topology, setup.regionOfCylinder[i], setup.geometryKinds));
+    if (unbuildable.length === 0) break;
+    for (const c of unbuildable) {
+      regionNotes.push(`Zylinder r = ${c.radius.toFixed(3)} blieb Ebenenstück: seine Randform kann Stufe 3 nicht bauen.`);
+    }
+    cylinders = cylinders.filter((c) => !unbuildable.includes(c));
+    if (cylinders.length === 0) return null;
+  }
+
+  const constrained = applyConstraints(mesh, setup.models, setup.topology, opts.constraints ?? {});
+  const brep = buildBrep(mesh, setup.regionOfTriangle, constrained.models, setup.topology, {
+    diagonal,
+    name: 'Körper',
+    points: constrained.points,
+  });
+  return {
+    brep,
+    regionOfTriangle: setup.regionOfTriangle,
+    topology: setup.topology,
+    models: constrained.models,
+    constraintReport: constrained.report,
+    cylinders,
+    notes: regionNotes,
+    // Tier 3 builds exact surfaces and snaps the corners onto them, so the
+    // corners have to lie on them to machine precision (measured: 1e-15 with
+    // the constraints, 1e-6 to 3e-3 without them – MACHBARKEIT section 4).
+    surfaceTolerance: 1e-9,
+  };
+}
+
+/** Regions and models for tier 3: cylinders first, then the flat patches. */
+function regionsFor(mesh, patchResult, cylinders, limit, N) {
+  const regionOfTriangle = new Int32Array(mesh.F.length / 3).fill(-1);
+  const models = new Map();
+  const regionOfCylinder = [];
+  let next = 0;
+  const taken = new Set();
+  for (const cylinder of cylinders) {
+    const region = next++;
+    regionOfCylinder.push(region);
+    for (const patch of cylinder.patchIds) taken.add(patch);
+    for (const t of cylinder.triangles) regionOfTriangle[t] = region;
+    models.set(region, cylinderModel(cylinder));
+  }
+  patchResult.patches.forEach((triangles, i) => {
+    if (taken.has(i)) return;
+    const plane = patchResult.planes[i];
+    if (patchFlatness(mesh, triangles, plane) <= limit) {
+      const region = next++;
+      for (const t of triangles) regionOfTriangle[t] = region;
+      models.set(region, planeModel(plane));
+      return;
+    }
+    for (const t of triangles) {
+      const region = next++;
+      regionOfTriangle[t] = region;
+      const v = 3 * mesh.F[3 * t];
+      models.set(region, planeModel({
+        point: [mesh.V[v], mesh.V[v + 1], mesh.V[v + 2]],
+        normal: [N[3 * t], N[3 * t + 1], N[3 * t + 2]],
+      }));
+    }
+  });
+  const topology = buildTopology(mesh, regionOfTriangle, models);
+  const geometryKinds = topology.chains.map((chain) => classifyChain(mesh, chain, models, 1).kind);
+  return { regionOfTriangle, models, topology, regionOfCylinder, geometryKinds };
+}
+
+/** Can tier 3 build this cylindrical region: one loop, or two full rings? */
+function buildableBoundary(topology, region, kinds) {
+  const loops = topology.loops.get(region) ?? [];
+  if (loops.length === 1) return true;
+  if (loops.length !== 2) return false;
+  return loops.every((loop) => loop.every((id) => kinds[id] === 'circle'));
+}
 
 /** Patches flatter than this (· diagonal) may become one planar face. */
 export const PLANAR_TOLERANCE_RELATIVE = 1e-6;
@@ -233,5 +332,7 @@ export function buildPlanarTier(mesh, analysis, opts = {}) {
 
   const topology = buildTopology(mesh, regionOfTriangle, models);
   const brep = buildBrep(mesh, regionOfTriangle, models, topology, { diagonal, name: 'Körper' });
-  return { brep, regionOfTriangle, topology, models };
+  // The plane of a patch is its average plane, so the face promises exactly
+  // the flatness limit it was accepted with – and verify holds it to that.
+  return { brep, regionOfTriangle, topology, models, surfaceTolerance: limit };
 }

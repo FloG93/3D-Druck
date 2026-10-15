@@ -57,11 +57,16 @@ export class BrepBuilder {
     return { edge: id, sense: true };
   }
 
-  /** A face; `loops` are arrays of { edge, sense }, the first one is the outer. */
-  face({ surface, loops, sameSense = true, region = -1, kind = '' }) {
+  /**
+   * A face; `loops` are arrays of { edge, sense }, the first one is the outer.
+   * `span` is the parameter range of a cylindrical face, recorded where it is
+   * known exactly (the two halves of a tube share their vertices, so it
+   * cannot be read back from them).
+   */
+  face({ surface, loops, sameSense = true, region = -1, kind = '', span = null }) {
     for (const loop of loops) for (const use of loop) this.edges[use.edge].uses += 1;
     const id = this.faces.length;
-    this.faces.push({ surface, loops, sameSense, region, kind });
+    this.faces.push({ surface, loops, sameSense, region, kind, span });
     return id;
   }
 
@@ -141,8 +146,10 @@ function faceFlux(brep, face) {
     return sign * offset * area;
   }
   // Cylinder: p = o + r·e(θ) + z·a, n = ±e(θ) → p·n = o·e(θ) + r.
-  const { point, axis, radius } = face.surface;
-  const span = cylinderSpan(brep, face);
+  const { point, radius } = face.surface;
+  // The parameter range is recorded when the face is built (the two halves of
+  // a tube share their vertices, so it cannot be read back from them).
+  const span = face.span ?? cylinderSpan(brep, face);
   if (!span) return 0;
   const { theta0, theta1, z0, z1, u1, u2 } = span;
   const dTheta = theta1 - theta0;
@@ -168,8 +175,17 @@ export function planarFaceArea(brep, face) {
   return total;
 }
 
-/** Area of one closed loop in the plane coordinates (u1, u2); arcs exact. */
-function loopArea(brep, loop, u1, u2) {
+/**
+ * Area of one closed loop in the plane coordinates (u1, u2); arcs exact.
+ *
+ * The sweep of an arc may not be read from its end points alone: for a half
+ * circle the difference of the angles is ±π and the sign is a coin toss in
+ * floating point (measured on loch-sechzehneck.stl, where the two halves of
+ * the bore cancelled each other and the hole vanished from the face). The
+ * direction comes from the axis of the circle and the direction the loop runs
+ * through it.
+ */
+function loopArea(brep, loop, u1, u2, n) {
   const pts = loopVertices(brep, loop).map((v) => {
     const p = brep.points[v];
     return [dot(p, u1), dot(p, u2)];
@@ -190,15 +206,10 @@ function loopArea(brep, loop, u1, u2) {
     const center = [dot(curve.center, u1), dot(curve.center, u2)];
     const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
     const a1 = Math.atan2(end[1] - center[1], end[0] - center[0]);
-    let sweep = a1 - a0;
-    const closed = Math.hypot(start[0] - end[0], start[1] - end[1]) < 1e-12;
-    if (closed) sweep = 2 * Math.PI;
-    else {
-      while (sweep <= -Math.PI) sweep += 2 * Math.PI;
-      while (sweep > Math.PI) sweep -= 2 * Math.PI;
-      // A half circle keeps the direction of the chord in the plane.
-      if (Math.abs(Math.abs(sweep) - Math.PI) < 1e-9) sweep = Math.sign(sweep || 1) * Math.PI;
-    }
+    const direction = (dot(curve.axis, n) > 0) === use.sense ? 1 : -1;
+    let delta = ((((a1 - a0) * direction) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    if (delta < 1e-9) delta = 2 * Math.PI; // start = end: the full circle
+    const sweep = direction * delta;
     const r = curve.radius;
     area += (r * r * (sweep - Math.sin(sweep))) / 2;
   }

@@ -697,7 +697,9 @@
     ]
    }
   ],
-  "vertrauen": "unsicher"
+  "vertrauen": "unsicher",
+  "volumen_als_zylinder": 7717.2567,
+  "erwartung": "Vieleck oder Zylinder ist aus den Daten nicht entscheidbar: wird das Loch als Zylinder r=3 erkannt, hat der Koerper das Volumen volumen_als_zylinder (Platte 40x20x10 minus pi*9*10), sonst volumen (Vieleck-Prisma)."
  },
  "loch-zwoelfeck.stl": {
   "dreiecke": 64,
@@ -715,7 +717,9 @@
     ]
    }
   ],
-  "vertrauen": "sicher"
+  "vertrauen": "sicher",
+  "volumen_als_zylinder": 7717.2567,
+  "erwartung": "Vieleck oder Zylinder ist aus den Daten nicht entscheidbar: wird das Loch als Zylinder r=3 erkannt, hat der Koerper das Volumen volumen_als_zylinder (Platte 40x20x10 minus pi*9*10), sonst volumen (Vieleck-Prisma)."
  },
  "loch-sechzehneck.stl": {
   "dreiecke": 80,
@@ -733,7 +737,9 @@
     ]
    }
   ],
-  "vertrauen": "sicher"
+  "vertrauen": "sicher",
+  "volumen_als_zylinder": 7717.2567,
+  "erwartung": "Vieleck oder Zylinder ist aus den Daten nicht entscheidbar: wird das Loch als Zylinder r=3 erkannt, hat der Koerper das Volumen volumen_als_zylinder (Platte 40x20x10 minus pi*9*10), sonst volumen (Vieleck-Prisma)."
  },
  "loch-zweiunddreissigeck.stl": {
   "dreiecke": 144,
@@ -751,7 +757,9 @@
     ]
    }
   ],
-  "vertrauen": "sicher"
+  "vertrauen": "sicher",
+  "volumen_als_zylinder": 7717.2567,
+  "erwartung": "Vieleck oder Zylinder ist aus den Daten nicht entscheidbar: wird das Loch als Zylinder r=3 erkannt, hat der Koerper das Volumen volumen_als_zylinder (Platte 40x20x10 minus pi*9*10), sonst volumen (Vieleck-Prisma)."
  },
  "wuerfel.stl": {
   "dreiecke": 12,

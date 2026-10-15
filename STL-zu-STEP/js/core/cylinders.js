@@ -218,6 +218,21 @@ function isMember(V, F, N, t, m, o) {
 /** Everything the report and the reconstruction need about one cylinder. */
 function describe(V, F, N, labels, patches, region, triangles, m, o) {
   const ids = pointsOf(F, triangles);
+  // Does the material lie outside (fillet) or inside (bore)? The mesh normals
+  // say it, and the exporter needs it for same_sense of the face.
+  let outwardVotes = 0;
+  for (const t of triangles) {
+    let sx = 0;
+    let sy = 0;
+    for (let k = 0; k < 3; k++) {
+      const c = cylindrical(V, F[3 * t + k], m);
+      sx += c.x;
+      sy += c.y;
+    }
+    const len = Math.hypot(sx, sy) || 1;
+    const n = [N[3 * t], N[3 * t + 1], N[3 * t + 2]];
+    outwardVotes += (dot(n, m.u1) * sx + dot(n, m.u2) * sy) / len > 0 ? 1 : -1;
+  }
   let zMin = Infinity;
   let zMax = -Infinity;
   let residual = 0;
@@ -246,6 +261,7 @@ function describe(V, F, N, labels, patches, region, triangles, m, o) {
     confidence: segments >= o.certainSegments ? 'sicher' : 'unsicher',
     residual,
     uncertainty,
+    outward: outwardVotes >= 0,
     model: m,
   };
 }

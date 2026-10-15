@@ -169,8 +169,14 @@ function isCollinear(mesh, points, diagonal) {
 
 /**
  * Builds the B-rep from regions, models and topology. Planar regions become
- * one face (with holes), cylindrical ones the faces of cylinderFaces().
- * `points` may be a corrected copy of mesh.V (constraints.js).
+ * one face (with holes), a closed tube two half faces, an open fillet one
+ * face of two arcs and two rulings.
+ *
+ * Both sides of a chain have to use the SAME edges, so the chains are paired
+ * by their undirected edges and the geometry is built once; the other side
+ * gets the same list reversed.
+ *
+ * `opts.points` may be a corrected copy of mesh.V (constraints.js).
  */
 export function buildBrep(mesh, regionOfTriangle, models, topology, opts = {}) {
   const V = opts.points ?? mesh.V;
@@ -186,27 +192,63 @@ export function buildBrep(mesh, regionOfTriangle, models, topology, opts = {}) {
     return id;
   };
 
-  // Geometry per chain, computed once so both sides use the same edges.
   const geometry = topology.chains.map((chain) => classifyChain({ V, F: mesh.F }, chain, models, diagonal));
-  const edgesOfChain = topology.chains.map((chain, i) => chainEdges(b, V, chain, geometry[i], vertex));
+  const keys = topology.chains.map((chain) => chainKey(chain));
+  const edgesOfChain = new Array(topology.chains.length).fill(null);
+  const primary = new Map();
+  const handled = new Set();
+
+  // Tubes first: both rings have to be split at the same angle, otherwise the
+  // seam between the halves is not a straight line on the cylinder.
+  for (const [region, model] of models) {
+    if (model.type !== 'cylinder') continue;
+    const loops = topology.loops.get(region) ?? [];
+    const rings = loops.filter((loop) => loop.every((id) => geometry[id].kind === 'circle'));
+    if (loops.length !== 2 || rings.length !== 2) continue;
+    const built = buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOfChain, primary);
+    if (built) handled.add(region);
+  }
+
+  for (let i = 0; i < topology.chains.length; i++) {
+    if (edgesOfChain[i]) continue;
+    const known = primary.get(keys[i]);
+    if (known !== undefined) {
+      edgesOfChain[i] = reverseUses(edgesOfChain[known]);
+      continue;
+    }
+    primary.set(keys[i], i);
+    edgesOfChain[i] = chainEdges(b, V, topology.chains[i], geometry[i], vertex, `k${i}`);
+  }
 
   const regions = [...topology.loops.keys()].sort((a, c) => a - c);
   for (const region of regions) {
     const model = models.get(region);
+    if (!model || handled.has(region)) continue;
     const loops = topology.loops.get(region);
-    if (!model) continue;
-    if (model.type === 'plane') {
-      planeFace(b, V, region, model, loops, topology, edgesOfChain);
-    } else {
-      cylinderFace(b, V, region, model, loops, topology, edgesOfChain, geometry);
+    if (model.type === 'plane') planeFace(b, V, region, model, loops, topology, edgesOfChain);
+    else if (!cylinderFace(b, region, model, loops, edgesOfChain)) {
+      throw new Error(`Zylinderfläche der Region ${region} hat eine Randform, die Stufe 3 nicht bauen kann (${loops.length} Schleifen)`);
     }
   }
   b.solid(opts.name || 'Körper');
   return b.build();
 }
 
+/** A chain and its twin have the same undirected edges – that is their key. */
+function chainKey(chain) {
+  const parts = [];
+  for (let i = 0; i + 1 < chain.points.length; i++) {
+    const u = chain.points[i];
+    const v = chain.points[i + 1];
+    parts.push(u < v ? `${u},${v}` : `${v},${u}`);
+  }
+  return parts.sort().join(';');
+}
+
+const reverseUses = (uses) => [...uses].reverse().map((use) => ({ edge: use.edge, sense: !use.sense }));
+
 /** The edges of one chain, in the direction of the chain. */
-function chainEdges(b, V, chain, geometry, vertex) {
+function chainEdges(b, V, chain, geometry, vertex, tag) {
   const points = chain.points;
   if (geometry.kind === 'line' || geometry.kind === 'ruling') {
     const v0 = vertex(points[0]);
@@ -214,9 +256,7 @@ function chainEdges(b, V, chain, geometry, vertex) {
     if (v0 === v1) return [];
     return [b.edge(v0, v1, { type: 'line' })];
   }
-  if (geometry.kind === 'arc' || geometry.kind === 'circle') {
-    return arcEdges(b, V, chain, geometry, vertex);
-  }
+  if (geometry.kind === 'arc') return [arcEdge(b, V, chain, geometry, vertex, tag)];
   const out = [];
   for (let i = 0; i + 1 < points.length; i++) {
     const v0 = vertex(points[i]);
@@ -226,52 +266,25 @@ function chainEdges(b, V, chain, geometry, vertex) {
   return out;
 }
 
-/**
- * Arc or full circle on the intersection of cap plane and cylinder. A full
- * circle is split into two halves, as in MusterGenerator/js/export/step.js –
- * that avoids the seam a closed curve would need.
- */
-function arcEdges(b, V, chain, geometry, vertex) {
-  const { cylinder, height } = geometry;
+/** A right-handed frame of the cylinder, with its stored reference direction. */
+export function cylinderFrame(cylinder) {
   const axis = normalize(cylinder.axis);
-  const { u1, u2 } = cylinderFrame(cylinder);
-  const center = [
-    cylinder.point[0] + (height - dot(cylinder.point, axis)) * axis[0],
-    cylinder.point[1] + (height - dot(cylinder.point, axis)) * axis[1],
-    cylinder.point[2] + (height - dot(cylinder.point, axis)) * axis[2],
-  ];
-  const at = (angle) => [
-    center[0] + cylinder.radius * (Math.cos(angle) * u1[0] + Math.sin(angle) * u2[0]),
-    center[1] + cylinder.radius * (Math.cos(angle) * u1[1] + Math.sin(angle) * u2[1]),
-    center[2] + cylinder.radius * (Math.cos(angle) * u1[2] + Math.sin(angle) * u2[2]),
-  ];
-  const angleOf = (v) => {
-    const d = sub([V[3 * v], V[3 * v + 1], V[3 * v + 2]], center);
-    return Math.atan2(dot(d, u2), dot(d, u1));
-  };
-  const curve = { type: 'circle', center, axis, radius: cylinder.radius, ref: u1 };
-
-  if (geometry.kind === 'circle') {
-    // Two halves, starting at the angle of the first mesh point.
-    const a0 = angleOf(chain.points[0]);
-    const v0 = b.vertex(at(a0), `c${chain.region}:${chain.points[0]}:0`);
-    const v1 = b.vertex(at(a0 + Math.PI), `c${chain.region}:${chain.points[0]}:1`);
-    const first = b.edge(v0, v1, { ...curve, ref: unitAt(u1, u2, a0) }, `:h0:${chain.region}`);
-    const second = b.edge(v1, v0, { ...curve, ref: unitAt(u1, u2, a0 + Math.PI) }, `:h1:${chain.region}`);
-    return [first, second];
-  }
-  // Open arc: start and end stay the corner vertices, which the neighbouring
-  // faces share; the mid point only fixes the direction.
-  const v0 = vertex(chain.points[0]);
-  const v1 = vertex(chain.points[chain.points.length - 1]);
-  const a0 = angleOf(chain.points[0]);
-  const a1 = angleOf(chain.points[chain.points.length - 1]);
-  const mid = angleOf(chain.points[Math.floor(chain.points.length / 2)]);
-  const ccw = isBetween(a0, mid, a1);
-  const ref = unitAt(u1, u2, a0);
-  const normal = ccw ? axis : [-axis[0], -axis[1], -axis[2]];
-  return [b.edge(v0, v1, { type: 'circle', center, axis: normal, radius: cylinder.radius, ref }, `:a:${chain.region}`)];
+  const u1 = cylinder.ref ? normalize(cylinder.ref) : frame(axis).u1;
+  return { axis, u1, u2: normalize(cross(axis, u1)) };
 }
+
+/** Centre of the circle in which a cap plane cuts the cylinder. */
+function circleCenter(cylinder, height) {
+  const axis = normalize(cylinder.axis);
+  const shift = height - dot(cylinder.point, axis);
+  return [cylinder.point[0] + shift * axis[0], cylinder.point[1] + shift * axis[1], cylinder.point[2] + shift * axis[2]];
+}
+
+const pointAt = (center, u1, u2, radius, angle) => [
+  center[0] + radius * (Math.cos(angle) * u1[0] + Math.sin(angle) * u2[0]),
+  center[1] + radius * (Math.cos(angle) * u1[1] + Math.sin(angle) * u2[1]),
+  center[2] + radius * (Math.cos(angle) * u1[2] + Math.sin(angle) * u2[2]),
+];
 
 const unitAt = (u1, u2, angle) => normalize([
   Math.cos(angle) * u1[0] + Math.sin(angle) * u2[0],
@@ -279,43 +292,141 @@ const unitAt = (u1, u2, angle) => normalize([
   Math.cos(angle) * u1[2] + Math.sin(angle) * u2[2],
 ]);
 
-/** Does `mid` lie on the counter-clockwise way from a0 to a1? */
-function isBetween(a0, mid, a1) {
-  const norm2 = (x) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-  return norm2(mid - a0) < norm2(a1 - a0);
+/**
+ * An open arc between two corners. Start and end stay the corner vertices the
+ * neighbouring faces share; the mid point of the chain only decides the
+ * direction of the arc.
+ */
+function arcEdge(b, V, chain, geometry, vertex, tag) {
+  const { cylinder, height } = geometry;
+  const axis = normalize(cylinder.axis);
+  const { u1, u2 } = cylinderFrame(cylinder);
+  const center = circleCenter(cylinder, height);
+  const angleOf = (v) => {
+    const d = sub([V[3 * v], V[3 * v + 1], V[3 * v + 2]], center);
+    return Math.atan2(dot(d, u2), dot(d, u1));
+  };
+  const first = chain.points[0];
+  const last = chain.points[chain.points.length - 1];
+  const a0 = angleOf(first);
+  const a1 = angleOf(last);
+  const mid = angleOf(chain.points[Math.floor(chain.points.length / 2)]);
+  const ccw = isBetween(a0, mid, a1);
+  const normal = ccw ? axis : [-axis[0], -axis[1], -axis[2]];
+  const ref = unitAt(u1, u2, a0);
+  return b.edge(vertex(first), vertex(last), { type: 'circle', center, axis: normal, radius: cylinder.radius, ref }, `:a:${tag}`);
 }
 
-/** A right-handed frame of the cylinder, with the stored reference direction. */
-export function cylinderFrame(cylinder) {
-  const axis = normalize(cylinder.axis);
-  const u1 = cylinder.ref ? normalize(cylinder.ref) : frame(axis).u1;
-  return { axis, u1, u2: normalize(cross(axis, u1)) };
+/** Does `mid` lie on the counter-clockwise way from a0 to a1? */
+function isBetween(a0, mid, a1) {
+  const turn = (x) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return turn(mid - a0) < turn(a1 - a0);
+}
+
+/**
+ * A closed tube: both rings are split into halves at the same two angles, so
+ * the two seams are straight lines on the cylinder (SPEC 5.7 step 7, as in
+ * MusterGenerator/js/export/step.js for full circles).
+ */
+function buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOfChain, primary) {
+  const axis = normalize(model.axis);
+  const { u1, u2 } = cylinderFrame(model);
+  const first = topology.chains[rings[0][0]].points[0];
+  const start = sub([V[3 * first], V[3 * first + 1], V[3 * first + 2]], model.point);
+  const a0 = Math.atan2(dot(start, u2), dot(start, u1));
+  const angles = [a0, a0 + Math.PI];
+
+  const built = rings.map((loop, index) => {
+    const chainId = loop[0];
+    if (loop.length !== 1) return null;
+    const height = geometry[chainId].height;
+    if (height === undefined) return null;
+    const center = circleCenter(model, height);
+    const vs = angles.map((angle, slot) => b.vertex(pointAt(center, u1, u2, model.radius, angle), `tube${region}:${index}:${slot}`));
+    const halves = angles.map((angle, slot) => b.edge(
+      vs[slot],
+      vs[1 - slot],
+      { type: 'circle', center, axis, radius: model.radius, ref: unitAt(u1, u2, angle) },
+      `:tube${region}:${index}:${slot}`,
+    ));
+    // Direction of the ring in the mesh decides how the halves are traversed.
+    const ccw = sweepSign(V, topology.chains[chainId].points, model, u1, u2) > 0;
+    const arcFrom = (slot) => (ccw
+      ? { edge: halves[slot].edge, sense: halves[slot].sense }
+      : { edge: halves[1 - slot].edge, sense: !halves[1 - slot].sense });
+    return { chainId, vs, arcFrom, height };
+  });
+  if (built.some((r) => r === null)) return false;
+
+  const [A, B] = built;
+  const seams = [0, 1].map((slot) => b.edge(A.vs[slot], B.vs[slot], { type: 'line' }, `:seam${region}:${slot}`));
+  const surface = { type: 'cylinder', point: model.point, axis, ref: u1, radius: model.radius };
+  const zOf = (ring) => ring.height - dot(model.point, axis);
+  for (const slot of [0, 1]) {
+    const other = 1 - slot;
+    b.face({
+      surface,
+      loops: [[
+        A.arcFrom(slot),
+        { edge: seams[other].edge, sense: seams[other].sense },
+        B.arcFrom(other),
+        { edge: seams[slot].edge, sense: !seams[slot].sense },
+      ]],
+      region,
+      kind: 'cylinder',
+      sameSense: model.outward !== false,
+      // The two halves share their vertices, so the parameter range cannot be
+      // read back from them – it is recorded here, where it is known exactly.
+      span: {
+        theta0: angles[slot],
+        theta1: angles[slot] + Math.PI,
+        z0: Math.min(zOf(A), zOf(B)),
+        z1: Math.max(zOf(A), zOf(B)),
+        u1,
+        u2,
+        radius: model.radius,
+      },
+    });
+  }
+  for (const ring of built) {
+    edgesOfChain[ring.chainId] = [ring.arcFrom(0), ring.arcFrom(1)];
+    primary.set(keys[ring.chainId], ring.chainId);
+  }
+  return true;
+}
+
+/** Total signed sweep of a ring of mesh points around the axis. */
+function sweepSign(V, points, model, u1, u2) {
+  let total = 0;
+  const angleOf = (v) => {
+    const d = sub([V[3 * v], V[3 * v + 1], V[3 * v + 2]], model.point);
+    return Math.atan2(dot(d, u2), dot(d, u1));
+  };
+  for (let i = 0; i + 1 < points.length; i++) {
+    let step = angleOf(points[i + 1]) - angleOf(points[i]);
+    while (step > Math.PI) step -= 2 * Math.PI;
+    while (step < -Math.PI) step += 2 * Math.PI;
+    total += step;
+  }
+  return total;
 }
 
 /** One planar face: the largest loop is the outer one, the rest are holes. */
 function planeFace(b, V, region, model, loops, topology, edgesOfChain) {
-  const built = loops.map((loop) => orientedLoop(loop, topology, edgesOfChain)).filter((l) => l.length > 0);
-  if (built.length === 0) return;
+  const built = loops.map((loop) => loop.flatMap((id) => edgesOfChain[id] ?? []));
+  const usable = loops.map((_, i) => i).filter((i) => built[i].length > 0);
+  if (usable.length === 0) return;
   const areas = loops.map((loop) => loopArea(V, loop, topology, model.normal));
-  const order = loops.map((_, i) => i).filter((i) => built[i] && built[i].length > 0).sort((x, y) => areas[y] - areas[x]);
-  const outer = built[order[0]];
-  const holes = order.slice(1).map((i) => built[i]);
+  const order = usable.sort((x, y) => areas[y] - areas[x]);
   b.face({
     surface: { type: 'plane', point: model.point, normal: model.normal, ref: model.ref },
-    loops: [outer, ...holes],
+    loops: [built[order[0]], ...order.slice(1).map((i) => built[i])],
     region,
     kind: 'plane',
   });
 }
 
-/** Oriented edges of a loop, in the direction of its chains. */
-function orientedLoop(loop, topology, edgesOfChain) {
-  const out = [];
-  for (const id of loop) for (const use of edgesOfChain[id]) out.push(use);
-  return out;
-}
-
-/** Area of a loop in the plane of the region (for outer vs. hole). */
+/** Area of a loop in the plane of the region (outer loop vs. hole). */
 function loopArea(V, loop, topology, normal) {
   const n = normalize(normal);
   const { u1, u2 } = frame(n);
@@ -336,51 +447,58 @@ function loopArea(V, loop, topology, normal) {
   return Math.abs(area / 2);
 }
 
-/**
- * The faces of a cylindrical region. A full tube is split into two halves
- * (SPEC 5.7 step 7), an open fillet becomes one face of two arcs and two
- * rulings. Anything else returns false, and the caller falls back for this
- * region.
- */
-function cylinderFace(b, V, region, model, loops, topology, edgesOfChain, geometry) {
-  const uses = [];
-  for (const loop of loops) for (const id of loop) for (const use of edgesOfChain[id]) uses.push(use);
+/** A cylindrical region with a single loop (an open fillet). */
+function cylinderFace(b, region, model, loops, edgesOfChain) {
+  if (loops.length !== 1) return false;
+  const uses = loops[0].flatMap((id) => edgesOfChain[id] ?? []);
   if (uses.length === 0) return false;
-  const { axis, u1 } = cylinderFrame(model);
-  const surface = { type: 'cylinder', point: model.point, axis, ref: u1, radius: model.radius };
-  const rings = loops.filter((loop) => loop.every((id) => geometry[id].kind === 'circle'));
+  const { axis, u1, u2 } = cylinderFrame(model);
+  b.face({
+    surface: { type: 'cylinder', point: model.point, axis, ref: u1, radius: model.radius },
+    loops: [uses],
+    region,
+    kind: 'cylinder',
+    sameSense: model.outward !== false,
+    span: arcSpan(b, uses, model, u1, u2),
+  });
+  return true;
+}
 
-  if (rings.length === 2 && loops.length === 2) {
-    // Tube: two closed circles, each split into halves → two faces, the
-    // rulings between them are the shared edges.
-    const [top, bottom] = rings;
-    const topEdges = top.flatMap((id) => edgesOfChain[id]);
-    const bottomEdges = bottom.flatMap((id) => edgesOfChain[id]);
-    if (topEdges.length !== 2 || bottomEdges.length !== 2) return false;
-    const seam0 = b.edge(topEdges[0].edge === undefined ? 0 : b.edges[topEdges[0].edge].v0, b.edges[bottomEdges[0].edge].v0, { type: 'line' }, `:s0:${region}`);
-    const seam1 = b.edge(b.edges[topEdges[1].edge].v0, b.edges[bottomEdges[1].edge].v0, { type: 'line' }, `:s1:${region}`);
-    for (let half = 0; half < 2; half++) {
-      const other = 1 - half;
-      b.face({
-        surface,
-        loops: [[
-          { edge: topEdges[half].edge, sense: topEdges[half].sense },
-          { edge: half === 0 ? seam1.edge : seam0.edge, sense: half === 0 ? seam1.sense : seam0.sense },
-          { edge: bottomEdges[other].edge, sense: !bottomEdges[other].sense },
-          { edge: half === 0 ? seam0.edge : seam1.edge, sense: half === 0 ? !seam0.sense : !seam1.sense },
-        ]],
-        region,
-        kind: 'cylinder',
-      });
-    }
-    return true;
+/**
+ * Parameter range of a fillet face, read from its arcs: the angular range
+ * from one arc, the heights from the two cap circles.
+ */
+function arcSpan(b, uses, model, u1, u2) {
+  const axis = normalize(model.axis);
+  const arcs = uses.filter((use) => b.edges[use.edge].curve.type === 'circle');
+  if (arcs.length === 0) return null;
+  const heights = [];
+  let range = null;
+  for (const use of arcs) {
+    const edge = b.edges[use.edge];
+    const curve = edge.curve;
+    heights.push(dot(sub(curve.center, model.point), axis));
+    if (range) continue;
+    const angleOf = (v) => {
+      const d = sub(b.points[v], curve.center);
+      return Math.atan2(dot(d, u2), dot(d, u1));
+    };
+    const a0 = angleOf(edge.v0);
+    const a1 = angleOf(edge.v1);
+    const ccw = dot(normalize(curve.axis), axis) > 0;
+    let sweep = ccw ? a1 - a0 : a0 - a1;
+    while (sweep <= 1e-12) sweep += 2 * Math.PI;
+    range = ccw ? { theta0: a0, theta1: a0 + sweep } : { theta0: a1, theta1: a1 + sweep };
   }
-
-  if (loops.length === 1) {
-    b.face({ surface, loops: [uses], region, kind: 'cylinder' });
-    return true;
-  }
-  return false;
+  if (!range || heights.length < 2) return null;
+  return {
+    ...range,
+    z0: Math.min(...heights),
+    z1: Math.max(...heights),
+    u1,
+    u2,
+    radius: model.radius,
+  };
 }
 
 /** The plane of a patch, as a model for buildTopology/buildBrep. */
@@ -392,7 +510,16 @@ export function planeModel(plane) {
 export function cylinderModel(cylinder) {
   const axis = normalize(cylinder.axis);
   const { u1 } = frame(axis);
-  return { type: 'cylinder', point: cylinder.center, axis, radius: cylinder.radius, ref: cylinder.model?.u1 ?? u1 };
+  return {
+    type: 'cylinder',
+    point: cylinder.center,
+    axis,
+    radius: cylinder.radius,
+    ref: cylinder.model?.u1 ?? u1,
+    // A bore has its outward normal pointing AT the axis: same_sense = .F.
+    outward: cylinder.outward !== false,
+    uncertainty: cylinder.uncertainty,
+  };
 }
 
 /**

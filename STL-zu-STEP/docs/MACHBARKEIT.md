@@ -66,6 +66,8 @@ Aus erkannten Ebenen und Zylindern wird ein B-rep mit Kreisbögen gebaut (siehe 
 | Netz | Ergebnis |
 |---|---|
 | `platte.stl` (sauber) | 14 Flächen (6 Ebenen, 4 Rundungen, 4 Lochhälften), 0 freie Kanten, gültig, Volumen **7400,1771 = Original 7400,1770** (Netz selbst +0,02 %), STEP 58 kB (zum Vergleich: dasselbe Teil facettiert ≈ 1 MB bei rund 500 Dreiecken; nicht gemessen, aus Abschnitt 1 hochgerechnet) |
+
+*Nachtrag 15.10.2026 (JS):* `platte.stl` ergibt dieselben 14 Flächen und Volumen 7400,1770 bei **16 kB** STEP (facettiert 372 kB, verschmolzen 97 kB; alle drei von OpenCascade als gültiger, geschlossener Solid gelesen). Die Vieleck-Löcher ab 12 Ecken werden ein Zylinder r = 3 und damit 8 Flächen; das Volumen ist dann das der runden Bohrung (`volumen_als_zylinder` in `expected.json`, 7717,2567 statt 7730 beim Zwölfeck), weil ein erkannter Zylinder das Vieleck ersetzt.
 | gröber vernetzt (Auflösung 0,5) | identisch exakt |
 | 1× / 2× unterteilt | **Bohrungen schließen**, Rundungen nicht: 24 / 26 freie Kanten, ungültig → **Rückfall greift** (Selbstprüfung erkennt es) |
 
@@ -76,7 +78,17 @@ Gelernt beim Bauen:
 - **Eckpunkte auf den Schnitt der angepassten Nachbarflächen rücken** (abwechselnde Projektion), damit alles dasselbe Modell benutzt.
 - **Volle Zylinder (Löcher) in zwei Hälften teilen** (wie schon `MusterGenerator/js/export/step.js` bei Kreisen), das vermeidet die Naht.
 - **Übersegmentierung:** bei verzerrtem Radius zerfällt ein Loch in zwei Zylinderstücke → Zylinder mit gleicher Achse, Mittellinie (≤ 1 % r) und Radius (≤ 1 % r), die aneinanderstoßen, verschmelzen und neu anpassen.
-- **Noch offen (Stufe 3b, Zwangsbedingungen):** Bei den Rundungen unterteilter Netze tangieren die angepassten Wandebenen den angepassten Zylinder nicht exakt (Abstand ≠ r um ~4e-4), die Kante schließt nicht. Lösung nach Stand der Technik: **Tangenten-, Koaxial- und Rechtwinkligkeits-Zwang** vor dem Bau (Wandebene exakt im Abstand r vom Zylinderachse, Achsen exakt parallel, Kappenebenen exakt senkrecht). Das ist ein eigener Plan-Schritt mit eigenem Test; bis dahin gilt der Rückfall.
+- **Stufe 3b (Zwangsbedingungen): gelöst (15.10.2026).** Bei den Rundungen unterteilter Netze tangierten die angepassten Wandebenen den angepassten Zylinder nicht exakt (Abstand ≠ r um ~4e-4), die Kante schloss nicht. Gebaut und gemessen in JS:
+
+  | Netz | Eckpunktfehler ohne Zwänge | mit Zwängen | Stufe | Flächen | Volumen (exakt 7400,1770) |
+  |---|---|---|---|---|---|
+  | `platte.stl` | 1,1e-6 | **0** (16 von 16 Ecken geschlossen gelöst) | 3 | 14 | 7400,1770 |
+  | `platte-unterteilt1.stl` | 2,0e-3 | 2,9e-15 | **3** | 14 | 7401,7710 (+0,021 %) |
+  | `platte-unterteilt2.stl` | 2,8e-3 | 2,4e-15 | **3** | 14 | 7402,2089 (+0,027 %) |
+
+  Zwei Abweichungen von der ursprünglichen Idee, beide gemessen:
+  1. **Die Achse wandert, nicht die Wand.** Eine Wand trägt viele Punkte und ist die besser bestimmte Fläche; die Achse ist aus einem schmalen Band angepasst. Verschiebt man stattdessen die Wand, lässt sich nur die *erste* von zwei Rundungen an derselben Wand exakt tangieren – acht der sechzehn Ecken der Platte blieben um 1e-7 daneben. Mit zwei unabhängigen Wandnormalen ist die Achslage ein 2×2-Gleichungssystem und damit exakt.
+  2. **Ecken geschlossen lösen statt projizieren.** Alternierende Projektion konvergiert an einem tangentialen Paar schlecht (1e-8 nach 200 Runden). Drei Ebenen sind ein 3×3-System, und {Zylinder, Kappe, tangentiale Wand} ist die Kappenhöhe auf der Berührlinie der Wand – beides exakt (`constraints.js::solveCorner`); iteriert wird nur, was in kein Muster passt.
 
 ## 5. Alternativen (verglichen)
 
@@ -92,7 +104,6 @@ Quellen: [Schnabel et al., Efficient RANSAC](https://diglib.eg.org/handle/10.231
 ## 6. Offen / nicht gemessen
 
 - **Echte Dateien.** Alle Messungen an einem synthetischen Teil und seinen Abwandlungen. Freiformflächen, Schrift, Scan-Rauschen, Millionen Dreiecke, Einheiten (Zoll?) sind ungetestet. → Plan-Schritt „Realitätstest" mit Dateien des Auftraggebers; Fehlschläge werden Teil der Testsammlung.
-- **Stufe 3b** (Zwangsbedingungen) – oben.
 - **Kegel, Kugel, schräge Schnitte (Ellipsen), Rundungen mit nicht senkrechter Kappe:** nicht gebaut, nur als Gegenhypothesen berücksichtigt.
 - **Leistung:** Prototypen sind Python; JS-Budget in SPEC ist eine Zielvorgabe, nicht gemessen.
 - **Öffnen in Fusion 360 / FreeCAD:** nur mit OpenCascade geprüft. Fusion mit Zehntausenden facettierten Flächen wird langsam (Erfahrungswert, nicht gemessen) → App warnt vorher.

@@ -47,14 +47,28 @@ function write(name, result, exp, { tier, forced } = {}) {
 
   const tiers = result.components.map((c) => c.tier);
   const exact = tiers.every((t) => t === 3);
+  const bodies = result.components.length;
+  // What the volume has to be depends on what was recognised:
+  //   tier 3  → the exact volume of the part, or, where a polygon hole was
+  //             recognised as a cylinder, volumen_als_zylinder (the hole is
+  //             then round, which expected.json states as ground truth)
+  //   tier 1/2 → the volume of the mesh, which is what those tiers reproduce
+  const roundHole = exact && exp.volumen_als_zylinder !== undefined
+    && result.components.some((c) => c.features.cylinders.length > 0);
+  const volume = exact
+    ? (roundHole ? exp.volumen_als_zylinder : exp.volumen) * bodies
+    : result.components.reduce((s, c) => s + c.meshVolume, 0);
   const entry = {
     koerper: exp.koerper ?? 1,
-    volumen: Number((exact ? exp.volumen * result.components.length : result.components.reduce((s, c) => s + c.meshVolume, 0)).toFixed(4)),
+    volumen: Number(volume.toFixed(4)),
     volumen_toleranz_prozent: exact ? 0.05 : 0.2,
     stufe: tiers.join('+'),
   };
-  if (exact && exp.ebenen) entry.ebenen = exp.ebenen;
-  if (exact && Array.isArray(exp.zylinder) && exp.zylinder.length) entry.zylinder = exp.zylinder;
+  if (exp.toleranz_radius_prozent !== undefined) entry.toleranz_radius_prozent = exp.toleranz_radius_prozent;
+  if (exact && exp.ebenen) entry.ebenen = exp.ebenen * bodies;
+  if (exact && Array.isArray(exp.zylinder) && exp.zylinder.length) {
+    entry.zylinder = bodies === 1 ? exp.zylinder : [...Array(bodies)].flatMap(() => exp.zylinder);
+  }
   if (open) entry.erwarte_offen = true;
   summary[file] = entry;
   return { file, tiers, faces: result.components.reduce((s, c) => s + c.counts.faces, 0), bytes: text.length };

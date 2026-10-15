@@ -5,7 +5,9 @@ Per file (summary.json maps a file name to its expectations, see ../fixtures/exp
   - number of solids (`koerper`)
   - volume within `volumen_toleranz_prozent` (default 0.05) of `volumen`
   - faces by surface type: `ebenen` = planar faces, `zylinder` = cylindrical faces (a full cylinder may be split into
-    halves, so a radius must occur at least as often as listed, and no radius may occur that is not listed)
+    halves, so a radius must occur at least as often as listed, and no radius may occur that is not listed).
+    Radii are matched within `toleranz_radius_prozent` (default 0.05 %), because a radius fitted from a subdivided
+    mesh carries the chord height: measured -0.18 % on platte-unterteilt2.stl (see docs/MACHBARKEIT.md section 2)
   - `max_flaechen`: upper bound for the number of faces (guards against the faceted fallback sneaking in)
   - `stufe` (1 faceted, 2 planar, 3 cylinders): the exporter reports which tier it delivered; checked against `mindest_stufe`
 
@@ -44,7 +46,7 @@ def inspect(path):
     for f in explore(shape, TopAbs_FACE):
         t = BRepAdaptor_Surface(TopoDS.Face(f)).GetType()
         if t == GeomAbs_Plane: planes += 1
-        elif t == GeomAbs_Cylinder: cyl[round(BRepAdaptor_Surface(TopoDS.Face(f)).Cylinder().Radius(), 2)] += 1
+        elif t == GeomAbs_Cylinder: cyl[round(BRepAdaptor_Surface(TopoDS.Face(f)).Cylinder().Radius(), 4)] += 1
         else: other += 1
     return dict(solids=len(solids), volume=vol, valid=valid, planes=planes, cyl=cyl, other=other, faces=planes + sum(cyl.values()) + other)
 
@@ -64,11 +66,19 @@ def main(folder):
             if abs(dev) > tol: bad.append(f"volume {got['volume']:.3f} deviates {dev:+.3f}% (> {tol}%)")
         if 'ebenen' in exp and got['planes'] != exp['ebenen']: bad.append(f"planar faces {got['planes']} != {exp['ebenen']}")
         if 'zylinder' in exp:
-            want = Counter(round(z['r'], 2) for z in exp['zylinder'])
-            for r, n in want.items():
-                if got['cyl'][r] < n: bad.append(f'cylinder r={r}: {got["cyl"][r]} faces < {n}')
-            for r in got['cyl']:
-                if r not in want: bad.append(f'unexpected cylinder r={r}')
+            tol = exp.get('toleranz_radius_prozent', 0.05)
+            want = Counter(float(z['r']) for z in exp['zylinder'])
+            left = Counter(got['cyl'])
+            for r, n in sorted(want.items()):
+                # A radius counts as found when it is within the tolerance; a full
+                # cylinder may be split into halves, so more faces are fine.
+                found = sum(c for rr, c in left.items() if abs(rr - r) <= tol / 100 * r)
+                if found < n:
+                    bad.append(f'cylinder r={r}: {found} faces within {tol} % < {n}')
+                for rr in [rr for rr in list(left) if abs(rr - r) <= tol / 100 * r]:
+                    del left[rr]
+            for r in left:
+                bad.append(f'unexpected cylinder r={r}')
         if 'max_flaechen' in exp and got['faces'] > exp['max_flaechen']: bad.append(f"{got['faces']} faces > {exp['max_flaechen']}")
         print(('FAIL ' if bad else 'ok   ') + f"{name}: {got['solids']} solid(s), {got['faces']} faces ({got['planes']} planar, {dict(got['cyl'])}, {got['other']} other), volume {got['volume']:.3f}")
         fails += [f'{name}: {b}' for b in bad]
