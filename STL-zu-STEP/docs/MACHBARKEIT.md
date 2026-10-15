@@ -53,6 +53,8 @@ Aus `platte.stl` je ein Defekt erzeugt (`tests/fixtures/defekt-*.stl`); Prototyp
 | **zwei Körper (überlappend)** | **+100 %** (14 804 statt 7 400) | **Prototyp verliert den zweiten Körper still** (Nähen nimmt nur die erste Schale). Pflicht: Komponenten trennen, je ein Solid, Summe der Volumina gegen das Netz prüfen. |
 | **Kante mit drei Dreiecken** | +0,02 % | **Prototyp macht es schlimmer** (ungültig, +2,2 %). Pflicht: eigener Schritt „überzähliges Dreieck entfernen". |
 
+*Nachtrag 15.10.2026 (JS-Heilung, `tests/heal.test.mjs`):* Alle Zeilen der Tabelle sind portiert und erreichen nach der Heilung das Volumen der sauberen Platte (±0,01 %); die beiden offenen Punkte sind gelöst (zwei Körper bleiben zwei Körper, die Kante mit drei Dreiecken verliert genau ein Dreieck). Zusätzlich gemessen: `kugel.stl` enthält an den Polen **zwei in sich zusammengefallene Dreiecke** (nach dem Verschweißen doppelte Punkte). Sie haben keine Fläche, die Heilung entfernt sie und meldet sie als „entartet"; das Netz bleibt geschlossen und das Volumen gleich.
+
 **Lehre:** OpenCascade-Nähen verdeckt viele Fehler (es toleriert, richtet aus, verwirft Schalen). Die JS-App hat dieses Netz nicht – jede Reparatur muss selbst gebaut und **mit Zahlen im Bericht** ausgewiesen werden. Der Volumenvergleich Netz ↔ Ergebnis ist die wirksamste Einzelprüfung (fängt Mehrkörper, falsche Richtung, verlorene Teile).
 
 ## 4. Exakter Bau (Rekonstruktion)
