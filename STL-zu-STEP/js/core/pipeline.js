@@ -146,6 +146,7 @@ export function toTransferable(result) {
       maxDeviation: c.maxDeviation,
       patches: c.features.patches,
       merged: c.features.merged,
+      tolerance: c.features.tolerance,
       cylinderCount: c.features.cylinders.length,
       rejected: c.features.rejected.map((r) => ({ reasons: [...r.reasons], radius: r.radius })),
       uncertain: c.features.uncertain.map((u) => ({ radius: u.radius, segments: u.segments, confidence: u.confidence })),
@@ -162,6 +163,7 @@ export function toTransferable(result) {
 /** One component: the highest tier that passes the check. */
 function convertComponent(part, healReport, opts, progress = () => {}) {
   const fallbackReasons = [];
+  const tolerance = toleranceOf(opts);
   const mesh = { V: part.V, F: part.F };
   const meshVolume = signedVolume(mesh.V, mesh.F);
   const closed = openEdges(mesh.F).length === 0;
@@ -170,7 +172,7 @@ function convertComponent(part, healReport, opts, progress = () => {}) {
   let analysis = null;
   if (closed && opts.cylinders !== false) {
     progress(0.1, 'Flächenstücke suchen');
-    const patches = growPatches(mesh, { noisy: opts.noisy });
+    const patches = growPatches(mesh, tolerance);
     progress(0.4, 'Zylinder erkennen');
     const detected = detectCylinders(mesh, patches, { acceptUncertain: opts.acceptUncertain, merge: opts.merge });
     analysis = { patches, detected };
@@ -180,10 +182,11 @@ function convertComponent(part, healReport, opts, progress = () => {}) {
       uncertain: detected.uncertain,
       patches: patches.patches.length,
       merged: detected.merged,
+      tolerance: tolerance.key,
     };
   } else if (closed) {
     progress(0.1, 'Flächenstücke suchen');
-    const patches = growPatches(mesh, { noisy: opts.noisy });
+    const patches = growPatches(mesh, tolerance);
     analysis = { patches, detected: { cylinders: [], rejected: [], uncertain: [], merged: 0 } };
     features = { cylinders: [], rejected: [], uncertain: [], patches: patches.patches.length, merged: 0 };
     fallbackReasons.push('Zylindererkennung war abgeschaltet.');
@@ -273,7 +276,7 @@ export function buildExactTier(mesh, analysis, opts = {}) {
   if (accepted.length === 0) return null; // nothing to gain over tier 2
   const patchResult = analysis.patches;
   const diagonal = bbox(mesh.V).diagonal;
-  const limit = (opts.planarTolerance ?? PLANAR_TOLERANCE_RELATIVE) * diagonal;
+  const limit = toleranceOf(opts).planarTolerance * diagonal;
   const { N } = triangleNormals(mesh.V, mesh.F);
   const regionNotes = [];
 
@@ -293,7 +296,15 @@ export function buildExactTier(mesh, analysis, opts = {}) {
     if (cylinders.length === 0) return null;
   }
 
-  const constrained = applyConstraints(mesh, setup.models, setup.topology, opts.constraints ?? {});
+  const constrained = applyConstraints(mesh, setup.models, setup.topology, {
+    ...(opts.constraints ?? {}),
+    trianglesOfRegion: setup.trianglesOfRegion,
+  });
+  // A facet plane is defined BY its own triangle, so it has to follow the
+  // corners the constraints moved, not the other way round. Measured on
+  // fandisk.obj: a corner pulled onto a cylinder left its facet planes 2e-3
+  // behind, which is exactly what the geometry check then refused.
+  refitFacetPlanes(mesh, setup, constrained);
   const brep = buildBrep(mesh, setup.regionOfTriangle, constrained.models, setup.topology, {
     diagonal,
     name: 'Körper',
@@ -314,10 +325,34 @@ export function buildExactTier(mesh, analysis, opts = {}) {
   };
 }
 
+
+/** Planes of single-triangle regions, recomputed through their moved corners. */
+function refitFacetPlanes(mesh, setup, constrained) {
+  const { points, models } = constrained;
+  for (const [region, triangles] of setup.trianglesOfRegion) {
+    if (triangles.length !== 1) continue;
+    const model = models.get(region);
+    if (!model || model.type !== 'plane') continue;
+    const t = triangles[0];
+    const a = 3 * mesh.F[3 * t];
+    const b = 3 * mesh.F[3 * t + 1];
+    const c = 3 * mesh.F[3 * t + 2];
+    const p = [points[a], points[a + 1], points[a + 2]];
+    const e1 = [points[b] - p[0], points[b + 1] - p[1], points[b + 2] - p[2]];
+    const e2 = [points[c] - p[0], points[c + 1] - p[1], points[c + 2] - p[2]];
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const len = Math.hypot(n[0], n[1], n[2]);
+    if (len < 1e-18) continue; // the triangle collapsed: keep the old plane
+    const turned = n[0] * model.normal[0] + n[1] * model.normal[1] + n[2] * model.normal[2] < 0 ? -1 : 1;
+    models.set(region, { ...model, point: p, normal: [(turned * n[0]) / len, (turned * n[1]) / len, (turned * n[2]) / len] });
+  }
+}
+
 /** Regions and models for tier 3: cylinders first, then the flat patches. */
 function regionsFor(mesh, patchResult, cylinders, limit, N) {
   const regionOfTriangle = new Int32Array(mesh.F.length / 3).fill(-1);
   const models = new Map();
+  const trianglesOfRegion = new Map();
   const regionOfCylinder = [];
   let next = 0;
   const taken = new Set();
@@ -327,6 +362,7 @@ function regionsFor(mesh, patchResult, cylinders, limit, N) {
     for (const patch of cylinder.patchIds) taken.add(patch);
     for (const t of cylinder.triangles) regionOfTriangle[t] = region;
     models.set(region, cylinderModel(cylinder));
+    trianglesOfRegion.set(region, cylinder.triangles);
   }
   patchResult.patches.forEach((triangles, i) => {
     if (taken.has(i)) return;
@@ -335,6 +371,7 @@ function regionsFor(mesh, patchResult, cylinders, limit, N) {
       const region = next++;
       for (const t of triangles) regionOfTriangle[t] = region;
       models.set(region, planeModel(plane));
+      trianglesOfRegion.set(region, triangles);
       return;
     }
     for (const t of triangles) {
@@ -345,23 +382,54 @@ function regionsFor(mesh, patchResult, cylinders, limit, N) {
         point: [mesh.V[v], mesh.V[v + 1], mesh.V[v + 2]],
         normal: [N[3 * t], N[3 * t + 1], N[3 * t + 2]],
       }));
+      trianglesOfRegion.set(region, [t]);
     }
   });
   const topology = buildTopology(mesh, regionOfTriangle, models);
   const geometryKinds = topology.chains.map((chain) => classifyChain(mesh, chain, models, 1).kind);
-  return { regionOfTriangle, models, topology, regionOfCylinder, geometryKinds };
+  return { regionOfTriangle, models, topology, regionOfCylinder, geometryKinds, trianglesOfRegion };
 }
 
-/** Can tier 3 build this cylindrical region: one loop, or two full rings? */
+/**
+ * Can tier 3 build this cylindrical region: one loop (a fillet), or two rings
+ * (a tube)? A ring is one closed circle or several arcs on the same circle.
+ */
 function buildableBoundary(topology, region, kinds) {
   const loops = topology.loops.get(region) ?? [];
   if (loops.length === 1) return true;
   if (loops.length !== 2) return false;
-  return loops.every((loop) => loop.every((id) => kinds[id] === 'circle'));
+  return loops.every((loop) => loop.every((id) => kinds[id] === 'circle' || kinds[id] === 'arc'));
 }
 
 /** Patches flatter than this (· diagonal) may become one planar face. */
 export const PLANAR_TOLERANCE_RELATIVE = 1e-6;
+
+/**
+ * The tolerance of the whole run (SPEC 6.4). Growing the patches and
+ * accepting them as ONE plane have to scale together: measured on
+ * fandisk.obj, the coarse patch thresholds alone made the result worse
+ * (12 145 faces instead of 11 801), because the larger patches then failed
+ * the strict flatness limit and fell apart into facets again. With both
+ * scaled it drops to 7007 faces, and the report names the deviation
+ * (7.3e-4 mm on a part of 7.6 mm).
+ */
+export const TOLERANCE_LEVELS = {
+  streng: { angleDegrees: 2, offsetRelative: 1e-3, planarTolerance: 1e-7, label: 'streng' },
+  standard: { angleDegrees: 2, offsetRelative: 1e-3, planarTolerance: 1e-6, label: 'Standard' },
+  grob: { angleDegrees: 5, offsetRelative: 2e-2, planarTolerance: 1e-4, label: 'grob (verrauschtes Netz)' },
+};
+
+/** The level from the options; `noisy: true` stays as a name for "grob". */
+export function toleranceOf(opts = {}) {
+  const key = opts.tolerance ?? (opts.noisy ? 'grob' : 'standard');
+  const level = TOLERANCE_LEVELS[key] ?? TOLERANCE_LEVELS.standard;
+  return {
+    ...level,
+    key: TOLERANCE_LEVELS[key] ? key : 'standard',
+    // A single threshold can still be overridden by hand (tests, experiments).
+    planarTolerance: opts.planarTolerance ?? level.planarTolerance,
+  };
+}
 
 /**
  * Tier 2: patches that really are flat become one planar face with holes;
@@ -371,9 +439,10 @@ export const PLANAR_TOLERANCE_RELATIVE = 1e-6;
  * flat to 2e-6 mm, so nothing is lost there.
  */
 export function buildPlanarTier(mesh, analysis, opts = {}) {
-  const patchResult = analysis?.patches ?? growPatches(mesh, { noisy: opts.noisy });
+  const tolerance = toleranceOf(opts);
+  const patchResult = analysis?.patches ?? growPatches(mesh, tolerance);
   const diagonal = bbox(mesh.V).diagonal;
-  const limit = (opts.planarTolerance ?? PLANAR_TOLERANCE_RELATIVE) * diagonal;
+  const limit = tolerance.planarTolerance * diagonal;
   const { N } = triangleNormals(mesh.V, mesh.F);
 
   const regionOfTriangle = new Int32Array(mesh.F.length / 3).fill(-1);

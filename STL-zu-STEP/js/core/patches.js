@@ -37,7 +37,7 @@ export function growPatches(mesh, opts = {}) {
   const adj = adjacency(F);
   const order = Int32Array.from({ length: F.length / 3 }, (_, i) => i).sort((a, b) => area[b] - area[a]);
 
-  const noisy = opts.noisy === true;
+  const noisy = opts.noisy === true || opts.key === 'grob';
   const angleDegrees = opts.angleDegrees ?? (noisy ? NOISY_ANGLE_DEGREES : PATCH_ANGLE_DEGREES);
   const offset = (opts.offsetRelative ?? (noisy ? NOISY_OFFSET_RELATIVE : PATCH_OFFSET_RELATIVE)) * box.diagonal;
   const result = grow(V, F, N, area, adj, order, angleDegrees, offset);

@@ -12,6 +12,7 @@
 //   5. optional: radii snapped to round values (only on request)
 
 import { dot, normalize, cross, sub, norm, scale, add, solve } from './linalg.js';
+import { bbox } from './meshops.js';
 
 export const CONSTRAINT_DEFAULTS = {
   parallelDegrees: 0.5,
@@ -33,18 +34,28 @@ export function applyConstraints(mesh, models, topology, opts = {}) {
   const o = { ...CONSTRAINT_DEFAULTS, ...opts };
   const out = new Map();
   for (const [region, model] of models) out.set(region, { ...model });
-  const report = { parallel: 0, coaxial: 0, perpendicular: 0, tangential: 0, cornersMoved: 0, cornersExact: 0, cornersIterated: 0, radiiRounded: 0, maxCornerShift: 0, maxCornerError: 0, skipped: [] };
+  const report = {
+    parallel: 0, coaxial: 0, perpendicular: 0, tangential: 0,
+    cornersMoved: 0, cornersExact: 0, cornersIterated: 0, radiiRounded: 0,
+    maxCornerShift: 0, maxCornerError: 0, maxAxisShift: 0,
+    // Constraints that were taken back because they moved a surface away
+    // from its own points (see keepsItsData below).
+    verworfen: 0,
+    skipped: [],
+  };
 
   const cylinders = [...out.entries()].filter(([, m]) => m.type === 'cylinder');
   const planes = [...out.entries()].filter(([, m]) => m.type === 'plane');
+  const neighbours = neighbourRegions(topology);
+  const guard = dataGuard(mesh, opts.trianglesOfRegion, o);
 
   if (opts.parallel !== false) alignAxes(cylinders, report, o);
   else report.skipped.push('Achsen parallel setzen');
 
-  if (opts.perpendicular !== false) alignPlanes(planes, cylinders, report, o);
+  if (opts.perpendicular !== false) alignPlanes(planes, cylinders, neighbours, guard, report, o);
   else report.skipped.push('Ebenen rechtwinklig setzen');
 
-  if (opts.tangential !== false) makeTangential(planes, cylinders, report, o);
+  if (opts.tangential !== false) makeTangential(planes, cylinders, neighbours, guard, report, o);
   else report.skipped.push('Tangentialität');
 
   if (o.roundRadius) roundRadii(cylinders, report, o);
@@ -53,6 +64,67 @@ export function applyConstraints(mesh, models, topology, opts = {}) {
   if (opts.corners === false) report.skipped.push('Eckpunkte einrasten');
 
   return { points, models: out, report };
+}
+
+
+/** Which regions share a boundary with which (from the chains of the topology). */
+function neighbourRegions(topology) {
+  const map = new Map();
+  if (!topology?.chains) return map;
+  for (const chain of topology.chains) {
+    const own = map.get(chain.region) ?? new Set();
+    for (const other of chain.neighbours) own.add(other);
+    map.set(chain.region, own);
+    for (const other of chain.neighbours) {
+      const set = map.get(other) ?? new Set();
+      set.add(chain.region);
+      map.set(other, set);
+    }
+  }
+  return map;
+}
+
+/**
+ * Returns a test "does this surface still fit its own points?". A constraint
+ * may tidy a surface up, but it may never move it away from the triangles it
+ * was fitted to – a result that no longer matches the mesh is worse than one
+ * that is not quite square (CLAUDE.md).
+ */
+function dataGuard(mesh, trianglesOfRegion, o) {
+  if (!trianglesOfRegion) return () => true;
+  const diagonal = bbox(mesh.V).diagonal;
+  return (region, model, before) => {
+    const triangles = trianglesOfRegion.get(region);
+    if (!triangles || triangles.length === 0) return true;
+    const after = residualOf(mesh, model, triangles);
+    const allowed = model.type === 'cylinder'
+      ? o.tangentTolerance * model.radius + 1e-3 // the tolerance recognition used
+      : Math.max(1e-6 * diagonal, residualOf(mesh, before, triangles));
+    return after <= Math.max(allowed, residualOf(mesh, before, triangles));
+  };
+}
+
+/** Largest distance of the points of these triangles from the surface. */
+function residualOf(mesh, model, triangles) {
+  const { V, F } = mesh;
+  let worst = 0;
+  for (const t of triangles) {
+    for (let k = 0; k < 3; k++) {
+      const v = 3 * F[3 * t + k];
+      const p = [V[v], V[v + 1], V[v + 2]];
+      let d;
+      if (model.type === 'plane') {
+        d = Math.abs(dot(sub(p, model.point), normalize(model.normal)));
+      } else {
+        const axis = normalize(model.axis);
+        const q = sub(p, model.point);
+        const along = dot(q, axis);
+        d = Math.abs(norm([q[0] - along * axis[0], q[1] - along * axis[1], q[2] - along * axis[2]]) - model.radius);
+      }
+      if (d > worst) worst = d;
+    }
+  }
+  return worst;
 }
 
 /** 1. Axes that are nearly parallel become exactly parallel; coaxial ones share a line. */
@@ -96,18 +168,33 @@ function alignAxes(cylinders, report, o) {
   }
 }
 
-/** 2. Planes almost perpendicular to an axis become exactly perpendicular. */
-function alignPlanes(planes, cylinders, report, o) {
+/**
+ * 2. Planes almost perpendicular to an axis become exactly perpendicular –
+ * but only planes that really border that cylinder. Measured on fandisk.obj:
+ * without that restriction 1006 of 11 000 regions were snapped to some axis
+ * they never touch, every one of them rotated away from its own triangles.
+ */
+function alignPlanes(planes, cylinders, neighbours, guard, report, o) {
   const limit = Math.cos((o.perpendicularDegrees * Math.PI) / 180);
-  for (const [, plane] of planes) {
+  for (const [region, plane] of planes) {
+    const near = neighbours.get(region);
+    if (!near) continue;
     const n = normalize(plane.normal);
-    for (const [, cylinder] of cylinders) {
+    for (const [other, cylinder] of cylinders) {
+      if (!near.has(other)) continue;
       const axis = normalize(cylinder.axis);
       const c = dot(n, axis);
       if (Math.abs(c) <= limit) continue;
       const target = c > 0 ? axis : scale(axis, -1);
-      if (Math.abs(Math.abs(c) - 1) > 1e-15) report.perpendicular += 1;
+      if (Math.abs(Math.abs(c) - 1) < 1e-15) break;
+      const before = { ...plane };
       plane.normal = target;
+      if (!guard(region, plane, before)) {
+        Object.assign(plane, before);
+        report.verworfen += 1;
+      } else {
+        report.perpendicular += 1;
+      }
       break;
     }
   }
@@ -123,12 +210,16 @@ function alignPlanes(planes, cylinders, report, o) {
  * the wall being moved instead, only the first of them could be satisfied,
  * which left eight of the sixteen corners of the plate off by 1e-7.
  */
-function makeTangential(planes, cylinders, report, o) {
+function makeTangential(planes, cylinders, neighbours, guard, report, o) {
   const perpendicular = Math.sin((o.perpendicularDegrees * Math.PI) / 180);
-  for (const [, cylinder] of cylinders) {
+  for (const [region, cylinder] of cylinders) {
     const axis = normalize(cylinder.axis);
+    const near = neighbours.get(region) ?? new Set();
     const touching = [];
-    for (const [, plane] of planes) {
+    for (const [other, plane] of planes) {
+      // Only walls the cylinder really runs into – a plane somewhere else in
+      // the part says nothing about where this axis belongs.
+      if (!near.has(other)) continue;
       const n = normalize(plane.normal);
       if (Math.abs(dot(n, axis)) > perpendicular) continue;
       const distance = dot(sub(cylinder.point, plane.point), n);
@@ -144,7 +235,7 @@ function makeTangential(planes, cylinders, report, o) {
       if (independent.length === 2) break;
       if (Math.abs(dot(candidate.normal, independent[0].normal)) < Math.cos((5 * Math.PI) / 180)) independent.push(candidate);
     }
-    const before = cylinder.point;
+    const before = { ...cylinder };
     if (independent.length === 2) {
       // dot(a, n_i) = dot(p_i, n_i) + side_i · r, solved inside the plane ⊥ axis.
       const [first, second] = independent;
@@ -161,10 +252,17 @@ function makeTangential(planes, cylinders, report, o) {
       const distance = dot(sub(cylinder.point, t.plane.point), t.normal);
       cylinder.point = add(cylinder.point, scale(t.normal, t.side * cylinder.radius - distance));
     }
-    if (norm(sub(cylinder.point, before)) > 0) {
-      report.tangential += 1;
-      report.maxAxisShift = Math.max(report.maxAxisShift ?? 0, norm(sub(cylinder.point, before)));
+    const shift = norm(sub(cylinder.point, before.point));
+    if (shift === 0) continue;
+    // The axis may be nudged onto the wall, but never away from the points it
+    // was fitted to (measured on fandisk.obj: 0.00002 mm became 0.0328 mm).
+    if (!guard(region, cylinder, before)) {
+      Object.assign(cylinder, before);
+      report.verworfen += 1;
+      continue;
     }
+    report.tangential += 1;
+    report.maxAxisShift = Math.max(report.maxAxisShift, shift);
   }
 }
 

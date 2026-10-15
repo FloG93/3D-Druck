@@ -5,7 +5,7 @@
 // options, the state and the lifetime of the worker (cancelling terminates
 // it). Settings are kept under the prefix `stl-zu-step.` (CLAUDE.md).
 
-import { h, Panel, section, selectField, toggle, numberField, note, setStoragePrefix } from '../../../shared/js/controls.js';
+import { h, Panel, section, selectField, segmented, toggle, numberField, note, setStoragePrefix } from '../../../shared/js/controls.js';
 import { icon } from '../../../shared/js/icons.js';
 import { renderReport } from './report.js';
 
@@ -27,7 +27,7 @@ const defaults = () => ({
   unitFactor: 1,
   cylinders: true,
   acceptUncertain: false,
-  noisy: false,
+  tolerance: 'standard',
   roundRadius: false,
 });
 
@@ -122,17 +122,23 @@ export class App {
         bind: { get: () => this.options.acceptUncertain, set: (v) => this.set('acceptUncertain', v) },
         title: 'Ein Loch mit 8 bis 11 Facetten kann ein grober Zylinder oder ein echtes Vieleck sein. Standard: aus.',
       }),
-      toggle(panel, {
-        label: 'Grobe Toleranz (verrauschtes Netz)',
-        bind: { get: () => this.options.noisy, set: (v) => this.set('noisy', v) },
-        title: 'Für Scans: Flächenstücke dürfen stärker von ihrer Ebene abweichen (5° statt 2°).',
+      segmented(panel, {
+        label: 'Toleranz',
+        bind: { get: () => this.options.tolerance, set: (v) => this.set('tolerance', v) },
+        options: [
+          ['streng', 'streng', null, 'Nur was wirklich eben ist, wird eine Fläche. Für saubere CAD-Exporte.'],
+          ['standard', 'Standard', null, 'Der Normalfall.'],
+          ['grob', 'grob', null, 'Für Scans und verrauschte Netze: Flächenstücke dürfen stärker von ihrer Ebene abweichen (5° statt 2°), und sie werden auch dann zu einer Fläche verschmolzen. Der Bericht nennt den größten Abstand.'],
+        ],
       }),
       toggle(panel, {
         label: 'Radien auf 0,05 mm runden',
         bind: { get: () => this.options.roundRadius, set: (v) => this.set('roundRadius', v) },
         title: 'Rastet einen Radius auf einen runden Wert ein, aber nur innerhalb der gemessenen Unsicherheit.',
       }),
-      note(panel, 'Aus einem unterteilten Netz kommt der Radius etwas zu klein heraus – die Sehnenhöhe steckt in den Daten. Der Bericht nennt die Unsicherheit.'),
+      note(panel, () => (this.options.tolerance === 'grob'
+        ? 'Grobe Toleranz: größere Flächen, dafür liegt das Ergebnis weiter vom Netz entfernt – der Bericht nennt den größten Abstand.'
+        : 'Aus einem unterteilten Netz kommt der Radius etwas zu klein heraus – die Sehnenhöhe steckt in den Daten. Der Bericht nennt die Unsicherheit.')),
     );
     panel.register(recognition.el, null, null);
 
@@ -173,7 +179,7 @@ export class App {
         unitScale: this.scale,
         cylinders: this.options.cylinders,
         acceptUncertain: this.options.acceptUncertain,
-        noisy: this.options.noisy,
+        tolerance: this.options.tolerance,
         constraints: { roundRadius: this.options.roundRadius },
       },
     }, [buffer]);

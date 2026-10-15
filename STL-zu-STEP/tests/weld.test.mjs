@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import { parseMesh } from '../js/core/parse.js';
 import { weldMesh } from '../js/core/weld.js';
-import { edgeMap, signedVolume, components, bbox, adjacency, triangleNormals, openEdges } from '../js/core/meshops.js';
+import { edgeMap, signedVolume, components, splitComponents, bbox, adjacency, triangleNormals, openEdges } from '../js/core/meshops.js';
 import { loadFixture, expected, meshStats } from './helpers.mjs';
 
 const mesh = (name) => weldMesh(parseMesh(loadFixture(name), name).tris);
@@ -32,13 +32,35 @@ test('defekt-verrutscht.stl: shifted points are welded back to 264', () => {
 
 test('defekt-zweikoerper.stl: two components', () => {
   const { V, F } = mesh('defekt-zweikoerper.stl');
-  const comps = components(F, V.length / 3);
+  const comps = components(F);
   assert.equal(comps.count, 2);
   assert.equal(comps.label.length, F.length / 3);
   const sizes = [0, 0];
   for (const l of comps.label) sizes[l] += 1;
   assert.deepEqual(sizes.slice().sort((a, b) => a - b), [532, 532]);
   assert.equal(meshStats(V, F).components, 2, 'helper and module agree');
+});
+
+test('shells that touch in a point are separate bodies (union-find over edges)', () => {
+  // Found in the Utah teapot: two closed shells sharing exactly one vertex.
+  // Over points they look like one body with Euler characteristic 3, and no
+  // valid solid comes out of that (MACHBARKEIT section 7).
+  const { V, F } = mesh('defekt-punktberuehrung.stl');
+  assert.equal(F.length / 3, 24);
+  const comps = components(F);
+  assert.equal(comps.count, 2, 'two cubes, two bodies');
+  const sizes = [0, 0];
+  for (const l of comps.label) sizes[l] += 1;
+  assert.deepEqual(sizes, [12, 12]);
+  // Both halves are closed in themselves, so both are solids.
+  const parts = splitComponents(V, F);
+  assert.equal(parts.length, 2);
+  for (const part of parts) {
+    const stats = meshStats(part.V, part.F);
+    assert.equal(stats.open, 0);
+    assert.equal(part.V.length / 3, 8, 'the shared point is in both bodies');
+    assert.ok(Math.abs(stats.volume - 1000) < 1e-6, `volume ${stats.volume}`);
+  }
 });
 
 test('every fixture: triangle count stays, volume matches expected.json', () => {
@@ -97,12 +119,16 @@ test('welding 100 000 triangles stays under a second', () => {
   assert.ok(ms < 1000, `welding took ${Math.round(ms)} ms`);
 });
 
-test('components and union-find do not use recursion (deep chain of triangles)', () => {
-  const n = 60000; // a long strip: a recursive flood fill would blow the stack
-  const tris = new Float64Array(9 * n);
+test('components and union-find do not use recursion (deep strip of triangles)', () => {
+  // A real strip: every triangle shares an EDGE with the next one, so all of
+  // them are one component. A recursive flood fill would blow the stack here.
+  const n = 30000;
+  const tris = new Float64Array(9 * 2 * n);
   for (let i = 0; i < n; i++) {
-    tris.set([i, 0, 0, i + 1, 0, 0, i + (i % 2 ? 1 : 0), 1, 0], 9 * i);
+    tris.set([i, 0, 0, i + 1, 0, 0, i, 1, 0], 18 * i);
+    tris.set([i + 1, 0, 0, i + 1, 1, 0, i, 1, 0], 18 * i + 9);
   }
   const { V, F } = weldMesh(tris);
-  assert.equal(components(F, V.length / 3).count, 1);
+  assert.equal(F.length / 3, 2 * n);
+  assert.equal(components(F).count, 1);
 });

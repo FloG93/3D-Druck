@@ -140,15 +140,30 @@ test('3g components: defekt-zweikoerper.stl keeps both bodies', () => {
   assert.ok(Math.abs(sum - 2 * PLATE_VOLUME) < 0.01, 'the second body must not be lost');
 });
 
+test('two cubes touching in a point stay two closed bodies', () => {
+  // Union-find over edges, not over points (see weld.test.mjs).
+  const { V, F, report, components } = healed('defekt-punktberuehrung.stl');
+  assert.equal(report.components, 2);
+  assert.equal(components.length, 2);
+  assertClosed(V, F, 'punktberuehrung');
+  let sum = 0;
+  for (const c of components) {
+    assertClosed(c.V, c.F, 'cube');
+    sum += signedVolume(c.V, c.F);
+  }
+  assert.ok(Math.abs(sum - 2000) < 1e-6, `total volume ${sum}`);
+});
+
 test('all defect fixtures end closed with the volume of the clean plate', () => {
+  const special = { 'defekt-zweikoerper.stl': [2 * PLATE_VOLUME, 2], 'defekt-punktberuehrung.stl': [2000, 2] };
   for (const name of Object.keys(expected())) {
     if (!name.startsWith('defekt-')) continue;
     const { V, F, components } = healed(name);
     assertClosed(V, F, name);
-    const want = name === 'defekt-zweikoerper.stl' ? 2 * PLATE_VOLUME : PLATE_VOLUME;
+    const [want, bodies] = special[name] ?? [PLATE_VOLUME, 1];
     const dev = Math.abs((100 * (signedVolume(V, F) - want)) / want);
     assert.ok(dev < 0.01, `${name}: volume deviates ${dev.toFixed(4)}%`);
-    assert.equal(components.length, name === 'defekt-zweikoerper.stl' ? 2 : 1, `${name}: components`);
+    assert.equal(components.length, bodies, `${name}: components`);
   }
 });
 

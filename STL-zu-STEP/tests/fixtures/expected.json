@@ -761,6 +761,44 @@
   "volumen_als_zylinder": 7717.2567,
   "erwartung": "Vieleck oder Zylinder ist aus den Daten nicht entscheidbar: wird das Loch als Zylinder r=3 erkannt, hat der Koerper das Volumen volumen_als_zylinder (Platte 40x20x10 minus pi*9*10), sonst volumen (Vieleck-Prisma)."
  },
+ "kugel-rauschen.stl": {
+  "dreiecke": 1662,
+  "netzvolumen": 2126.3833,
+  "beschreibung": "Kugel r=8 mit Rauschen 0,01 mm auf jedem Punkt (wie ein Scan)",
+  "volumen": 2144.6606,
+  "koerper": 1,
+  "zylinder": [],
+  "volumen_toleranz_prozent": 1.0,
+  "erwartung": "kein Zylinder: eine Handvoll verrauschter Facetten passt zwar auf einen Zylinder, belegt aber keinen"
+ },
+ "kugel-bohrung.stl": {
+  "dreiecke": 2722,
+  "netzvolumen": 13232.6613,
+  "beschreibung": "Kugel r=15 mit durchgehender Bohrung r=3 (Bohrungsringe enden auf gekruemmter Flaeche)",
+  "volumen": 13297.4766,
+  "koerper": 1,
+  "zylinder": [
+   {
+    "r": 3.0,
+    "achse": [
+     0,
+     0,
+     1
+    ]
+   }
+  ],
+  "vertrauen": "sicher",
+  "erwartung": "Bohrung wird ein Zylinder; die Kappenringe liegen auf der gekruemmten Kugelflaeche"
+ },
+ "defekt-punktberuehrung.stl": {
+  "dreiecke": 24,
+  "netzvolumen": 2000.0,
+  "beschreibung": "zwei Wuerfel, die sich in genau einem Punkt beruehren (Schalen ueber einen Punkt verbunden)",
+  "volumen": 1000.0,
+  "koerper": 2,
+  "zylinder": [],
+  "erwartung": "zwei Solids; die Komponenten muessen ueber KANTEN getrennt werden, nicht ueber Punkte"
+ },
  "wuerfel.stl": {
   "dreiecke": 12,
   "netzvolumen": 1000.0,

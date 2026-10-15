@@ -198,14 +198,32 @@ export function buildBrep(mesh, regionOfTriangle, models, topology, opts = {}) {
   const primary = new Map();
   const handled = new Set();
 
+  // Edges of one chain, built on demand: the tube pass runs before the
+  // general pass and needs the arcs of its rings already.
+  const ensureEdges = (id) => {
+    if (!edgesOfChain[id]) {
+      const known = primary.get(keys[id]);
+      if (known !== undefined && edgesOfChain[known]) {
+        edgesOfChain[id] = reverseUses(edgesOfChain[known]);
+      } else {
+        primary.set(keys[id], id);
+        edgesOfChain[id] = chainEdges(b, V, topology.chains[id], geometry[id], vertex, `k${id}`);
+      }
+    }
+    return edgesOfChain[id];
+  };
+
   // Tubes first: both rings have to be split at the same angle, otherwise the
   // seam between the halves is not a straight line on the cylinder.
   for (const [region, model] of models) {
     if (model.type !== 'cylinder') continue;
     const loops = topology.loops.get(region) ?? [];
-    const rings = loops.filter((loop) => loop.every((id) => geometry[id].kind === 'circle'));
+    // A ring is one closed circle, or several arcs on the same circle – the
+    // latter as soon as the face around the bore is not one flat patch.
+    const isRing = (loop) => loop.every((id) => geometry[id].kind === 'circle' || geometry[id].kind === 'arc');
+    const rings = loops.filter(isRing);
     if (loops.length !== 2 || rings.length !== 2) continue;
-    const built = buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOfChain, primary);
+    const built = buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOfChain, primary, ensureEdges);
     if (built) handled.add(region);
   }
 
@@ -310,16 +328,27 @@ function arcEdge(b, V, chain, geometry, vertex, tag) {
   const last = chain.points[chain.points.length - 1];
   const a0 = angleOf(first);
   const a1 = angleOf(last);
-  const mid = angleOf(chain.points[Math.floor(chain.points.length / 2)]);
-  const ccw = isBetween(a0, mid, a1);
+  // Which way round does the arc go? A chain of three points or more says so
+  // through its middle point. A chain of TWO points has no middle point – its
+  // "middle" is the end point, and asking it always answers "clockwise".
+  // Such a chain is a single edge of the mesh, so it can only be the short
+  // way: a cylinder is never accepted with fewer than eight facets per full
+  // circle, and one facet therefore spans far less than half of it.
+  // (Measured on fandisk.obj: without this, 0.05 rad became 2π − 0.05 and the
+  // volume of the body came out as −3649 instead of +20.)
+  const ccw = chain.points.length >= 3
+    ? isBetween(a0, angleOf(chain.points[Math.floor(chain.points.length / 2)]), a1)
+    : turn(a1 - a0) <= Math.PI;
   const normal = ccw ? axis : [-axis[0], -axis[1], -axis[2]];
   const ref = unitAt(u1, u2, a0);
   return b.edge(vertex(first), vertex(last), { type: 'circle', center, axis: normal, radius: cylinder.radius, ref }, `:a:${tag}`);
 }
 
+/** An angle difference as a positive turn in [0, 2π). */
+const turn = (x) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
 /** Does `mid` lie on the counter-clockwise way from a0 to a1? */
 function isBetween(a0, mid, a1) {
-  const turn = (x) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
   return turn(mid - a0) < turn(a1 - a0);
 }
 
@@ -328,56 +357,64 @@ function isBetween(a0, mid, a1) {
  * the two seams are straight lines on the cylinder (SPEC 5.7 step 7, as in
  * MusterGenerator/js/export/step.js for full circles).
  */
-function buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOfChain, primary) {
+function buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOfChain, primary, ensureEdges) {
   const axis = normalize(model.axis);
   const { u1, u2 } = cylinderFrame(model);
-  const first = topology.chains[rings[0][0]].points[0];
-  const start = sub([V[3 * first], V[3 * first + 1], V[3 * first + 2]], model.point);
-  const a0 = Math.atan2(dot(start, u2), dot(start, u1));
-  const angles = [a0, a0 + Math.PI];
+  const angleOf = (p) => {
+    const d = sub(p, model.point);
+    return Math.atan2(dot(d, u2), dot(d, u1));
+  };
 
-  const built = rings.map((loop, index) => {
-    const chainId = loop[0];
-    if (loop.length !== 1) return null;
-    const height = geometry[chainId].height;
-    if (height === undefined) return null;
-    const center = circleCenter(model, height);
-    const vs = angles.map((angle, slot) => b.vertex(pointAt(center, u1, u2, model.radius, angle), `tube${region}:${index}:${slot}`));
-    const halves = angles.map((angle, slot) => b.edge(
-      vs[slot],
-      vs[1 - slot],
-      { type: 'circle', center, axis, radius: model.radius, ref: unitAt(u1, u2, angle) },
-      `:tube${region}:${index}:${slot}`,
-    ));
-    // Direction of the ring in the mesh decides how the halves are traversed.
-    const ccw = sweepSign(V, topology.chains[chainId].points, model, u1, u2) > 0;
-    const arcFrom = (slot) => (ccw
-      ? { edge: halves[slot].edge, sense: halves[slot].sense }
-      : { edge: halves[1 - slot].edge, sense: !halves[1 - slot].sense });
-    return { chainId, vs, arcFrom, height };
-  });
+  // Where to cut the tube into halves. A ring that is already split into arcs
+  // decides, because its corners are fixed; a ring that is one closed circle
+  // gets its two vertices made at exactly those angles.
+  const splitRing = rings.find((loop) => loop.length > 1 || geometry[loop[0]].kind !== 'circle');
+  let angles;
+  if (splitRing) {
+    for (const id of splitRing) if (!ensureEdges(id)) return false;
+    const joints = jointAngles(b, splitRing, geometry, edgesOfChain, angleOf);
+    if (!joints) return false;
+    angles = joints;
+  } else {
+    const first = topology.chains[rings[0][0]].points[0];
+    const a0 = angleOf([V[3 * first], V[3 * first + 1], V[3 * first + 2]]);
+    angles = [a0, a0 + Math.PI];
+  }
+
+  const built = rings.map((loop, index) => (loop.length === 1 && geometry[loop[0]].kind === 'circle'
+    ? circleRing(b, V, model, region, index, loop, topology, geometry, angles, u1, u2, axis)
+    : arcRing(b, loop, geometry, edgesOfChain, angles, angleOf, ensureEdges)));
   if (built.some((r) => r === null)) return false;
 
   const [A, B] = built;
+  // The seams have to be rulings of the cylinder, so both ends of a seam must
+  // sit at the same angle. If the rings were cut at different places, the
+  // seam would cut through the body – then this region keeps its facets.
+  for (const slot of [0, 1]) {
+    const da = Math.abs(turn(angleOf(b.points[A.vs[slot]]) - angleOf(b.points[B.vs[slot]])));
+    if (Math.min(da, 2 * Math.PI - da) > 1e-4) return false;
+  }
   const seams = [0, 1].map((slot) => b.edge(A.vs[slot], B.vs[slot], { type: 'line' }, `:seam${region}:${slot}`));
   const surface = { type: 'cylinder', point: model.point, axis, ref: u1, radius: model.radius };
+  const exact = A.kind === 'circle' && B.kind === 'circle';
   const zOf = (ring) => ring.height - dot(model.point, axis);
   for (const slot of [0, 1]) {
     const other = 1 - slot;
     b.face({
       surface,
       loops: [[
-        A.arcFrom(slot),
+        ...A.arcFrom(slot),
         { edge: seams[other].edge, sense: seams[other].sense },
-        B.arcFrom(other),
+        ...B.arcFrom(other),
         { edge: seams[slot].edge, sense: !seams[slot].sense },
       ]],
       region,
       kind: 'cylinder',
       sameSense: model.outward !== false,
-      // The two halves share their vertices, so the parameter range cannot be
-      // read back from them – it is recorded here, where it is known exactly.
-      span: {
+      // Two half circles share their two vertices, so their parameter range
+      // cannot be read back from them and is recorded here. A half made of
+      // several arcs carries enough vertices of its own.
+      span: exact ? {
         theta0: angles[slot],
         theta1: angles[slot] + Math.PI,
         z0: Math.min(zOf(A), zOf(B)),
@@ -385,14 +422,123 @@ function buildTube(b, V, region, model, rings, topology, geometry, keys, edgesOf
         u1,
         u2,
         radius: model.radius,
-      },
+      } : null,
     });
   }
   for (const ring of built) {
-    edgesOfChain[ring.chainId] = [ring.arcFrom(0), ring.arcFrom(1)];
-    primary.set(keys[ring.chainId], ring.chainId);
+    for (const chainId of ring.chainIds) {
+      edgesOfChain[chainId] = ring.usesOfChain.get(chainId);
+      primary.set(keys[chainId], chainId);
+    }
   }
   return true;
+}
+
+/** A ring that is one closed circle: two new vertices, two half circles. */
+function circleRing(b, V, model, region, index, loop, topology, geometry, angles, u1, u2, axis) {
+  const chainId = loop[0];
+  const height = geometry[chainId].height;
+  if (height === undefined) return null;
+  const center = circleCenter(model, height);
+  const vs = angles.map((angle, slot) => b.vertex(pointAt(center, u1, u2, model.radius, angle), `tube${region}:${index}:${slot}`));
+  const halves = angles.map((angle, slot) => b.edge(
+    vs[slot],
+    vs[1 - slot],
+    { type: 'circle', center, axis, radius: model.radius, ref: unitAt(u1, u2, angle) },
+    `:tube${region}:${index}:${slot}`,
+  ));
+  const ccw = sweepSign(V, topology.chains[chainId].points, model, u1, u2) > 0;
+  const arcFrom = (slot) => [ccw
+    ? { edge: halves[slot].edge, sense: halves[slot].sense }
+    : { edge: halves[1 - slot].edge, sense: !halves[1 - slot].sense }];
+  return {
+    kind: 'circle',
+    vs,
+    arcFrom,
+    height,
+    chainIds: [chainId],
+    usesOfChain: new Map([[chainId, [...arcFrom(0), ...arcFrom(1)]]]),
+  };
+}
+
+/**
+ * A ring that is already split into arcs – which is what happens as soon as
+ * the face around the bore is not one flat patch, because then every point of
+ * the ring borders three regions. The existing corners are the cut points;
+ * nothing new is created.
+ */
+function arcRing(b, loop, geometry, edgesOfChain, angles, angleOf, ensureEdges) {
+  if (!loop.every((id) => geometry[id].kind === 'arc' || geometry[id].kind === 'circle')) return null;
+  const uses = [];
+  const chainOfUse = [];
+  for (const id of loop) {
+    for (const use of ensureEdges(id) ?? []) {
+      uses.push(use);
+      chainOfUse.push(id);
+    }
+  }
+  if (uses.length < 2) return null;
+  const startOf = (use) => (use.sense ? b.edges[use.edge].v0 : b.edges[use.edge].v1);
+  const ownAngles = uses.map((use) => angleOf(b.points[startOf(use)]));
+  const cut = angles.map((target) => {
+    let best = -1;
+    let bestError = Infinity;
+    ownAngles.forEach((a, i) => {
+      const d = Math.abs(((a - target + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
+      if (d < bestError) {
+        bestError = d;
+        best = i;
+      }
+    });
+    return best;
+  });
+  if (cut[0] < 0 || cut[1] < 0 || cut[0] === cut[1]) return null;
+  const run = (slot) => {
+    const from = cut[slot];
+    const to = cut[1 - slot];
+    const out = [];
+    for (let i = from; i !== to; i = (i + 1) % uses.length) {
+      out.push(uses[i]);
+      if (out.length > uses.length) return null;
+    }
+    return out;
+  };
+  const runs = [run(0), run(1)];
+  if (runs.some((r) => r === null || r.length === 0)) return null;
+  const usesOfChain = new Map();
+  for (const id of loop) usesOfChain.set(id, []);
+  uses.forEach((use, i) => usesOfChain.get(chainOfUse[i]).push(use));
+  return {
+    kind: 'arcs',
+    vs: [startOf(uses[cut[0]]), startOf(uses[cut[1]])],
+    arcFrom: (slot) => runs[slot],
+    height: undefined,
+    chainIds: loop,
+    usesOfChain,
+  };
+}
+
+/** Two cut angles from a ring that is already split: a corner and its opposite. */
+function jointAngles(b, loop, geometry, edgesOfChain, angleOf) {
+  const starts = [];
+  for (const id of loop) {
+    for (const use of edgesOfChain[id] ?? []) {
+      const v = use.sense ? b.edges[use.edge].v0 : b.edges[use.edge].v1;
+      starts.push(angleOf(b.points[v]));
+    }
+  }
+  if (starts.length < 2) return null;
+  const a0 = starts[0];
+  let opposite = starts[1];
+  let best = Infinity;
+  for (const a of starts.slice(1)) {
+    const d = Math.abs(Math.abs(((a - a0) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI);
+    if (d < best) {
+      best = d;
+      opposite = a;
+    }
+  }
+  return [a0, opposite];
 }
 
 /** Total signed sweep of a ring of mesh points around the axis. */
@@ -447,58 +593,31 @@ function loopArea(V, loop, topology, normal) {
   return Math.abs(area / 2);
 }
 
-/** A cylindrical region with a single loop (an open fillet). */
+/**
+ * A cylindrical region with a single loop (an open fillet). Its parameter
+ * range is NOT recorded: the boundary points of such a face determine it
+ * unambiguously, and brep.js reads it back from them. Only the two halves of
+ * a tube need the range to be recorded, because they share their vertices.
+ *
+ * (Measured on fandisk.obj: computing the range from the arcs instead ignored
+ * the direction the loop runs through an edge and turned a 90° fillet into a
+ * sweep of 357°, which made the volume of the whole body absurd. The check
+ * caught it, but a wrong range can stay below the one-percent limit in
+ * another part and then nobody notices.)
+ */
 function cylinderFace(b, region, model, loops, edgesOfChain) {
   if (loops.length !== 1) return false;
   const uses = loops[0].flatMap((id) => edgesOfChain[id] ?? []);
   if (uses.length === 0) return false;
-  const { axis, u1, u2 } = cylinderFrame(model);
+  const { axis, u1 } = cylinderFrame(model);
   b.face({
     surface: { type: 'cylinder', point: model.point, axis, ref: u1, radius: model.radius },
     loops: [uses],
     region,
     kind: 'cylinder',
     sameSense: model.outward !== false,
-    span: arcSpan(b, uses, model, u1, u2),
   });
   return true;
-}
-
-/**
- * Parameter range of a fillet face, read from its arcs: the angular range
- * from one arc, the heights from the two cap circles.
- */
-function arcSpan(b, uses, model, u1, u2) {
-  const axis = normalize(model.axis);
-  const arcs = uses.filter((use) => b.edges[use.edge].curve.type === 'circle');
-  if (arcs.length === 0) return null;
-  const heights = [];
-  let range = null;
-  for (const use of arcs) {
-    const edge = b.edges[use.edge];
-    const curve = edge.curve;
-    heights.push(dot(sub(curve.center, model.point), axis));
-    if (range) continue;
-    const angleOf = (v) => {
-      const d = sub(b.points[v], curve.center);
-      return Math.atan2(dot(d, u2), dot(d, u1));
-    };
-    const a0 = angleOf(edge.v0);
-    const a1 = angleOf(edge.v1);
-    const ccw = dot(normalize(curve.axis), axis) > 0;
-    let sweep = ccw ? a1 - a0 : a0 - a1;
-    while (sweep <= 1e-12) sweep += 2 * Math.PI;
-    range = ccw ? { theta0: a0, theta1: a0 + sweep } : { theta0: a1, theta1: a1 + sweep };
-  }
-  if (!range || heights.length < 2) return null;
-  return {
-    ...range,
-    z0: Math.min(...heights),
-    z1: Math.max(...heights),
-    u1,
-    u2,
-    radius: model.radius,
-  };
 }
 
 /** The plane of a patch, as a model for buildTopology/buildBrep. */

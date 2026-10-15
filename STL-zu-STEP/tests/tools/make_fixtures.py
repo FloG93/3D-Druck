@@ -144,6 +144,47 @@ for k, label in ((6, 'sechseck'), (8, 'achteck'), (12, 'zwoelfeck'), (16, 'sechz
     if k > 6: info.update(volumen_als_zylinder=AS_CYLINDER, erwartung=AS_CYLINDER_NOTE)
     add(f'loch-{label}.stl', tessellate(s), beschreibung=f'Platte mit {k}-eckigem Loch (Vieleck oder grober Zylinder?)', volumen=round(volume(s), 4), koerper=1, **info)
 
+# A sphere with scan noise: nothing on it is a cylinder, but a handful of noisy facets fit one easily. Found on
+# 3DBenchy.stl, where 123 of 142 "cylinders" had a radius of 0.01 to 0.5 mm and consisted of three or four triangles
+# (see docs/MACHBARKEIT.md section 7).
+def with_noise(tris, sigma):
+    """Noise per POINT, not per triangle corner: a scan is noisy, not torn apart."""
+    keys = np.round(tris.reshape(-1, 3) / 1e-4).astype(np.int64)
+    uniq, inv = np.unique(keys, axis=0, return_inverse=True)
+    V = np.zeros((len(uniq), 3))
+    V[inv] = tris.reshape(-1, 3)
+    V = V + rng.normal(0, sigma, V.shape)
+    return V[inv].reshape(-1, 3, 3).astype(np.float32).astype(float)
+
+
+noisy_sphere = with_noise(tessellate(BRepPrimAPI_MakeSphere(8.0).Shape()), 0.01)
+add('kugel-rauschen.stl', noisy_sphere,
+    beschreibung='Kugel r=8 mit Rauschen 0,01 mm auf jedem Punkt (wie ein Scan)',
+    volumen=round(volume(BRepPrimAPI_MakeSphere(8.0).Shape()), 4), koerper=1, zylinder=[],
+    volumen_toleranz_prozent=1.0,
+    erwartung='kein Zylinder: eine Handvoll verrauschter Facetten passt zwar auf einen Zylinder, belegt aber keinen')
+
+# A bore through a sphere: the rings of the bore end on a CURVED surface, so every ring vertex borders three regions
+# and each ring edge becomes a chain of only two points. The direction of such a short arc cannot be read from a
+# middle point (there is none), which is where the volume went wrong (see docs/MACHBARKEIT.md section 7).
+sphere_with_bore = BRepAlgoAPI_Cut(
+    BRepPrimAPI_MakeSphere(15.0).Shape(),
+    BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, -20), gp_Dir(0, 0, 1)), 3.0, 40).Shape()).Shape()
+add('kugel-bohrung.stl', tessellate(sphere_with_bore),
+    beschreibung='Kugel r=15 mit durchgehender Bohrung r=3 (Bohrungsringe enden auf gekruemmter Flaeche)',
+    volumen=round(volume(sphere_with_bore), 4), koerper=1,
+    zylinder=[dict(r=3.0, achse=[0, 0, 1])], vertrauen='sicher',
+    erwartung='Bohrung wird ein Zylinder; die Kappenringe liegen auf der gekruemmten Kugelflaeche')
+
+# Two cubes that touch in a single point: the shells share one vertex, so a union-find over POINTS sees one body with
+# Euler characteristic 3 and no valid solid comes out. Found in the Utah teapot (see docs/MACHBARKEIT.md section 7).
+cube_a = tessellate(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 1)
+cube_b = cube_a + [10, 10, 10]
+add('defekt-punktberuehrung.stl', np.vstack([cube_a, cube_b]),
+    beschreibung='zwei Wuerfel, die sich in genau einem Punkt beruehren (Schalen ueber einen Punkt verbunden)',
+    volumen=1000.0, koerper=2, zylinder=[],
+    erwartung='zwei Solids; die Komponenten muessen ueber KANTEN getrennt werden, nicht ueber Punkte')
+
 # Cube 10 mm: binary (above style), ASCII and OBJ with quads – the parsers must read all of them.
 cube = tessellate(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), 1)
 add('wuerfel.stl', cube, beschreibung='Wuerfel 10 mm', volumen=1000.0, koerper=1, ebenen=6, zylinder=[])

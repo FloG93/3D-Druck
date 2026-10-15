@@ -123,15 +123,21 @@ export function neighbours(adj, t) {
 }
 
 /**
- * components(F, pointCount) → { count, label: Int32Array(n) }
- * Triangles connected by a shared edge belong to one component; union-find
- * over the vertices, iterative (a strip of 60 000 triangles must not blow the
- * stack).
+ * components(F) → { count, label: Int32Array(n) }
+ * Triangles connected by a shared EDGE belong to one component – union-find
+ * over the edges, as SPEC 5.3 step 7 says, and iterative (a strip of 60 000
+ * triangles must not blow the stack).
+ *
+ * Measured on the Utah teapot (docs/MACHBARKEIT.md section 7): its body is two
+ * closed shells that share exactly one point. Connecting over POINTS makes
+ * them one body with Euler characteristic 3, which is no valid solid, and the
+ * whole part fell back to an open shell. Over edges they are two solids, and
+ * the shared point simply belongs to both.
  */
-export function components(F, pointCount) {
+export function components(F) {
   const n = F.length / 3;
-  const parent = new Uint32Array(pointCount);
-  for (let i = 0; i < pointCount; i++) parent[i] = i;
+  const parent = new Uint32Array(n);
+  for (let t = 0; t < n; t++) parent[t] = t;
   const find = (x) => {
     let r = x;
     while (parent[r] !== r) r = parent[r];
@@ -142,19 +148,24 @@ export function components(F, pointCount) {
     }
     return r;
   };
+  const edges = new Map();
   for (let t = 0; t < n; t++) {
-    const a = find(F[3 * t]);
-    const b = find(F[3 * t + 1]);
-    const c = find(F[3 * t + 2]);
-    const root = Math.min(a, b, c);
-    if (a !== root) parent[a] = root;
-    if (b !== root) parent[b] = root;
-    if (c !== root) parent[c] = root;
+    for (const [u, v] of triEdges(F, t)) {
+      const key = undirectedKey(u, v);
+      const first = edges.get(key);
+      if (first === undefined) {
+        edges.set(key, t);
+        continue;
+      }
+      const a = find(first);
+      const b = find(t);
+      if (a !== b) parent[a < b ? b : a] = a < b ? a : b;
+    }
   }
   const ids = new Map();
   const label = new Int32Array(n);
   for (let t = 0; t < n; t++) {
-    const root = find(F[3 * t]);
+    const root = find(t);
     let id = ids.get(root);
     if (id === undefined) {
       id = ids.size;
@@ -184,7 +195,7 @@ export function bbox(V) {
  * it to colour the triangles of a component in the whole mesh again.
  */
 export function splitComponents(V, F) {
-  const comps = components(F, V.length / 3);
+  const comps = components(F);
   const out = [];
   for (let c = 0; c < comps.count; c++) {
     const remap = new Int32Array(V.length / 3).fill(-1);

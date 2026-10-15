@@ -7,9 +7,9 @@ import fs from 'node:fs';
 
 import { FIXTURE_DIR, FIXTURES, expected, loadFixture, meshStats, signedVolume, componentCount } from './helpers.mjs';
 
-test('corpus: 23 files, every file has ground truth', () => {
+test('corpus: 26 files, every file has ground truth', () => {
   const names = FIXTURES();
-  assert.equal(names.length, 23);
+  assert.equal(names.length, 26);
   const onDisk = fs.readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.stl') || f.endsWith('.obj'));
   assert.deepEqual(onDisk.slice().sort(), names.slice().sort());
   for (const name of names) {

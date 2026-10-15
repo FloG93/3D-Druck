@@ -194,7 +194,7 @@ Eine Seite mit Kopfleiste und Arbeitsfläche aus `shared/css/ui.css`, deutsche T
 1. **Ablegen** (Drag & Drop, Dateiauswahl): STL, OBJ. Fortschritt je Schritt (Worker).
 2. **Ergebnis**: 3D-Vorschau (three.js wie `MusterGenerator/js/ui/view3d.js`), Netz grau, erkannte Zylinder farbig, Eingabe/Ergebnis umschaltbar.
 3. **Bericht** (immer sichtbar): Reparaturen mit Zahlen („3 Löcher gefüllt, 10 doppelte Dreiecke entfernt"), erreichte **Stufe** je Körper in Klartext, Rückfallgründe, Liste der erkannten Merkmale mit Radius, Achse, **Vertrauen** und Unsicherheit; unsichere einzeln einschaltbar; Radien-Einrasten (aus).
-4. **Optionen**: Einheit (mm / Zoll / eigener Faktor), Toleranz (Standard / streng), „Zylinder erkennen" an/aus.
+4. **Optionen**: Einheit (mm / Zoll / eigener Faktor), Toleranz (streng / Standard / grob), „Zylinder erkennen" an/aus, unsichere Merkmale übernehmen, Radien runden. Die Toleranz steuert **beide** Schwellen gemeinsam – Wachsen der Stücke *und* Annahme als eine Ebene; getrennt eingestellt verschlechtert die grobe Toleranz das Ergebnis (MACHBARKEIT 7).
 5. **Export**: `.step`-Download, Dateiname aus Eingabe; Warnbanner bei Stufe 1 (große Datei, langsam in CAD) oder `offen`.
 6. Warnung ab 500 000 Dreiecken („kann Minuten dauern") und Abbruch-Knopf (Worker beenden).
 
@@ -231,7 +231,7 @@ Feldbedienung: Ziele ≥ 44 px; Zustände nie nur über Farbe; Kontrast ≥ 4,5 
 |---|---|
 | Echte Dateien verhalten sich anders als die Testsammlung | Plan-Schritt „Realitätstest": Nutzer liefert 5–10 echte STL; jeder Fehlschlag wird Fixture und Test. |
 | Tangenten-Zwänge (5.6) lösen Rundungen nicht | Rückfall Stufe 2 ist immer gültig; Mess-Test `platte-unterteilt*`. Fallback-Alternative: Rundungen mit nicht exakt passender Wand als eigene Flächen an Polygonzug anlegen und Spalt per Sewing-Toleranz 1e-3 schließen (nur wenn Volumen/Abstandsprüfung bestanden). |
-| Leistung > 500 k Dreiecke | Typed Arrays, Worker, Hash-Gitter, keine rekursiven Algorithmen, keine Objekte pro Dreieck; Budget: 100 k Dreiecke < 5 s (Zielvorgabe, nicht gemessen). |
+| Leistung > 500 k Dreiecke | Typed Arrays, Worker, Hash-Gitter, keine rekursiven Algorithmen, keine Objekte pro Dreieck. *Nachtrag 15.10.2026:* gemessen sind **10,7 s für 100 000 Dreiecke** (8,2 s umwandeln, 2,5 s STEP schreiben) – das Budget von 5 s war eine Zielvorgabe ohne Messung und wird verfehlt. Siehe MACHBARKEIT 7. |
 | Fusion öffnet Stufe 1 mit sehr vielen Flächen langsam | Warnbanner mit Flächenzahl; Empfehlung, Stufe 2/3 zu erlauben. |
 | Einheiten falsch (Zoll) | Warnung bei Bounding-Box-Diagonale < 1 oder > 5000; Einheitenfeld sichtbar. |
 | Scheinzylinder (Torus) | Randprüfung (5.5), Vertrauen, Nutzer schaltet pro Merkmal ab. |

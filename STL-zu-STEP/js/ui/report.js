@@ -9,6 +9,8 @@ import { icon } from '../../../shared/js/icons.js';
 const de = (v, digits = 2) => (Number.isFinite(v) ? v.toLocaleString('de-DE', { maximumFractionDigits: digits, minimumFractionDigits: 0 }) : '–');
 const plural = (n, one, many) => `${de(n, 0)} ${n === 1 ? one : many}`;
 
+export const TOLERANCE_TEXT = { streng: 'streng', standard: 'Standard', grob: 'grob (verrauschtes Netz)' };
+
 export const TIER_TEXT = {
   3: { name: 'Stufe 3', what: 'Ebenen und echte Zylinder', good: true },
   2: { name: 'Stufe 2', what: 'verschmolzene Ebenen, Zylinder bleiben Facetten' },
@@ -62,6 +64,7 @@ function bodyBlock(component, index, total) {
     ['Abweichung zum Netz', `${component.deviationPercent >= 0 ? '+' : ''}${de(component.deviationPercent, 4)} %`],
   ];
   if (component.maxDeviation > 0) rows.push(['Größter Abstand zum Netz', `${de(component.maxDeviation, 5)} mm`]);
+  if (component.tolerance && component.tolerance !== 'standard') rows.push(['Toleranz', TOLERANCE_TEXT[component.tolerance] ?? component.tolerance]);
   return h(
     'div',
     { class: 'report-body' },

@@ -116,6 +116,24 @@ test('5f torus: no phantom cylinders (boundary check)', () => {
   assert.ok(rejected.some((r) => r.reasons.some((x) => x.startsWith('Rand'))), 'the boundary check is the reason');
 });
 
+test('noise on a sphere does not invent cylinders', () => {
+  // A scan is noisy, and a handful of noisy facets fit a small cylinder
+  // easily. Measured on 3DBenchy.stl, where 123 of 142 "cylinders" had a
+  // radius of 0.01 to 0.5 mm (MACHBARKEIT section 7).
+  const { cylinders, rejected } = run('kugel-rauschen.stl');
+  assert.equal(cylinders.length, 0, `radii ${radii(cylinders)}`);
+  assert.ok(rejected.length > 0, 'and the candidates are listed with their reason');
+  // The coarse tolerance must not change that.
+  assert.equal(run('kugel-rauschen.stl', { noisy: true }).cylinders.length, 0);
+});
+
+test('a bore through a sphere is recognised, even on a curved neighbour', () => {
+  const { cylinders } = run('kugel-bohrung.stl');
+  assert.equal(cylinders.length, 1);
+  assert.ok(Math.abs(cylinders[0].radius - 3) < 0.01, `radius ${cylinders[0].radius}`);
+  assert.equal(cylinders[0].outward, false, 'a bore has its material outside');
+});
+
 test('the cube and the clean plate: no feature is invented or lost', () => {
   assert.equal(run('wuerfel.stl').cylinders.length, 0);
   for (const name of Object.keys(expected())) {

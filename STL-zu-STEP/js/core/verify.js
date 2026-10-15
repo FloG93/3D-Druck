@@ -49,12 +49,22 @@ export function verifyBrep(brep, mesh, opts = {}) {
   add('Kanten genau zweimal gegenläufig', o.requireClosed ? wrongEdges === 0 && unused === 0 : true,
     wrongEdges === 0 && unused === 0 ? 'alle' : `${wrongEdges} Kanten falsch benutzt, ${unused} unbenutzt`);
 
-  // 2. Euler per shell: V − E + F = 2 − 2·handles, so the parity has to work out.
+  // 2. Euler characteristic. A face with holes is not a disc: it counts as
+  // 1 − (number of its inner loops). Without that correction a body with
+  // through-holes comes out odd and a perfectly good result is refused –
+  // measured on 3DBenchy.stl, a solid of genus 5, which gave 3 instead of −8
+  // and was thrown away twice over (docs/MACHBARKEIT.md section 7).
   const counts = brepCounts(brep);
-  const euler = counts.points - counts.edges + counts.faces;
-  const expectedEuler = 2 * counts.solids;
-  add('Euler-Formel', euler === expectedEuler || (expectedEuler - euler) % 2 === 0,
-    `V−E+F = ${euler} (${counts.points}−${counts.edges}+${counts.faces}), erwartet ${expectedEuler} oder 2−2·Henkel`);
+  let innerLoops = 0;
+  for (const face of brep.faces) innerLoops += Math.max(0, face.loops.length - 1);
+  const euler = counts.points - counts.edges + counts.faces - innerLoops;
+  // A closed orientable surface has χ = 2 − 2·handles: even, and at most 2
+  // per shell.
+  const eulerOk = euler % 2 === 0 && euler <= 2 * counts.solids;
+  const handles = (2 * counts.solids - euler) / 2;
+  add('Euler-Formel', eulerOk,
+    `χ = ${euler} (${counts.points}−${counts.edges}+${counts.faces}−${innerLoops} Innenschleifen)`
+    + (eulerOk ? `, also ${handles === 0 ? 'keine Henkel' : `${handles} Henkel/Durchbrüche`}` : `, erwartet gerade und ≤ ${2 * counts.solids}`));
 
   // 3. Volume of the B-rep against the volume of the mesh.
   const meshVolume = signedVolume(mesh.V, mesh.F);

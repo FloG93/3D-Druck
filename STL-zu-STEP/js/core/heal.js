@@ -14,8 +14,8 @@
 // prototype got wrong: a second body must not be lost silently, and an edge
 // with three triangles must lose the surplus one.
 
-import { bbox, edgeMap, signedVolume, splitComponents, triEdges, undirectedKey, edgeKey, triangleNormals } from './meshops.js';
-import { HashGrid, makeUnionFind } from './weld.js';
+import { bbox, components, edgeMap, signedVolume, splitComponents, triEdges, undirectedKey, edgeKey, triangleNormals } from './meshops.js';
+import { HashGrid } from './weld.js';
 
 /** Loops with more edges than this stay open (SPEC 5.3 step 5). */
 export const MAX_HOLE_EDGES = 64;
@@ -66,14 +66,16 @@ export function healMesh(mesh, opts = {}) {
   if (opts.fillHoles === false) report.skipped.push('Löcher füllen');
   else F = fillHoles(V, F, maxHoleEdges, report);
 
-  // Filling may insert triangles against the winding of their neighbours.
-  F = orientConsistently(F, report);
+  // Filling may insert triangles against the winding of their neighbours –
+  // but only then, and the pass costs a full run over the mesh.
+  if (report.holesFilled > 0) F = orientConsistently(F, report);
 
   ({ V, F } = dropUnusedPoints(V, F, report));
 
-  F = orientGlobally(V, F, report);
-
-  const parts = splitComponents(V, F);
+  // orientGlobally needs the components anyway, so it hands them back.
+  const oriented = orientGlobally(V, F, report);
+  F = oriented.F;
+  const parts = oriented.parts;
   report.components = parts.length;
   report.points = V.length / 3;
   report.triangles = F.length / 3;
@@ -421,16 +423,20 @@ function earClip(V, loop) {
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
-/** 6. Overall direction per component: a negative volume is inside out. */
+/**
+ * 6. Overall direction per component: a negative volume is inside out.
+ * Returns the triangles AND the components, because splitting the mesh is the
+ * expensive part and the caller needs them too.
+ */
 function orientGlobally(V, F, report) {
   const faces = Uint32Array.from(F);
-  const parts = splitComponents(V, faces);
-  const labels = componentLabels(V, faces);
+  let parts = splitComponents(V, faces);
   const flip = new Set();
   parts.forEach((part, i) => {
     if (signedVolume(part.V, part.F) < 0) flip.add(i);
   });
-  if (flip.size === 0) return faces;
+  if (flip.size === 0) return { F: faces, parts };
+  const labels = components(faces).label;
   for (let t = 0; t < faces.length / 3; t++) {
     if (!flip.has(labels[t])) continue;
     const tmp = faces[3 * t + 1];
@@ -438,27 +444,8 @@ function orientGlobally(V, F, report) {
     faces[3 * t + 2] = tmp;
   }
   report.orientedGlobally = true;
-  return faces;
-}
-
-function componentLabels(V, F) {
-  const uf = makeUnionFind(V.length / 3);
-  for (let t = 0; t < F.length / 3; t++) {
-    uf.union(F[3 * t], F[3 * t + 1]);
-    uf.union(F[3 * t + 1], F[3 * t + 2]);
-  }
-  const ids = new Map();
-  const label = new Int32Array(F.length / 3);
-  for (let t = 0; t < F.length / 3; t++) {
-    const root = uf.find(F[3 * t]);
-    let id = ids.get(root);
-    if (id === undefined) {
-      id = ids.size;
-      ids.set(root, id);
-    }
-    label[t] = id;
-  }
-  return label;
+  parts = splitComponents(V, faces); // the turned triangles belong to the parts
+  return { F: faces, parts };
 }
 
 /** Points no triangle uses any more (left over from removed triangles). */

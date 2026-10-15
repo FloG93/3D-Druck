@@ -6,7 +6,7 @@ Für Claude Code. Vorher lesen: [`SPEC.md`](SPEC.md) (was), [`MACHBARKEIT.md`](M
 
 **Schritte 0 bis 10 sind gebaut**, jeder mit Tests und einem eigenen Commit; `npm test` und `npm run validate:stl` sind grün (34 STEP-Dateien von OpenCascade gelesen). Gelöst sind dabei auch die beiden offenen Punkte der Machbarkeitsstudie: **Torus 0 statt 3 Scheinzylinder** (Randprüfung) und **Stufe 3 für die unterteilten Netze** (Zwangsbedingungen, Ecken geschlossen gelöst). Abweichungen vom ursprünglichen Plan stehen mit Messwert in `SPEC.md` und `MACHBARKEIT.md`.
 
-**Offen ist Schritt 11 (Realitätstest).** Dafür braucht es echte Dateien vom Auftraggeber – die Testsammlung ist synthetisch.
+**Schritt 11 (Realitätstest) ist zur Hälfte erledigt:** sieben öffentlich verfügbare Modelle sind gemessen (`MACHBARKEIT.md` Abschnitt 7); sie haben fünf Fehler zutage gefördert, die behoben und als Fixtures und Tests abgesichert sind. Was fehlt, sind **echte Druckteile mit Bohrungen vom Auftraggeber** und das Öffnen der Ergebnisse in Fusion 360 oder FreeCAD – beides kann nur er liefern.
 
 ## Arbeitsweise
 
@@ -127,6 +127,8 @@ Erst jetzt `STL-zu-STEP/index.html`, `css/app.css`, `favicon.svg`, `js/main.js`,
 
 ## Schritt 11 – Realitätstest (Pflicht vor „fertig")
 
+*Stand 15.10.2026: Teil 1 erledigt mit sieben öffentlichen Modellen (`tests/tools/measure.mjs`, Ergebnisse in MACHBARKEIT 7). Teil 2 – die Dateien des Auftraggebers und das Öffnen in CAD – steht aus.*
+
 Die Testsammlung ist synthetisch. **Der Auftraggeber liefert 5–10 echte STL-Dateien** (Thingiverse/Printables: Halterung mit Bohrungen, Gehäuse, ein Scan, ein organisches Teil, eine sehr große Datei). Für jede Datei:
 1. Konvertieren, Bericht lesen: Stufe, Zahl der Reparaturen, erkannte Merkmale.
 2. In Fusion 360 oder FreeCAD öffnen (Auftraggeber): geöffnet? Bohrung verschiebbar?
@@ -143,6 +145,6 @@ Kegel, Kugel, Torus-Erkennung; schräge Kappen (Ellipsen); Winding-Number-/Voxel
 
 - [x] Alle Zeilen der Abnahmetabelle (SPEC 7) grün, `npm test` und `npm run validate:stl` grün, CI-Dateien ergänzt (Jobs `stl-unit`, `stl-exports`).
 - [x] Bericht nennt jede Reparatur und jeden Rückfall mit Zahl; jeder Fehlschlag einer Stufe landet als Grund im Ergebnis (`tests/fallback.test.mjs`).
-- [ ] **Realitätstest (Schritt 11) mit mindestens 5 echten Dateien** – offen, braucht Dateien vom Auftraggeber.
+- [~] **Realitätstest (Schritt 11):** sieben öffentliche Modelle gemessen, fünf gefundene Fehler behoben und abgesichert (MACHBARKEIT 7). Offen: echte Druckteile des Auftraggebers und der Test in Fusion 360 / FreeCAD.
 - [x] README, Übersichtskarte, Wurzel-README aktualisiert; `index.html` vorhanden, damit Pages den Ordner veröffentlicht.
 - [x] `SPEC.md`/`MACHBARKEIT.md` spiegeln, was tatsächlich gebaut wurde (Abweichungen mit Messwert nachgetragen).

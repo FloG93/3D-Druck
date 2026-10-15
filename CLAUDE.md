@@ -14,7 +14,7 @@ Web-Werkzeuge für den 3D-Druck: `MusterGenerator/`, `Text-Generator/`, `STL-zu-
 
 ## STL-zu-STEP
 
-**Vor jeder Arbeit lesen:** `STL-zu-STEP/docs/PLAN.md` (nächster Schritt), `SPEC.md`, `MACHBARKEIT.md`. Die Reihenfolge der Schritte im Plan ist verbindlich. Schritte 0–10 sind gebaut; offen ist Schritt 11 (Realitätstest mit echten Dateien).
+**Vor jeder Arbeit lesen:** `STL-zu-STEP/docs/PLAN.md` (nächster Schritt), `SPEC.md`, `MACHBARKEIT.md`. Die Reihenfolge der Schritte im Plan ist verbindlich. Schritte 0–10 sind gebaut, Schritt 11 (Realitätstest) zur Hälfte: öffentliche Modelle sind gemessen (MACHBARKEIT 7), die Dateien des Auftraggebers fehlen.
 
 - Python-Prototypen in `STL-zu-STEP/docs/referenz/` sind der Maßstab für Zahlen; Abweichungen zuerst erklären, dann erst ändern.
 - Testsammlung `STL-zu-STEP/tests/fixtures/` (`expected.json` = Wahrheit). Neue Fehlerfälle werden Fixtures, **bevor** sie behoben werden.

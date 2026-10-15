@@ -102,8 +102,50 @@ Gelernt beim Bauen:
 Quellen: [Schnabel et al., Efficient RANSAC](https://diglib.eg.org/handle/10.2312/CGF.v26i2pp214-226) · [Bénière et al., Recovering primitives in 3D CAD meshes](https://www.lirmm.fr/~subsol/WWW/SPIE.0112.Beniere.1.pdf) · [ManifoldPlus](https://arxiv.org/abs/2005.11621) · [Zhou/Jacobson, Mesh Arrangements for Solid Geometry](https://www.cs.columbia.edu/cg/mesh-arrangements/mesh-arrangements-for-solid-geometry-scf-2016-poster-zhou-et-al.pdf) · [Mesh-to-BRep (Überblick)](https://novedge.com/blogs/design-news/mesh-to-brep-from-scans-to-intentful-editable-b-reps).
 
 ## 6. Offen / nicht gemessen
-
-- **Echte Dateien.** Alle Messungen an einem synthetischen Teil und seinen Abwandlungen. Freiformflächen, Schrift, Scan-Rauschen, Millionen Dreiecke, Einheiten (Zoll?) sind ungetestet. → Plan-Schritt „Realitätstest" mit Dateien des Auftraggebers; Fehlschläge werden Teil der Testsammlung.
 - **Kegel, Kugel, schräge Schnitte (Ellipsen), Rundungen mit nicht senkrechter Kappe:** nicht gebaut, nur als Gegenhypothesen berücksichtigt.
 - **Leistung:** Prototypen sind Python; JS-Budget in SPEC ist eine Zielvorgabe, nicht gemessen.
 - **Öffnen in Fusion 360 / FreeCAD:** nur mit OpenCascade geprüft. Fusion mit Zehntausenden facettierten Flächen wird langsam (Erfahrungswert, nicht gemessen) → App warnt vorher.
+
+## 7. Realitätstest (15.10.2026)
+
+Sieben öffentlich verfügbare Modelle, heruntergeladen und mit `tests/tools/measure.mjs` gemessen. Sie sind **nicht** im Repo (Lizenzen, Größe); reproduzierbar über die genannten Quellen. Die Testsammlung ist synthetisch – dieser Abschnitt ist der Gegencheck mit Dateien, die niemand für dieses Werkzeug gebaut hat.
+
+| Datei | Was es ist | Dreiecke | Ergebnis | Flächen | Volumen | Dauer |
+|---|---|---|---|---|---|---|
+| `fandisk.obj` | CAD-Klassiker: Ebenen, Rundungen, scharfe Kanten | 12 946 | Stufe 2 | 11 801 | = Netz | 2,0 s |
+| `rocker-arm.obj` | Maschinenteil, stark neu vernetzt | 20 088 | Stufe 2 | 20 038 | = Netz | 2,5 s |
+| `teapot.obj` | Utah-Teekanne | 6 468 | **4 Körper**, je Stufe 2 | 4 740 | = Netz | 0,6 s |
+| `beetle.obj` | kaputtes Netz (44 nichtmanifolde Dreiecke, 22 Löcher) | 2 177 | offene Schale, mit Begründung | – | – | 0,2 s |
+| `stanford-bunny.obj` | Scan mit bekanntem Loch im Boden | 69 586 | offene Schale + Einheitenwarnung (0,25 mm groß) | – | – | 7,3 s |
+| `3DBenchy.stl` | das meistgedruckte Modell der Welt | 225 154 | Stufe 2 | 211 278 | = Netz | 47 s |
+| `xyzrgb_dragon.obj` | organisch, sehr groß | 249 880 | Stufe 2 | 248 268 | = Netz | 65 s |
+
+Quellen: [common-3d-test-models](https://github.com/alecjacobson/common-3d-test-models) (fandisk, rocker-arm, teapot, beetle, bunny, dragon), [3DBenchy](https://github.com/CreativeTools/3DBenchy).
+
+**Kein einziges Ergebnis war falsch, aber fünf Fehler kamen ans Licht** – jeder davon ist jetzt eine Fixture und ein Test:
+
+1. **Komponenten über Kanten, nicht über Punkte** (`teapot.obj`). Der Körper der Teekanne besteht aus zwei Schalen, die sich in genau einem Punkt berühren. Über Punkte verbunden ergaben sie *einen* Körper mit ungerader Euler-Zahl, also keinen gültigen Solid – das ganze Teil fiel auf „offene Schale". Über Kanten sind es zwei Solids. Jetzt 4 Körper, alle gültig. Fixture: `defekt-punktberuehrung.stl`.
+2. **Bogenrichtung bei Ketten aus zwei Punkten** (`fandisk.obj`). Die Richtung eines Bogens wurde am Mittelpunkt der Kette abgelesen; bei zwei Punkten *ist* der Mittelpunkt der Endpunkt, und die Antwort war immer „im Uhrzeigersinn". Aus 0,05 rad wurde 2π − 0,05: ein Dreieck bekam die Fläche eines Vollkreises, das Körpervolumen kam mit **−3649 statt +20,2** heraus. Die Prüfung fing es ab, aber eine falsche Bogenrichtung kann in einem anderen Teil unter der Ein-Prozent-Grenze bleiben. Test: `tests/arc.test.mjs`.
+3. **Zwangsbedingungen nur zwischen Flächen, die sich berühren – und nie von den eigenen Daten weg** (`fandisk.obj`). Die Rechtwinkligkeit rastete **1006 von 11 000** Regionen auf eine Achse ein, die sie nie berühren; die Tangentialität schob eine Zylinderachse so weit, dass ihr Restfehler von 0,00002 auf **0,0328 mm** stieg. Jetzt werden nur Nachbarregionen betrachtet, und jede Zwangsbedingung wird zurückgenommen, wenn die Fläche danach schlechter zu ihren eigenen Punkten passt (`verworfen` im Bericht).
+4. **Euler-Zahl mit Innenschleifen** (`3DBenchy.stl`). Eine Fläche mit Löchern ist keine Scheibe; sie zählt `1 − Innenschleifen`. Ohne diese Korrektur kam für Benchy (ein Körper vom Geschlecht 5) χ = 3 statt −8 heraus, und ein völlig korrektes Ergebnis wurde zweimal verworfen. Benchy erreicht jetzt Stufe 2 statt Stufe 1; der Bericht nennt die Zahl der Durchbrüche im Klartext.
+5. **Facetten-Ebenen folgen ihren Eckpunkten** (`fandisk.obj`). Die Ebene einer Facette ist *durch* ihr Dreieck definiert. Rückt eine Zwangsbedingung einen Eckpunkt auf einen Zylinder, muss die Facettenebene neu durch die verschobenen Punkte gelegt werden, sonst liegt sie 2e-3 mm daneben.
+
+**Toleranz-Stufen.** Dabei fiel auf, dass „grobe Toleranz" das Ergebnis *verschlechterte* (fandisk: 12 145 statt 11 801 Flächen), weil die größeren Stücke dann an der strengen Ebenheitsgrenze scheiterten und wieder in Facetten zerfielen. Beide Schwellen skalieren jetzt gemeinsam (SPEC 6.4): fandisk kommt mit `grob` auf **7007 Flächen** (−41 %) bei 7,3e-4 mm größtem Abstand zum Netz.
+
+### Leistung (gemessen, Node 22, synthetische Kugelnetze)
+
+| Dreiecke | Umwandeln | STEP schreiben | gesamt |
+|---|---|---|---|
+| 19 800 | 2,7 s | 0,5 s | 3,2 s |
+| 50 880 | 4,4 s | 1,1 s | 5,5 s |
+| 99 904 | 8,2 s | 2,5 s | **10,7 s** |
+
+Das Budget in SPEC 8 („100 000 Dreiecke < 5 s") war eine Zielvorgabe ohne Messung und wird **verfehlt**; die Zahl oben ist der Stand nach zwei Optimierungen (doppelte Durchläufe in der Heilung entfernt, Erkennung ohne Allokationen in der inneren Schleife: 16,1 s → 10,7 s). Die Oberfläche bleibt dabei bedienbar (Worker, Fortschritt, Abbrechen) und warnt ab 500 000 Dreiecken.
+
+### Was der Realitätstest offen lässt
+
+- **`fandisk.obj` erreicht Stufe 3 nicht:** ein einziger Eckpunkt lässt sich nicht auf alle seine Flächen legen (1,95e-3 mm). Der Rückfall auf Stufe 2 ist korrekt; ein Rückfall *je Region* (nur den betroffenen Zylinder verwerfen) wäre besser.
+- **`rocker-arm.obj`: 817 Kandidaten verworfen, 0 angenommen** – überwiegend mit „Rand endet in der Fläche". Bei stark neu vernetzten Teilen ist die Randprüfung vermutlich zu streng; ohne Fixture, die das zeigt, wird die Schwelle nicht angefasst.
+- **`3DBenchy.stl`: 123 der 142 „Zylinder" sind Splitter** (r = 0,01 … 0,5 mm aus drei bis fünf Dreiecken). Die echten Merkmale findet die Erkennung sauber (Kaminbohrung r = 5,000, zwei Fenster r = 2,000). Die Splitter kosten Stufe 3, die die Prüfung zu Recht verweigert. Rauschen allein erzeugt sie nicht (`kugel-rauschen.stl` ergibt 0 Zylinder) – sie entstehen an entarteten Dreiecken.
+- **Dateigrößen:** Stufe 1 und 2 schreiben für große Netze riesige Dateien (Benchy 205 MB). Das ist die ehrliche Folge von „jede Facette eine Fläche"; die Oberfläche warnt davor.
+- **Die Dateien des Auftraggebers** fehlen weiterhin: diese sieben sind öffentlich verfügbare Modelle, keine echten Druckteile mit Bohrungen aus Thingiverse/Printables.

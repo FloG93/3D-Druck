@@ -67,7 +67,9 @@ Vor der Erkennung wird das Netz geheilt, in dieser Reihenfolge, und alles davon 
   verdächtig groß oder klein, warnt das Werkzeug.
 - **Zylinder erkennen** (an): aus bleibt alles Ebene – nützlich, wenn die Erkennung bei einem Teil danebenliegt.
 - **Unsichere übernehmen** (aus): nimmt auch Löcher mit 8 bis 11 Facetten als Zylinder.
-- **Grobe Toleranz** (aus): für Scans mit Rauschen – Flächenstücke dürfen stärker von ihrer Ebene abweichen.
+- **Toleranz** (streng / Standard / grob): wie krumm ein Flächenstück noch als eine Ebene durchgeht. „grob“ ist für
+  Scans und verrauschte Netze – es macht größere Flächen, dafür liegt das Ergebnis weiter vom Netz entfernt (der
+  Bericht nennt den größten Abstand). An einem echten CAD-Modell gemessen: 7007 statt 11 801 Flächen bei 7,3·10⁻⁴ mm.
 - **Radien auf 0,05 mm runden** (aus): rastet einen Radius auf einen runden Wert ein, aber nur innerhalb der
   gemessenen Unsicherheit.
 
@@ -76,9 +78,15 @@ Vor der Erkennung wird das Netz geheilt, in dieser Reihenfolge, und alles davon 
 - Aus einem **unterteilten Netz** kommt der Radius etwas zu klein heraus (gemessen −0,18 %): Die Punkte liegen auf den
   Sehnen, nicht auf dem Kreis. Der Bericht nennt die Unsicherheit, „Radien runden“ hilft bei Normmaßen.
 - **Kugel, Kegel, Torus, Freiform** bleiben Facetten (Stufe 2).
-- Sehr große Dateien (ab 500 000 Dreiecken) dauern Minuten; das Werkzeug fragt vorher und lässt sich abbrechen.
-- Die Testsammlung ist **synthetisch** (mit OpenCascade erzeugt). Echte Dateien aus dem Netz sind noch nicht
-  systematisch geprüft – siehe [`docs/PLAN.md`](docs/PLAN.md) Schritt 11.
+- **Dauer** (gemessen): 20 000 Dreiecke ≈ 3 s, 100 000 ≈ 11 s, 225 000 ≈ 47 s. Ab 500 000 Dreiecken fragt das
+  Werkzeug vorher nach; die Umwandlung läuft im Hintergrund und lässt sich abbrechen.
+- **Dateigröße:** Bleibt ein Teil facettiert (Stufe 1 oder 2), wird die STEP-Datei groß – für ein Modell mit 225 000
+  Dreiecken rund 200 MB. Das ist die ehrliche Folge von „jede Facette eine Fläche“.
+- **Echte Dateien:** Sieben öffentliche Modelle (CAD-Klassiker, 3DBenchy, Stanford-Bunny, ein Drache mit 250 000
+  Dreiecken) sind gemessen und haben fünf Fehler zutage gefördert, die inzwischen behoben und als Tests abgesichert
+  sind – siehe [`docs/MACHBARKEIT.md`](docs/MACHBARKEIT.md) Abschnitt 7. Die Testsammlung selbst ist **synthetisch**
+  (mit OpenCascade erzeugt); echte Druckteile mit Bohrungen von Thingiverse/Printables fehlen weiterhin
+  ([`docs/PLAN.md`](docs/PLAN.md) Schritt 11).
 
 ## Für Entwickler
 
@@ -99,6 +107,7 @@ Tests:
 
 ```bash
 npm run test:stl                 # Unit-Tests (Node >= 22)
+node STL-zu-STEP/tests/tools/measure.mjs <dateien…>   # echte Dateien durchmessen (Stufe, Dauer, Merkmale)
 npm run validate:stl             # STEP aus allen Fixtures mit OpenCascade prüfen (pip install cadquery-ocp)
 # Selbsttest der Oberfläche im echten Browser (Playwright außerhalb des Repos installieren):
 PLAYWRIGHT=~/pw/node_modules/playwright node STL-zu-STEP/tests/tools/ui-selftest.mjs --screenshot docs/screenshot.png

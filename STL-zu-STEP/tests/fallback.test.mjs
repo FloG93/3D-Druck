@@ -147,6 +147,20 @@ test('a result whose volume does not match the mesh is refused', () => {
   assert.ok(result.components.every((c) => c.tier !== 'offen'));
 });
 
+test('a body with through-holes is not refused by the Euler check', () => {
+  // A face with holes is not a disc: it counts as 1 − (its inner loops).
+  // Without that, a plate with two bores comes out odd and a correct result
+  // is thrown away – measured on 3DBenchy.stl, a solid of genus 5
+  // (MACHBARKEIT section 7).
+  const plate = convert(loadFixture('platte.stl'), 'platte.stl', {}).components[0];
+  const euler = plate.checks.find((c) => c.name === 'Euler-Formel');
+  assert.ok(euler.ok, euler.detail);
+  assert.match(euler.detail, /χ = -2/);
+  assert.match(euler.detail, /2 Henkel/, 'the two bores are named as handles');
+  const cube = convert(loadFixture('wuerfel.stl'), 'wuerfel.stl', {}).components[0];
+  assert.match(cube.checks.find((c) => c.name === 'Euler-Formel').detail, /keine Henkel/);
+});
+
 test('every component reports its tier, its repairs and its features', () => {
   for (const name of Object.keys(expected())) {
     const result = convert(loadFixture(name), name, {});
