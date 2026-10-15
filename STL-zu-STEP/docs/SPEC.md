@@ -116,7 +116,11 @@ Räumliches Hash-Gitter, Zellgröße = `tol`; `tol = 1e-5 · bboxDiagonale` (Sta
 8. Bericht füllen. **Volumenprüfung:** Summe der Komponentenvolumen = Summe der Netzvolumen (Messung: zwei Körper ⇒ doppeltes Volumen; wer nur eine Schale nimmt, verliert die andere).
 
 ### 5.4 patches.js
-Region Growing über Dreiecksnachbarschaft, Seeds nach Fläche absteigend. Dreieck `u` gehört zum Stück von Seed `s`, wenn `N[u]·N[s] > cos(2°)` und alle drei Punkte weniger als `1e-3·diag` von der Seed-Ebene entfernt sind. Bei Rauschen (Schätzung aus der Streuung der Punkte um die Stückebene > 1e-4·diag): `5°` und `2e-2·diag` – Schwellen als Optionen, im Bericht ausweisen.
+Region Growing über Dreiecksnachbarschaft, Seeds nach Fläche absteigend. Dreieck `u` gehört zum Stück von Seed `s`, wenn `N[u]·N[s] > cos(2°)` und alle drei Punkte weniger als `1e-3·diag` von der Seed-Ebene entfernt sind. Für verrauschte Netze: `5°` und `2e-2·diag` – Schwellen als Optionen, im Bericht ausgewiesen.
+
+*Nachtrag 15.10.2026:* Die **automatische** Rauschschätzung (Streuung der Punkte um die Stückebene > `1e-4·diag`) ist gestrichen. Gemessen: Die Streuung eines zu Recht gekrümmten Stücks ist genauso groß, die Schätzung schlug also bei jedem gekrümmten Netz an und lockerte die Schwellen – `kegel.stl` ergab damit **49 statt 116** Stücke, weil die Bänder des Kegels verschmolzen. Ein krümmungsunabhängiger Ersatz (Anteil der Dreiecke mit konvexer *und* konkaver Nachbarkante) trennt zu knapp (sauber bis 0,48, verrauscht ab 0,67) und wäre ohne eigene Messung geraten. Die grobe Toleranz ist deshalb eine Einstellung der Oberfläche; welche Schwellen gegolten haben, steht im Bericht. Automatische Erkennung: Phase 2.
+
+Gemessene Stückzahlen (JS, geheiltes Netz; identisch zur Referenz `probe4.py`): `platte` 134, `platte-unterteilt1/2` 134, `kegel` 116, `torus` 1702, `loch-sechseck` 12, `-achteck` 14, `-zwoelfeck` 18, `-sechzehneck` 22, `-zweiunddreissigeck` 38, `wuerfel` 6. `kugel` 1371 statt 1374: numpy gibt den beiden zusammengefallenen Poldreiecken eine NaN-Normale (je ein eigenes Stück), die Heilung entfernt sie.
 
 ### 5.5 cylinders.js
 
