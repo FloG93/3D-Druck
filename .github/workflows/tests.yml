@@ -73,3 +73,36 @@ jobs:
         run: node Text-Generator/tests/tools/generate-exports.mjs build/text-exports
       - name: 3MF (lib3mf, strikt), STL, DXF (ezdxf), STEP (OpenCascade) und QR-Codes prüfen
         run: python Text-Generator/tests/tools/validate_exports.py build/text-exports
+
+  stl-unit:
+    name: STL-zu-STEP – Unit-Tests (Parsen, Heilung, Erkennung, Bau)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: JavaScript-Tests
+        run: node --test "STL-zu-STEP/tests/*.test.mjs"
+
+  stl-exports:
+    name: STL-zu-STEP – geschriebene STEP-Dateien mit OpenCascade prüfen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Der Export-Job greift erst, wenn generate-exports.mjs da ist (PLAN Schritt 6).
+      - name: Prüfwerkzeuge installieren
+        if: hashFiles('STL-zu-STEP/tests/tools/generate-exports.mjs') != ''
+        run: pip install cadquery-ocp
+      - name: STEP-Dateien aus allen Fixtures erzeugen
+        if: hashFiles('STL-zu-STEP/tests/tools/generate-exports.mjs') != ''
+        run: node STL-zu-STEP/tests/tools/generate-exports.mjs build/stl-exports
+      - name: STEP mit OpenCascade prüfen (gültig, Volumen, Flächen)
+        if: hashFiles('STL-zu-STEP/tests/tools/generate-exports.mjs') != ''
+        run: python STL-zu-STEP/tests/tools/validate_step.py build/stl-exports
