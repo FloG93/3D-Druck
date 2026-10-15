@@ -178,7 +178,11 @@ export function bbox(V) {
   return { lo, hi, diagonal: Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) };
 }
 
-/** Splits a mesh into one mesh per component, keeping the point order. */
+/**
+ * Splits a mesh into one mesh per component, keeping the point order.
+ * `sourceTriangle[i]` is the triangle of the original mesh – the preview needs
+ * it to colour the triangles of a component in the whole mesh again.
+ */
 export function splitComponents(V, F) {
   const comps = components(F, V.length / 3);
   const out = [];
@@ -186,8 +190,10 @@ export function splitComponents(V, F) {
     const remap = new Int32Array(V.length / 3).fill(-1);
     const verts = [];
     const faces = [];
+    const sourceTriangle = [];
     for (let t = 0; t < F.length / 3; t++) {
       if (comps.label[t] !== c) continue;
+      sourceTriangle.push(t);
       for (let k = 0; k < 3; k++) {
         const v = F[3 * t + k];
         if (remap[v] < 0) {
@@ -197,7 +203,12 @@ export function splitComponents(V, F) {
         faces.push(remap[v]);
       }
     }
-    out.push({ V: Float64Array.from(verts), F: Uint32Array.from(faces), sourceVertex: remap });
+    out.push({
+      V: Float64Array.from(verts),
+      F: Uint32Array.from(faces),
+      sourceVertex: remap,
+      sourceTriangle: Uint32Array.from(sourceTriangle),
+    });
   }
   return out;
 }

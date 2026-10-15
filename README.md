@@ -10,6 +10,7 @@ Web-Tools, die mühsame Handarbeit beim Konstruieren für den 3D-Druck ersetzen 
 | --- | --- | --- | --- |
 | **Muster-Generator** | Lochmuster, Rippen, Noppen, Rändelungen und QR-Codes – auf Platten oder nahtlos rundherum auf Zylindern. Export als DXF, STEP, STL, SVG, PNG und Fusion-360-Skript. | [Öffnen](https://flog93.github.io/3D-Druck/MusterGenerator/) | [MusterGenerator](MusterGenerator/README.md) |
 | **Text-Generator** | Schlüsselanhänger, Namens-, Tür-, WLAN- und Kofferschilder, Münzen, Stempel, Becher und Schablonen: jede Google-Schrift, Symbole, QR-Codes, eigene Grafiken, Rückseite, Text im Bogen oder Kreis, Öse, Schrauben oder Magnete, Schrift erhaben, vertieft, bündig oder als Schablone mit Stegen (große in Puzzle-Teilen). Stempel mit Griff, Stifthalter und Windlichter mit Schrift rundherum. 3MF für Bambu Studio mit AMS-Zuordnung, STL, SVG und STEP für Fusion 360, DXF. | [Öffnen](https://flog93.github.io/3D-Druck/Text-Generator/) | [Text-Generator](Text-Generator/README.md) |
+| **STL zu STEP** | Netze (STL, OBJ) im Browser in STEP-Volumenkörper umwandeln: Bohrungen und Rundungen werden wieder echte Zylinder, kaputte Netze werden geheilt, jede Reparatur und jeder Rückfall steht mit Zahl im Bericht. Für Fusion 360 und FreeCAD. | [Öffnen](https://flog93.github.io/3D-Druck/STL-zu-STEP/) | [STL-zu-STEP](STL-zu-STEP/README.md) |
 
 [![Muster-Generator – 2D-Ansicht mit Wirbel-Muster](MusterGenerator/docs/screenshot.png)](https://flog93.github.io/3D-Druck/MusterGenerator/)
 
@@ -26,6 +27,8 @@ MusterGenerator/        Muster-Generator
   docs/                 Bilder für die Anleitung
   README.md             Anleitung
 Text-Generator/         Text-Generator (gleicher Aufbau, Schriften in fonts/)
+STL-zu-STEP/            STL/OBJ → STEP (gleicher Aufbau; docs/ enthält zusätzlich Spezifikation,
+                        Machbarkeitsstudie, Plan und die Python-Prototypen)
 shared/                 Gemeinsamer Code: Design, Bedienelemente, Symbole, Triangulierung (→ shared/README.md)
 .github/workflows/      Tests (tests.yml) und Veröffentlichung (pages.yml)
 package.json            npm start / npm test

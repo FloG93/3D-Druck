@@ -65,7 +65,9 @@ export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress =
   healed.components.forEach((part, index) => {
     const base = 0.35 + (0.6 * index) / total;
     step('component', total > 1 ? `Körper ${index + 1} von ${total}` : 'Flächen erkennen', base);
-    components.push(convertComponent(part, healed.report, opts, (f, text) => step('component', text, base + f * (0.6 / total))));
+    const converted = convertComponent(part, healed.report, opts, (f, text) => step('component', text, base + f * (0.6 / total)));
+    converted.part = part;
+    components.push(converted);
   });
 
   step('fertig', 'fertig', 1);
@@ -87,6 +89,73 @@ export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress =
     triangles: healed.F.length / 3,
     unit: parsed.unit,
     scale,
+  };
+}
+
+/**
+ * The result in a form that survives postMessage and feeds the interface:
+ * numbers and strings for the report, plus the healed mesh with one label per
+ * triangle for the preview (-1 = plane or facet, otherwise the index of the
+ * recognised cylinder).
+ */
+export function toTransferable(result) {
+  const triangles = result.mesh.F.length / 3;
+  const cylinderOfTriangle = new Int32Array(triangles).fill(-1);
+  const cylinders = [];
+  result.components.forEach((component, index) => {
+    for (const cylinder of component.features.cylinders) {
+      const id = cylinders.length;
+      cylinders.push({
+        body: index + 1,
+        radius: cylinder.radius,
+        axis: [...cylinder.axis],
+        center: [...cylinder.center],
+        segments: cylinder.segments,
+        confidence: cylinder.confidence,
+        uncertainty: cylinder.uncertainty,
+        residual: cylinder.residual,
+        arc: cylinder.arc,
+        full: cylinder.full,
+        outward: cylinder.outward,
+        height: Math.abs(cylinder.zRange[1] - cylinder.zRange[0]),
+        triangles: cylinder.triangles.length,
+      });
+      for (const t of cylinder.triangles) {
+        const global = component.part?.sourceTriangle ? component.part.sourceTriangle[t] : t;
+        cylinderOfTriangle[global] = id;
+      }
+    }
+  });
+  return {
+    fileName: result.fileName,
+    unit: result.unit,
+    scale: result.scale,
+    triangles,
+    meshVolume: result.meshVolume,
+    warnings: [...result.warnings],
+    healReport: { ...result.healReport, holesOpen: result.healReport.holesOpen.map((h) => ({ ...h })) },
+    components: result.components.map((c) => ({
+      tier: c.tier,
+      open: c.open,
+      counts: { ...c.counts },
+      fallbackReasons: [...c.fallbackReasons],
+      checks: c.checks.map((x) => ({ ...x })),
+      meshVolume: c.meshVolume,
+      brepVolume: c.brepVolume,
+      deviationPercent: c.deviationPercent,
+      maxDeviation: c.maxDeviation,
+      patches: c.features.patches,
+      merged: c.features.merged,
+      cylinderCount: c.features.cylinders.length,
+      rejected: c.features.rejected.map((r) => ({ reasons: [...r.reasons], radius: r.radius })),
+      uncertain: c.features.uncertain.map((u) => ({ radius: u.radius, segments: u.segments, confidence: u.confidence })),
+    })),
+    cylinders,
+    preview: {
+      V: Float64Array.from(result.mesh.V),
+      F: Uint32Array.from(result.mesh.F),
+      cylinderOfTriangle,
+    },
   };
 }
 
