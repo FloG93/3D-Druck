@@ -27,13 +27,15 @@ Reines numpy, nach JS portierbar. Radius immer aus den **Punkten** angepasst (be
 | Rauschen 0,002 mm auf jedem Punkt | alle 6, Radiusfehler ≤ 0,009 (typisch 0,001) |
 | 1×, 2×, 4× unterteilt (Mittelpunkte auf Sehnen) | alle 6; Radius sinkt auf 2,9958 / 2,9948 / 2,9945 (−0,14 … −0,18 %), weil die Sehnenhöhe in den Daten steckt |
 
+*Nachtrag 15.10.2026 (JS, `tests/cylinders.test.mjs`):* Dieselben Zahlen wie die Referenz. `platte` 6 Zylinder (r = 2,0000 / 3,0000), `platte-unterteilt1` 6 nach dem Verschmelzen von 2 Paaren (ohne Verschmelzen 8, wie die Referenz), `platte-unterteilt2` 6 (r = 1,9983 / 2,9948). Segmente je Vollkreis: 44 für die Rundungen, 42 für die Bohrungen; Vieleck-Löcher 8 / 12 / 16 / 32, Sechseck ohne Kandidat. Dauer: 19 ms (`platte`), 86 ms (`platte-unterteilt2`, 8512 Dreiecke), 196 ms (`kugel`).
+
 ### Was beim Erkennen schiefging – und jetzt Regel ist
 
 1. **Startkeim nach Dreieckszahl scheitert.** „Ein Dreieck plus 4 Nachbarringe" hängt von der Vernetzung ab: bei unterteilten Netzen fand der Prototyp 0 Zylinder. **Regel:** auf **Flächenstücken** (zusammenhängende ebene Dreiecksgruppen) arbeiten, der Keim wächst, bis die Normalen eine Winkelspanne haben (Verhältnis der Eigenwerte ≥ 0,05, etwa ≥ 25°). Drei Facetten à 8,6° reichen nicht für eine stabile Achse.
 2. **Tangentiale Übergänge verschlucken Wände.** Eine Rundung schließt knickfrei an die Wand an; „flache Knicke zu Ketten verbinden" fasst die ganze Wandschleife als einen Zylinder auf. **Regel:** Zylindermodell prüfen – ein Dreieck gehört nur dazu, wenn **alle drei Punkte** auf dem Zylinder liegen und die Normale radial steht.
 3. **Rechtecke sehen aus wie Kreise.** Vier Ecken eines Rechtecks sind kozirkular. **Regel:** Keim nur über glatt verbundene Stücke (Knick < 50°); Normale ⟂ Achse (|N·Achse| < 0,1); Normale ≈ radial (|cos| > 0,9).
 4. **Fehlalarme.** Ohne Gegenhypothesen: Kugel r = 8 → **48 Scheinzylinder**, Kegel → 5. Mit Gegenprüfung (Länge entlang der Achse ≥ 0,3 r; Radius konstant: Steigung × Länge ≤ 1 % r; Kugelprobe **mit Punkten und Normalen**) → Kugel 0, Kegel 0, Teil 6 von 6. **Fallstrick:** Eine Kugelprobe nur mit Punkten verwirft echte Zylinder – die Punkte zweier Ringe eines Zylinders liegen rechnerisch auf einer Kugel (Radius √(r² + (h/2)²)). Die Normalen müssen radial vom Kugelmittelpunkt wegzeigen (|cos| > 0,97), sonst keine Kugel.
-5. **Torus nicht gelöst.** Kurze Rohrstücke sehen lokal wie Zylinder aus. Der Prototyp lässt 3 Scheinzylinder durch (Ziel 0). Gegenmittel (noch nicht gebaut): Region darf nicht „in der Fläche enden" – an einem Zylinderrand muss eine scharfe Kante, eine Kappenebene oder ein tangentialer Übergang auf Ebene/koaxialen Zylinder stehen.
+5. **Torus: gelöst (15.10.2026).** Kurze Rohrstücke sehen lokal wie Zylinder aus; der Python-Prototyp lässt 3 Scheinzylinder durch (Ziel 0). Das Gegenmittel ist gebaut: Die Region darf nicht „in der Fläche enden" – jede Randkante muss in einer scharfen Kante (> 50°), einer Kappe senkrecht zur Achse oder einem tangentialen Übergang auf eine Ebene im Abstand r enden. Gemessen in JS: **Torus 0 angenommen** (102 Kandidaten verworfen, alle mit Grund „Rand endet in der Fläche"), Kugel 0, Kegel 0, und die 6 echten Zylinder der Platte bleiben – auch bei den unterteilten Netzen. Der Anteil erlaubter „in der Fläche" endender Randkanten ist 2 % (Option `boundaryInSurfaceShare`), damit einzelne Dreiecke an einer Ecke keinen echten Zylinder verwerfen.
 6. **Vieleck oder Zylinder?** Sechseck-Loch: nicht erkannt (60° Knick). **Achteck-Loch: als Zylinder erkannt (45°)**, 12-Eck und mehr ebenso. Aus den Daten allein nicht entscheidbar → Vertrauen nach Segmentzahl pro Umfang (siehe SPEC) und Bestätigung durch den Nutzer.
 7. **Verzerrter Radius bei Unterteilung.** Die Hüllen-Anpassung (nur äußere Punkte) hat nur die einfache Unterteilung gerettet; tiefer bleibt der Fehler bei etwa −0,18 %. Das ist physikalisch die Sehnenhöhe und nicht zu erzwingen. **Regel:** Unsicherheit ausweisen, Radien optional auf runde Werte einrasten lassen (nur mit Zustimmung).
 
@@ -90,7 +92,6 @@ Quellen: [Schnabel et al., Efficient RANSAC](https://diglib.eg.org/handle/10.231
 ## 6. Offen / nicht gemessen
 
 - **Echte Dateien.** Alle Messungen an einem synthetischen Teil und seinen Abwandlungen. Freiformflächen, Schrift, Scan-Rauschen, Millionen Dreiecke, Einheiten (Zoll?) sind ungetestet. → Plan-Schritt „Realitätstest" mit Dateien des Auftraggebers; Fehlschläge werden Teil der Testsammlung.
-- **Torus-Scheinzylinder** (3 von 104 Kandidaten durchgelassen).
 - **Stufe 3b** (Zwangsbedingungen) – oben.
 - **Kegel, Kugel, schräge Schnitte (Ellipsen), Rundungen mit nicht senkrechter Kappe:** nicht gebaut, nur als Gegenhypothesen berücksichtigt.
 - **Leistung:** Prototypen sind Python; JS-Budget in SPEC ist eine Zielvorgabe, nicht gemessen.

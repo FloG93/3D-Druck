@@ -141,7 +141,7 @@ Gemessene Stückzahlen (JS, geheiltes Netz; identisch zur Referenz `probe4.py`):
 
 **Merge:** Zylinder mit `|Achse·Achse'| > 1−1e-4`, Mittellinienabstand `≤ 0.01·r`, Radiusunterschied `≤ 0.01·r`, die aneinanderstoßen → zusammenführen, neu anpassen (Messung: Loch zerfiel bei verzerrtem Radius in zwei Stücke).
 
-**Bekannte Schwäche (Ziel 0, Prototyp 3):** Torus. Gegenmittel: Rand der Region prüfen – muss in scharfe Kante (> 50°), Ebene senkrecht zur Achse oder tangentialen Übergang auf Ebene/koaxialen Zylinder enden; endet er „in der Fläche", ablehnen.
+**Randprüfung (gegen Scheinzylinder am Torus):** Rand der Region prüfen – muss in scharfe Kante (> 50°), Ebene senkrecht zur Achse oder tangentialen Übergang auf eine Ebene im Abstand r enden; endet mehr als 2 % der Randkanten „in der Fläche", ablehnen. *Nachtrag 15.10.2026:* gebaut und gemessen, Torus jetzt 0 statt 3 Scheinzylinder (MACHBARKEIT 2, Punkt 5).
 
 ### 5.6 constraints.js
 In dieser Reihenfolge, jede einzeln abschaltbar und im Bericht gezählt:
