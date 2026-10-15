@@ -14,8 +14,9 @@ import { healMesh } from './heal.js';
 import { growPatches } from './patches.js';
 import { detectCylinders } from './cylinders.js';
 import { facetedBrep, brepCounts, brepVolume } from './brep.js';
+import { buildTopology, buildBrep, planeModel, patchFlatness } from './topology.js';
 import { verifyBrep } from './verify.js';
-import { signedVolume, openEdges } from './meshops.js';
+import { signedVolume, openEdges, bbox, triangleNormals } from './meshops.js';
 
 /** Warn above this many triangles (SPEC 6.6). */
 export const BIG_MESH_TRIANGLES = 500000;
@@ -188,4 +189,49 @@ function convertComponent(part, healReport, opts, progress = () => {}) {
  */
 export const TIER_BUILDERS = {
   1: (mesh) => ({ brep: facetedBrep(mesh, 'Körper'), regionOfTriangle: null }),
+  2: (mesh, analysis, opts) => buildPlanarTier(mesh, analysis, opts),
 };
+
+/** Patches flatter than this (· diagonal) may become one planar face. */
+export const PLANAR_TOLERANCE_RELATIVE = 1e-6;
+
+/**
+ * Tier 2: patches that really are flat become one planar face with holes;
+ * everything else stays facets. Measured: the patches of a sphere or a torus
+ * are up to 1e-2 mm away from their own plane, and a plane whose boundary
+ * does not lie on it is not a valid face – on the plate all 134 patches are
+ * flat to 2e-6 mm, so nothing is lost there.
+ */
+export function buildPlanarTier(mesh, analysis, opts = {}) {
+  const patchResult = analysis?.patches ?? growPatches(mesh, { noisy: opts.noisy });
+  const diagonal = bbox(mesh.V).diagonal;
+  const limit = (opts.planarTolerance ?? PLANAR_TOLERANCE_RELATIVE) * diagonal;
+  const { N } = triangleNormals(mesh.V, mesh.F);
+
+  const regionOfTriangle = new Int32Array(mesh.F.length / 3).fill(-1);
+  const models = new Map();
+  let next = 0;
+  patchResult.patches.forEach((triangles, i) => {
+    const plane = patchResult.planes[i];
+    if (patchFlatness(mesh, triangles, plane) <= limit) {
+      const region = next++;
+      for (const t of triangles) regionOfTriangle[t] = region;
+      models.set(region, planeModel(plane));
+      return;
+    }
+    // Not flat: every triangle stays its own face (tier 1 within tier 2).
+    for (const t of triangles) {
+      const region = next++;
+      regionOfTriangle[t] = region;
+      const v = 3 * mesh.F[3 * t];
+      models.set(region, planeModel({
+        point: [mesh.V[v], mesh.V[v + 1], mesh.V[v + 2]],
+        normal: [N[3 * t], N[3 * t + 1], N[3 * t + 2]],
+      }));
+    }
+  });
+
+  const topology = buildTopology(mesh, regionOfTriangle, models);
+  const brep = buildBrep(mesh, regionOfTriangle, models, topology, { diagonal, name: 'Körper' });
+  return { brep, regionOfTriangle, topology, models };
+}

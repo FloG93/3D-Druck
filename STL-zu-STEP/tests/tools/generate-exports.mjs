@@ -23,7 +23,13 @@ const summary = {};
 const all = expected();
 
 /** The tiers that are written in addition to the automatic result. */
-const FORCED = { 'platte.stl': [1, 2, 3], 'wuerfel.stl': [1, 2, 3], 'loch-zwoelfeck.stl': [2, 3] };
+const FORCED = {
+  'platte.stl': [1, 2, 3],
+  'wuerfel.stl': [1, 2, 3],
+  'loch-zwoelfeck.stl': [1, 2, 3],
+  'defekt-zweikoerper.stl': [2],
+  'kegel.stl': [2],
+};
 
 function write(name, result, exp, { tier, forced } = {}) {
   const breps = result.components.map((c) => c.brep);
