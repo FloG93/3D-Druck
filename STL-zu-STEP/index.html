@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>STL zu STEP</title>
+  <meta name="description" content="STL- und OBJ-Netze im Browser in STEP-Volumenkörper umwandeln: Bohrungen und Rundungen werden wieder echte Zylinder, kaputte Netze werden geheilt, jede Reparatur steht mit Zahl im Bericht. Läuft lokal, ohne Upload, und lässt sich in Fusion 360 und FreeCAD bearbeiten.">
+  <meta name="theme-color" content="#121316">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../shared/css/ui.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Apply the saved theme (shared by all tools) before first paint.
+    try {
+      const t = localStorage.getItem('3d-druck.theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) { /* ignore */ }
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="app app-convert" id="app" data-state="leer">
+    <header class="topbar">
+      <a class="brand" href="../" title="Übersicht aller 3D-Druck-Werkzeuge">
+        <span id="logo"></span>
+        <span class="brand-name">STL zu STEP</span>
+        <span class="brand-sub">Netz zu Volumenkörper</span>
+      </a>
+      <div class="toolbar" role="toolbar" aria-label="Ansicht">
+        <div class="view-switch" role="group" aria-label="Ansicht">
+          <button type="button" class="tool" id="btn-eingabe" title="Das eingelesene Netz zeigen">Netz</button>
+          <button type="button" class="tool active" id="btn-ergebnis" title="Erkannte Flächen farbig zeigen">Ergebnis</button>
+        </div>
+        <span class="sep"></span>
+        <button type="button" class="tool" id="btn-fit" title="Ansicht einpassen"></button>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="tool" id="btn-theme" title="Hell/Dunkel umschalten"></button>
+        <button type="button" class="tool" id="btn-help" title="Hilfe"></button>
+        <button type="button" class="btn primary" id="btn-export" disabled></button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <div class="drop" id="drop">
+        <div class="drop-inner">
+          <span class="drop-icon" id="drop-icon"></span>
+          <h2>STL- oder OBJ-Datei hierher ziehen</h2>
+          <p>Die Datei bleibt auf diesem Rechner – sie wird im Browser umgewandelt, nichts wird hochgeladen.</p>
+          <p>
+            <button type="button" class="btn primary" id="btn-choose">Datei auswählen</button>
+          </p>
+          <p class="drop-note">Aus dem Netz werden echte Ebenen und Zylinder. Große Dateien ab 500 000 Dreiecken können Minuten dauern.</p>
+        </div>
+      </div>
+      <div class="view3d" id="view3d"></div>
+      <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+        <div class="progress-bar" id="progress-bar"></div>
+        <span class="progress-text" id="progress-text"></span>
+        <button type="button" class="btn small" id="btn-cancel" hidden>Abbrechen</button>
+      </div>
+      <p class="stage-error" id="error" role="alert" hidden></p>
+      <footer class="statusbar" id="status" aria-live="polite"></footer>
+    </main>
+
+    <aside class="panel panel-right" id="panel-right" aria-label="Bericht und Optionen">
+      <div class="report" id="report" aria-live="polite"></div>
+      <div id="options"></div>
+    </aside>
+
+    <nav class="mobile-tabs" id="mobile-tabs" aria-label="Bereiche">
+      <button type="button" data-tab="stage" class="active">Vorschau</button>
+      <button type="button" data-tab="right">Bericht</button>
+    </nav>
+  </div>
+
+  <input type="file" id="file-input" accept=".stl,.obj,model/stl,model/obj" hidden>
+  <dialog id="export-dialog" class="dialog"></dialog>
+  <dialog id="help-dialog" class="dialog help"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript class="noscript">Dieses Werkzeug braucht JavaScript: Die Umwandlung läuft vollständig im Browser.</noscript>
+</body>
+</html>

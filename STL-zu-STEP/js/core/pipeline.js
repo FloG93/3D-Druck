@@ -1,0 +1,476 @@
+// The whole way from the file to the result (docs/SPEC.md 3):
+//
+//   parse → weld → heal → components ─┬─ per component: build the highest tier
+//                                     │   that passes verify, otherwise fall
+//                                     │   back a tier and say why
+//                                     └─ one STEP file, one solid per component
+//
+// Nothing is lost silently: every repair, every rejected feature and every
+// fallback ends up in the result and from there in the report.
+
+import { parseMesh } from './parse.js';
+import { weldMesh } from './weld.js';
+import { healMesh } from './heal.js';
+import { growPatches } from './patches.js';
+import { detectCylinders } from './cylinders.js';
+import { facetedBrep, brepCounts, brepVolume } from './brep.js';
+import { buildTopology, buildBrep, planeModel, cylinderModel, patchFlatness, classifyChain } from './topology.js';
+import { applyConstraints } from './constraints.js';
+import { verifyBrep } from './verify.js';
+import { signedVolume, openEdges, bbox, triangleNormals } from './meshops.js';
+
+/** Warn above this many triangles (SPEC 6.6). */
+export const BIG_MESH_TRIANGLES = 500000;
+
+/** The tiers in the order they are tried (SPEC 3). */
+export const TIERS = [3, 2, 1];
+
+export const TIER_NAMES = {
+  3: 'Stufe 3 – Ebenen und Zylinder',
+  2: 'Stufe 2 – verschmolzene Ebenen',
+  1: 'Stufe 1 – jedes Dreieck eine Ebene',
+  offen: 'offene Schale – das Netz ließ sich nicht schließen',
+};
+
+/**
+ * convert(buffer, fileName, opts?, onProgress?) → Result
+ * opts: { unitScale, cylinders, acceptUncertain, noisy, tier (force), forceFail,
+ *         fillHoles, splitTJunctions, verify: {...} }
+ */
+export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress = () => {}) {
+  const step = (key, text, fraction) => onProgress({ key, text, fraction });
+  const warnings = [];
+
+  step('parse', 'Datei lesen', 0.05);
+  const parsed = parseMesh(buffer, fileName);
+  warnings.push(...parsed.warnings);
+  const triangleCount = parsed.tris.length / 9;
+  if (triangleCount > BIG_MESH_TRIANGLES) {
+    warnings.push(`${triangleCount.toLocaleString('de-DE')} Dreiecke – das kann Minuten dauern.`);
+  }
+
+  const scale = opts.unitScale ?? 1;
+  if (scale !== 1) {
+    for (let i = 0; i < parsed.tris.length; i++) parsed.tris[i] *= scale;
+  }
+
+  step('weld', 'Punkte verschweißen', 0.15);
+  const welded = weldMesh(parsed.tris);
+
+  step('heal', 'Netz prüfen und heilen', 0.3);
+  const healed = healMesh({ V: welded.V, F: welded.F }, { weldTol: welded.tol, ...opts });
+
+  const components = [];
+  const total = healed.components.length || 1;
+  healed.components.forEach((part, index) => {
+    const base = 0.35 + (0.6 * index) / total;
+    step('component', total > 1 ? `Körper ${index + 1} von ${total}` : 'Flächen erkennen', base);
+    const converted = convertComponent(part, healed.report, opts, (f, text) => step('component', text, base + f * (0.6 / total)));
+    converted.part = part;
+    components.push(converted);
+  });
+
+  step('fertig', 'fertig', 1);
+  const meshVolume = signedVolume(healed.V, healed.F);
+  const sumBrep = components.reduce((s, c) => s + c.brepVolume, 0);
+  if (Math.abs(sumBrep - meshVolume) > Math.max(1e-6, Math.abs(meshVolume) * 0.01)) {
+    warnings.push(`Das Volumen aller Körper (${sumBrep.toFixed(2)} mm³) passt nicht zum Netz (${meshVolume.toFixed(2)} mm³).`);
+  }
+  if (healed.report.holesOpen.length > 0) {
+    warnings.push(`${healed.report.holesOpen.length} Loch/Löcher ließen sich nicht füllen – das Ergebnis ist eine offene Schale.`);
+  }
+  return {
+    fileName,
+    components,
+    warnings,
+    healReport: healed.report,
+    mesh: { V: healed.V, F: healed.F },
+    meshVolume,
+    triangles: healed.F.length / 3,
+    unit: parsed.unit,
+    scale,
+  };
+}
+
+/**
+ * The result in a form that survives postMessage and feeds the interface:
+ * numbers and strings for the report, plus the healed mesh with one label per
+ * triangle for the preview (-1 = plane or facet, otherwise the index of the
+ * recognised cylinder).
+ */
+export function toTransferable(result) {
+  const triangles = result.mesh.F.length / 3;
+  const cylinderOfTriangle = new Int32Array(triangles).fill(-1);
+  const cylinders = [];
+  result.components.forEach((component, index) => {
+    for (const cylinder of component.features.cylinders) {
+      const id = cylinders.length;
+      cylinders.push({
+        body: index + 1,
+        radius: cylinder.radius,
+        axis: [...cylinder.axis],
+        center: [...cylinder.center],
+        segments: cylinder.segments,
+        confidence: cylinder.confidence,
+        uncertainty: cylinder.uncertainty,
+        residual: cylinder.residual,
+        arc: cylinder.arc,
+        full: cylinder.full,
+        outward: cylinder.outward,
+        height: Math.abs(cylinder.zRange[1] - cylinder.zRange[0]),
+        triangles: cylinder.triangles.length,
+      });
+      for (const t of cylinder.triangles) {
+        const global = component.part?.sourceTriangle ? component.part.sourceTriangle[t] : t;
+        cylinderOfTriangle[global] = id;
+      }
+    }
+  });
+  return {
+    fileName: result.fileName,
+    unit: result.unit,
+    scale: result.scale,
+    triangles,
+    meshVolume: result.meshVolume,
+    warnings: [...result.warnings],
+    healReport: { ...result.healReport, holesOpen: result.healReport.holesOpen.map((h) => ({ ...h })) },
+    components: result.components.map((c) => ({
+      tier: c.tier,
+      open: c.open,
+      counts: { ...c.counts },
+      fallbackReasons: [...c.fallbackReasons],
+      checks: c.checks.map((x) => ({ ...x })),
+      meshVolume: c.meshVolume,
+      brepVolume: c.brepVolume,
+      deviationPercent: c.deviationPercent,
+      maxDeviation: c.maxDeviation,
+      patches: c.features.patches,
+      merged: c.features.merged,
+      tolerance: c.features.tolerance,
+      cylinderCount: c.features.cylinders.length,
+      rejected: c.features.rejected.map((r) => ({ reasons: [...r.reasons], radius: r.radius })),
+      uncertain: c.features.uncertain.map((u) => ({ radius: u.radius, segments: u.segments, confidence: u.confidence })),
+    })),
+    cylinders,
+    preview: {
+      V: Float64Array.from(result.mesh.V),
+      F: Uint32Array.from(result.mesh.F),
+      cylinderOfTriangle,
+    },
+  };
+}
+
+/** One component: the highest tier that passes the check. */
+function convertComponent(part, healReport, opts, progress = () => {}) {
+  const fallbackReasons = [];
+  const tolerance = toleranceOf(opts);
+  const mesh = { V: part.V, F: part.F };
+  const meshVolume = signedVolume(mesh.V, mesh.F);
+  const closed = openEdges(mesh.F).length === 0;
+
+  let features = { cylinders: [], rejected: [], uncertain: [], patches: 0, merged: 0 };
+  let analysis = null;
+  if (closed && opts.cylinders !== false) {
+    progress(0.1, 'Flächenstücke suchen');
+    const patches = growPatches(mesh, tolerance);
+    progress(0.4, 'Zylinder erkennen');
+    const detected = detectCylinders(mesh, patches, { acceptUncertain: opts.acceptUncertain, merge: opts.merge });
+    analysis = { patches, detected };
+    features = {
+      cylinders: detected.cylinders,
+      rejected: detected.rejected,
+      uncertain: detected.uncertain,
+      patches: patches.patches.length,
+      merged: detected.merged,
+      tolerance: tolerance.key,
+    };
+  } else if (closed) {
+    progress(0.1, 'Flächenstücke suchen');
+    const patches = growPatches(mesh, tolerance);
+    analysis = { patches, detected: { cylinders: [], rejected: [], uncertain: [], merged: 0 } };
+    features = { cylinders: [], rejected: [], uncertain: [], patches: patches.patches.length, merged: 0 };
+    fallbackReasons.push('Zylindererkennung war abgeschaltet.');
+  }
+
+  const wanted = opts.tier ? [opts.tier] : TIERS;
+  for (const tier of wanted) {
+    const builder = TIER_BUILDERS[tier];
+    if (!builder) continue;
+    progress(0.6, `${TIER_NAMES[tier]} bauen`);
+    let built;
+    try {
+      built = builder(mesh, analysis, opts);
+    } catch (err) {
+      fallbackReasons.push(`${TIER_NAMES[tier]}: Bau fehlgeschlagen (${err.message}).`);
+      continue;
+    }
+    if (!built) {
+      fallbackReasons.push(`${TIER_NAMES[tier]}: nicht anwendbar.`);
+      continue;
+    }
+    const check = verifyBrep(built.brep, mesh, {
+      surfaceTolerance: built.surfaceTolerance,
+      ...(opts.verify || {}),
+      regionOfTriangle: built.regionOfTriangle,
+      uncertainty: Math.max(0, ...features.cylinders.map((c) => c.uncertainty)),
+      forceFail: opts.forceFail?.[`tier${tier}`],
+    });
+    if (check.ok) {
+      return {
+        tier,
+        brep: built.brep,
+        healReport,
+        features: built.cylinders ? { ...features, cylinders: built.cylinders } : features,
+        fallbackReasons: [...fallbackReasons, ...(built.notes ?? [])],
+        meshVolume,
+        brepVolume: check.volume,
+        maxDeviation: check.maxDeviation,
+        deviationPercent: check.deviationPercent,
+        checks: check.checks,
+        counts: check.counts,
+        open: false,
+      };
+    }
+    fallbackReasons.push(`${TIER_NAMES[tier]}: ${check.checks.filter((c) => !c.ok).map((c) => `${c.name} (${c.detail})`).join('; ')}`);
+  }
+
+  // Nothing worked: an open shell, with a clear warning (SPEC 3).
+  const brep = facetedBrep(mesh, 'Körper');
+  const volume = brepVolume(brep);
+  return {
+    tier: 'offen',
+    brep,
+    healReport,
+    features,
+    fallbackReasons: [...fallbackReasons, closed ? 'Alle Stufen fielen durch die Prüfung.' : 'Das Netz ist nach der Heilung noch offen.'],
+    meshVolume,
+    brepVolume: volume,
+    maxDeviation: 0,
+    deviationPercent: meshVolume ? (100 * (volume - meshVolume)) / meshVolume : 0,
+    checks: [],
+    counts: brepCounts(brep),
+    open: true,
+  };
+}
+
+/**
+ * The builders per tier. Each one returns { brep, regionOfTriangle } or null
+ * when it does not apply. Tiers 2 and 3 are added by their own steps of the
+ * plan; the chain always ends at tier 1, which works for every closed mesh.
+ */
+export const TIER_BUILDERS = {
+  // Tier 1 is exact by construction: every face IS a triangle of the mesh.
+  1: (mesh) => ({ brep: facetedBrep(mesh, 'Körper'), regionOfTriangle: null, surfaceTolerance: 1e-9 }),
+  2: (mesh, analysis, opts) => buildPlanarTier(mesh, analysis, opts),
+  3: (mesh, analysis, opts) => buildExactTier(mesh, analysis, opts),
+};
+
+/**
+ * Tier 3: recognised cylinders become real cylindrical faces with arcs as
+ * edges, everything flat around them one planar face each. Before the build
+ * the constraints of SPEC 5.6 run, because the fitted surfaces otherwise
+ * almost – but not exactly – fit together (MACHBARKEIT section 4).
+ */
+export function buildExactTier(mesh, analysis, opts = {}) {
+  const accepted = analysis?.detected?.cylinders ?? [];
+  if (accepted.length === 0) return null; // nothing to gain over tier 2
+  const patchResult = analysis.patches;
+  const diagonal = bbox(mesh.V).diagonal;
+  const limit = toleranceOf(opts).planarTolerance * diagonal;
+  const { N } = triangleNormals(mesh.V, mesh.F);
+  const regionNotes = [];
+
+  // A cylindrical region whose boundary is a shape tier 3 cannot build (SPEC
+  // 5.7 step 7) falls back on its own: its patches stay planar patches, and
+  // the rest of the part keeps tier 3.
+  let cylinders = accepted;
+  let setup = null;
+  for (let round = 0; round < 4; round += 1) {
+    setup = regionsFor(mesh, patchResult, cylinders, limit, N);
+    const unbuildable = cylinders.filter((_, i) => !buildableBoundary(setup.topology, setup.regionOfCylinder[i], setup.geometryKinds));
+    if (unbuildable.length === 0) break;
+    for (const c of unbuildable) {
+      regionNotes.push(`Zylinder r = ${c.radius.toFixed(3)} blieb Ebenenstück: seine Randform kann Stufe 3 nicht bauen.`);
+    }
+    cylinders = cylinders.filter((c) => !unbuildable.includes(c));
+    if (cylinders.length === 0) return null;
+  }
+
+  const constrained = applyConstraints(mesh, setup.models, setup.topology, {
+    ...(opts.constraints ?? {}),
+    trianglesOfRegion: setup.trianglesOfRegion,
+  });
+  // A facet plane is defined BY its own triangle, so it has to follow the
+  // corners the constraints moved, not the other way round. Measured on
+  // fandisk.obj: a corner pulled onto a cylinder left its facet planes 2e-3
+  // behind, which is exactly what the geometry check then refused.
+  refitFacetPlanes(mesh, setup, constrained);
+  const brep = buildBrep(mesh, setup.regionOfTriangle, constrained.models, setup.topology, {
+    diagonal,
+    name: 'Körper',
+    points: constrained.points,
+  });
+  return {
+    brep,
+    regionOfTriangle: setup.regionOfTriangle,
+    topology: setup.topology,
+    models: constrained.models,
+    constraintReport: constrained.report,
+    cylinders,
+    notes: regionNotes,
+    // Tier 3 builds exact surfaces and snaps the corners onto them, so the
+    // corners have to lie on them to machine precision (measured: 1e-15 with
+    // the constraints, 1e-6 to 3e-3 without them – MACHBARKEIT section 4).
+    surfaceTolerance: 1e-9,
+  };
+}
+
+
+/** Planes of single-triangle regions, recomputed through their moved corners. */
+function refitFacetPlanes(mesh, setup, constrained) {
+  const { points, models } = constrained;
+  for (const [region, triangles] of setup.trianglesOfRegion) {
+    if (triangles.length !== 1) continue;
+    const model = models.get(region);
+    if (!model || model.type !== 'plane') continue;
+    const t = triangles[0];
+    const a = 3 * mesh.F[3 * t];
+    const b = 3 * mesh.F[3 * t + 1];
+    const c = 3 * mesh.F[3 * t + 2];
+    const p = [points[a], points[a + 1], points[a + 2]];
+    const e1 = [points[b] - p[0], points[b + 1] - p[1], points[b + 2] - p[2]];
+    const e2 = [points[c] - p[0], points[c + 1] - p[1], points[c + 2] - p[2]];
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const len = Math.hypot(n[0], n[1], n[2]);
+    if (len < 1e-18) continue; // the triangle collapsed: keep the old plane
+    const turned = n[0] * model.normal[0] + n[1] * model.normal[1] + n[2] * model.normal[2] < 0 ? -1 : 1;
+    models.set(region, { ...model, point: p, normal: [(turned * n[0]) / len, (turned * n[1]) / len, (turned * n[2]) / len] });
+  }
+}
+
+/** Regions and models for tier 3: cylinders first, then the flat patches. */
+function regionsFor(mesh, patchResult, cylinders, limit, N) {
+  const regionOfTriangle = new Int32Array(mesh.F.length / 3).fill(-1);
+  const models = new Map();
+  const trianglesOfRegion = new Map();
+  const regionOfCylinder = [];
+  let next = 0;
+  const taken = new Set();
+  for (const cylinder of cylinders) {
+    const region = next++;
+    regionOfCylinder.push(region);
+    for (const patch of cylinder.patchIds) taken.add(patch);
+    for (const t of cylinder.triangles) regionOfTriangle[t] = region;
+    models.set(region, cylinderModel(cylinder));
+    trianglesOfRegion.set(region, cylinder.triangles);
+  }
+  patchResult.patches.forEach((triangles, i) => {
+    if (taken.has(i)) return;
+    const plane = patchResult.planes[i];
+    if (patchFlatness(mesh, triangles, plane) <= limit) {
+      const region = next++;
+      for (const t of triangles) regionOfTriangle[t] = region;
+      models.set(region, planeModel(plane));
+      trianglesOfRegion.set(region, triangles);
+      return;
+    }
+    for (const t of triangles) {
+      const region = next++;
+      regionOfTriangle[t] = region;
+      const v = 3 * mesh.F[3 * t];
+      models.set(region, planeModel({
+        point: [mesh.V[v], mesh.V[v + 1], mesh.V[v + 2]],
+        normal: [N[3 * t], N[3 * t + 1], N[3 * t + 2]],
+      }));
+      trianglesOfRegion.set(region, [t]);
+    }
+  });
+  const topology = buildTopology(mesh, regionOfTriangle, models);
+  const geometryKinds = topology.chains.map((chain) => classifyChain(mesh, chain, models, 1).kind);
+  return { regionOfTriangle, models, topology, regionOfCylinder, geometryKinds, trianglesOfRegion };
+}
+
+/**
+ * Can tier 3 build this cylindrical region: one loop (a fillet), or two rings
+ * (a tube)? A ring is one closed circle or several arcs on the same circle.
+ */
+function buildableBoundary(topology, region, kinds) {
+  const loops = topology.loops.get(region) ?? [];
+  if (loops.length === 1) return true;
+  if (loops.length !== 2) return false;
+  return loops.every((loop) => loop.every((id) => kinds[id] === 'circle' || kinds[id] === 'arc'));
+}
+
+/** Patches flatter than this (· diagonal) may become one planar face. */
+export const PLANAR_TOLERANCE_RELATIVE = 1e-6;
+
+/**
+ * The tolerance of the whole run (SPEC 6.4). Growing the patches and
+ * accepting them as ONE plane have to scale together: measured on
+ * fandisk.obj, the coarse patch thresholds alone made the result worse
+ * (12 145 faces instead of 11 801), because the larger patches then failed
+ * the strict flatness limit and fell apart into facets again. With both
+ * scaled it drops to 7007 faces, and the report names the deviation
+ * (7.3e-4 mm on a part of 7.6 mm).
+ */
+export const TOLERANCE_LEVELS = {
+  streng: { angleDegrees: 2, offsetRelative: 1e-3, planarTolerance: 1e-7, label: 'streng' },
+  standard: { angleDegrees: 2, offsetRelative: 1e-3, planarTolerance: 1e-6, label: 'Standard' },
+  grob: { angleDegrees: 5, offsetRelative: 2e-2, planarTolerance: 1e-4, label: 'grob (verrauschtes Netz)' },
+};
+
+/** The level from the options; `noisy: true` stays as a name for "grob". */
+export function toleranceOf(opts = {}) {
+  const key = opts.tolerance ?? (opts.noisy ? 'grob' : 'standard');
+  const level = TOLERANCE_LEVELS[key] ?? TOLERANCE_LEVELS.standard;
+  return {
+    ...level,
+    key: TOLERANCE_LEVELS[key] ? key : 'standard',
+    // A single threshold can still be overridden by hand (tests, experiments).
+    planarTolerance: opts.planarTolerance ?? level.planarTolerance,
+  };
+}
+
+/**
+ * Tier 2: patches that really are flat become one planar face with holes;
+ * everything else stays facets. Measured: the patches of a sphere or a torus
+ * are up to 1e-2 mm away from their own plane, and a plane whose boundary
+ * does not lie on it is not a valid face – on the plate all 134 patches are
+ * flat to 2e-6 mm, so nothing is lost there.
+ */
+export function buildPlanarTier(mesh, analysis, opts = {}) {
+  const tolerance = toleranceOf(opts);
+  const patchResult = analysis?.patches ?? growPatches(mesh, tolerance);
+  const diagonal = bbox(mesh.V).diagonal;
+  const limit = tolerance.planarTolerance * diagonal;
+  const { N } = triangleNormals(mesh.V, mesh.F);
+
+  const regionOfTriangle = new Int32Array(mesh.F.length / 3).fill(-1);
+  const models = new Map();
+  let next = 0;
+  patchResult.patches.forEach((triangles, i) => {
+    const plane = patchResult.planes[i];
+    if (patchFlatness(mesh, triangles, plane) <= limit) {
+      const region = next++;
+      for (const t of triangles) regionOfTriangle[t] = region;
+      models.set(region, planeModel(plane));
+      return;
+    }
+    // Not flat: every triangle stays its own face (tier 1 within tier 2).
+    for (const t of triangles) {
+      const region = next++;
+      regionOfTriangle[t] = region;
+      const v = 3 * mesh.F[3 * t];
+      models.set(region, planeModel({
+        point: [mesh.V[v], mesh.V[v + 1], mesh.V[v + 2]],
+        normal: [N[3 * t], N[3 * t + 1], N[3 * t + 2]],
+      }));
+    }
+  });
+
+  const topology = buildTopology(mesh, regionOfTriangle, models);
+  const brep = buildBrep(mesh, regionOfTriangle, models, topology, { diagonal, name: 'Körper' });
+  // The plane of a patch is its average plane, so the face promises exactly
+  // the flatness limit it was accepted with – and verify holds it to that.
+  return { brep, regionOfTriangle, topology, models, surfaceTolerance: limit };
+}
