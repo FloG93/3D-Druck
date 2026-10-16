@@ -114,6 +114,11 @@ function main() {
       step: app.step,
       fileName: app.stepName,
       onDownload: () => download(app.stepName, app.step.text),
+      onDownloadReport: () => download(
+        app.stepName.replace(/\.step$/, '.repair.json'),
+        `${JSON.stringify({ datei: app.result.fileName, heilung: app.result.healReport, ...app.result.repair }, null, 2)}\n`,
+        'application/json',
+      ),
     });
   });
   dom.cancel.addEventListener('click', () => app.stop(true));
@@ -160,9 +165,9 @@ function main() {
   });
 }
 
-/** Hands the STEP text to the browser as a download. */
-function download(name, text) {
-  const blob = new Blob([text], { type: 'model/step' });
+/** Hands a text (the STEP file, the repair report) to the browser as a download. */
+function download(name, text, type = 'model/step') {
+  const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

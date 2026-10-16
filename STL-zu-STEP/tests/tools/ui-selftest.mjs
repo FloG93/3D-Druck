@@ -110,6 +110,8 @@ console.log(`     ${fixture}: Stufe ${info.tiers.join('+')}, ${info.faces} Fläc
 check(info.canvas, '3D-Vorschau ist da');
 check(info.report.includes('Netz geprüft'), 'Bericht nennt die Netzprüfung');
 check(/Stufe \d|offene Schale/.test(info.report), 'Bericht nennt die erreichte Stufe');
+check(!(await page.$('.report-compare')), 'Ein sauberes Netz zeigt kein Vorher/Nachher');
+check((await page.$$('#options .section, #options section')).length >= 3 || (await page.textContent('#options')).includes('Netzreparatur'), 'Optionen für die Netzreparatur sind da');
 
 await page.click('#btn-export');
 await page.waitForSelector('#export-dialog[open]');
@@ -174,6 +176,31 @@ check(midway.state === 'leer' && midway.result === null && !midway.busy && midwa
 await page.setInputFiles('#file-input', path.join(ROOT, 'STL-zu-STEP/tests/fixtures/', fixture));
 await page.waitForFunction(() => window.stlApp?.result && !window.stlApp.busy, null, { timeout: 120000 });
 check(await page.evaluate(() => document.getElementById('app').dataset.state) === 'fertig', 'Nach Zurück lässt sich eine neue Datei umwandeln');
+
+// A defective mesh: the report shows what the repair did, the JSON report can be downloaded.
+await page.click('#btn-back');
+await page.setInputFiles('#file-input', path.join(ROOT, 'STL-zu-STEP/tests/fixtures/defekt-loch.stl'));
+await page.waitForFunction(() => window.stlApp?.result && !window.stlApp.busy, null, { timeout: 120000 });
+const repairInfo = await page.evaluate(() => ({
+  text: document.getElementById('report').innerText.replace(/\s+/g, ' '),
+  compare: !!document.querySelector('.report-compare'),
+}));
+check(/3 Löcher gefüllt/.test(repairInfo.text), 'Bericht nennt die gefüllten Löcher');
+check(repairInfo.compare && /Randkanten/.test(await page.textContent('.report-compare')), 'Vorher/Nachher zeigt die Randkanten');
+await page.click('#btn-export');
+await page.waitForSelector('#export-dialog[open]');
+const [reportDownload] = await Promise.all([
+  page.waitForEvent('download', { timeout: 20000 }),
+  page.click('#export-dialog button:has-text("Reparaturbericht")'),
+]);
+const reportFile = path.join(process.env.TMPDIR || '/tmp', reportDownload.suggestedFilename());
+await reportDownload.saveAs(reportFile);
+const json = JSON.parse(fs.readFileSync(reportFile, 'utf8'));
+check(reportDownload.suggestedFilename() === 'defekt-loch.repair.json', `Berichtsdatei ${reportDownload.suggestedFilename()}`);
+check(json.before.boundaryEdges === 9 && json.after.boundaryEdges === 0 && json.after.watertight === true, 'JSON-Bericht: 9 Randkanten vorher, geschlossen nachher');
+check(json.validation.ok === true && json.outcome === 'repariert', 'JSON-Bericht: Prüfung bestanden');
+if (!args.includes('--keep')) fs.unlinkSync(reportFile);
+await page.evaluate(() => document.getElementById('export-dialog').close());
 
 check(errors.length === 0, errors.length ? `Fehler in der Seite: ${errors.join(' | ')}` : 'Keine Fehler in der Browser-Konsole');
 await browser.close();

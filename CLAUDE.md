@@ -16,6 +16,7 @@ Web-Werkzeuge für den 3D-Druck: `MusterGenerator/`, `Text-Generator/`, `STL-zu-
 
 **Vor jeder Arbeit lesen:** `STL-zu-STEP/docs/PLAN.md` (nächster Schritt), `SPEC.md`, `MACHBARKEIT.md`. Die Reihenfolge der Schritte im Plan ist verbindlich. Schritte 0–10 sind gebaut, Schritt 11 (Realitätstest) zur Hälfte: öffentliche Modelle sind gemessen (MACHBARKEIT 7), die Dateien des Auftraggebers fehlen.
 
+- Reparatur: `convert()` ruft `repairMesh` (`js/core/repair.js`: diagnose → `healMesh` → diagnose → validate). Neue Reparaturen laufen nur mit Bericht und Prüfung gegen die Eingabe; `tests/tools/repair-report.mjs` zeigt Vorher/Nachher, `crosscheck_trimesh.py` ist die unabhängige Gegenprobe (Python nur dort).
 - Python-Prototypen in `STL-zu-STEP/docs/referenz/` sind der Maßstab für Zahlen; Abweichungen zuerst erklären, dann erst ändern.
 - Testsammlung `STL-zu-STEP/tests/fixtures/` (`expected.json` = Wahrheit). Neue Fehlerfälle werden Fixtures, **bevor** sie behoben werden.
 - Nichts darf stillschweigend verloren gehen oder repariert werden: jede Reparatur, jedes Verwerfen eines Merkmals und jeder Rückfall der Stufe steht mit Zahl im Bericht. Ein Ergebnis, dessen Volumen nicht zum Netz passt, ist schlimmer als kein Ergebnis.
