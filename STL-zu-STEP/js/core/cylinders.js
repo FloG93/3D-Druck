@@ -19,7 +19,7 @@
 
 import { triangleNormals, adjacency, neighbours, triEdges, undirectedKey } from './meshops.js';
 import { patchGraph } from './patches.js';
-import { dot, frame, normalize, fitCircle, fitSphere, fitSlope, eigh3, sub, norm } from './linalg.js';
+import { dot, frame, normalize, fitCircle, fitSphere, fitSlope, eigh3, sub, norm, maxOf, minOf } from './linalg.js';
 
 /** All thresholds of SPEC 5.5 in one place, every one of them measured. */
 export const CYLINDER_DEFAULTS = {
@@ -377,7 +377,7 @@ export function verifyCylinder(V, F, N, triangles, m, info, context, o) {
     heights.push(c.height);
     distances.push(c.radius);
   }
-  const extent = Math.max(...heights) - Math.min(...heights);
+  const extent = maxOf(heights) - minOf(heights);
   if (extent < o.minLengthFactor * m.radius) {
     reasons.push(`zu kurz (${extent.toFixed(2)} < ${o.minLengthFactor} r)`);
   }
@@ -402,7 +402,7 @@ export function verifyCylinder(V, F, N, triangles, m, info, context, o) {
       const radial = normalize(sub(centroid, sphere.center));
       worstCosine = Math.min(worstCosine, Math.abs(dot([N[3 * t], N[3 * t + 1], N[3 * t + 2]], radial)));
     }
-    const cylinderResidual = Math.max(...distances.map((d) => Math.abs(d - m.radius)));
+    const cylinderResidual = maxOf(distances.map((d) => Math.abs(d - m.radius)));
     if (sphereResidual < o.sphereResidual * m.radius
       && worstCosine > o.sphereNormalCosine
       && sphereResidual < cylinderResidual * 0.5 + 1e-9 + 0.002 * m.radius) {

@@ -269,12 +269,15 @@ export function mergeBreps(breps, names = []) {
     const pointOffset = out.points.length;
     const edgeOffset = out.edges.length;
     const faceOffset = out.faces.length;
-    out.points.push(...brep.points.map((p) => [p[0], p[1], p[2]]));
-    out.edges.push(...brep.edges.map((e) => ({ ...e, v0: e.v0 + pointOffset, v1: e.v1 + pointOffset })));
-    out.faces.push(...brep.faces.map((f) => ({
-      ...f,
-      loops: f.loops.map((loop) => loop.map((use) => ({ edge: use.edge + edgeOffset, sense: use.sense }))),
-    })));
+    // Plain loops, not push(...list): a body with 200 000 faces would overflow the stack.
+    for (const p of brep.points) out.points.push([p[0], p[1], p[2]]);
+    for (const e of brep.edges) out.edges.push({ ...e, v0: e.v0 + pointOffset, v1: e.v1 + pointOffset });
+    for (const f of brep.faces) {
+      out.faces.push({
+        ...f,
+        loops: f.loops.map((loop) => loop.map((use) => ({ edge: use.edge + edgeOffset, sense: use.sense }))),
+      });
+    }
     const faces = (brep.solids.length ? brep.solids.flatMap((s) => s.faces) : brep.faces.map((_, k) => k)).map((k) => k + faceOffset);
     out.solids.push({ name: names[i] ?? `Körper ${i + 1}`, faces });
   }
