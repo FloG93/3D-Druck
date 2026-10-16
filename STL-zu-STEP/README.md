@@ -61,6 +61,14 @@ Vor der Erkennung wird das Netz geheilt, in dieser Reihenfolge, und alles davon 
 6. Gesamtrichtung prüfen (ein komplett nach innen gedrehtes Netz wird umgedreht)
 7. Mehrere Körper trennen – jeder wird ein eigener Volumenkörper in derselben Datei
 
+Die Reparatur ist **gemessen, nicht geglaubt**: Vor und nach dem Heilen wird das Netz diagnostiziert (offene
+Randkanten, Löcher, nicht-manifold Kanten und Berührungspunkte, falsch orientierte Nachbarn, entartete und doppelte
+Dreiecke, nach innen orientiertes Volumen, getrennte Schalen), und danach prüft das Werkzeug, **wie weit die Reparatur
+die Form verschoben hat**. Der Bericht zeigt „Vorher / Nachher“ und diese Abweichung; wird die Toleranz überschritten,
+steht das als Warnung da – oder die Reparatur wird verworfen oder abgebrochen, je nach Einstellung. Ein **großes Loch**
+(über 16 Kanten oder mehr als 5 % der Diagonale) wird mit „Warnung: großes Loch geschlossen“ gemeldet, denn die Füllung
+ist nur eine Schätzung der Fläche. Der **Reparaturbericht** lässt sich im Export-Dialog als JSON herunterladen.
+
 ## Einstellungen
 
 - **Einheit:** Millimeter, Zoll, Zentimeter, Meter oder ein eigener Faktor. STL kennt keine Einheit; ist das Teil
@@ -72,6 +80,12 @@ Vor der Erkennung wird das Netz geheilt, in dieser Reihenfolge, und alles davon 
   Bericht nennt den größten Abstand). An einem echten CAD-Modell gemessen: 7007 statt 11 801 Flächen bei 7,3·10⁻⁴ mm.
 - **Radien auf 0,05 mm runden** (aus): rastet einen Radius auf einen runden Wert ein, aber nur innerhalb der
   gemessenen Unsicherheit.
+- **Netzreparatur:** *Kleine Schalen entfernen* (aus) – lose, winzige Körper unter einer Dreieckszahl (Standard 10),
+  jede entfernte Schale steht mit Größe im Bericht, die letzte Schale bleibt immer. *Größte erlaubte Abweichung*
+  (1 % der Diagonale) und *Bei Überschreitung* (Reparatur behalten und warnen / verwerfen, dann bleiben Löcher offen /
+  abbrechen). *Selbstüberschneidungen prüfen* (aus) – sucht Dreiecke, die sich durchdringen, etwa bei zwei
+  überlappenden Körpern; gründlich, aber langsam, ab 200 000 Dreiecken übersprungen. Selbstüberschneidungen werden
+  **gemeldet, nicht repariert**.
 
 ## Grenzen
 
@@ -108,6 +122,8 @@ Tests:
 ```bash
 npm run test:stl                 # Unit-Tests (Node >= 22)
 node STL-zu-STEP/tests/tools/measure.mjs <dateien…>   # echte Dateien durchmessen (Stufe, Dauer, Merkmale)
+node STL-zu-STEP/tests/tools/repair-report.mjs <datei> [--json] [--step]   # Reparatur: Vorher/Nachher, Abweichung, Zeiten
+python3 STL-zu-STEP/tests/tools/crosscheck_trimesh.py   # Diagnose und Reparatur gegen trimesh/pymeshfix prüfen
 npm run validate:stl             # STEP aus allen Fixtures mit OpenCascade prüfen (pip install cadquery-ocp)
 # Selbsttest der Oberfläche im echten Browser (Playwright außerhalb des Repos installieren):
 PLAYWRIGHT=~/pw/node_modules/playwright node STL-zu-STEP/tests/tools/ui-selftest.mjs --screenshot docs/screenshot.png

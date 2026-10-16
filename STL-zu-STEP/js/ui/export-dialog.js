@@ -34,9 +34,10 @@ const bold = (text) => {
 };
 
 /**
- * showExportDialog(dialog, { result, step, fileName, onDownload })
+ * showExportDialog(dialog, { result, step, fileName, onDownload, onDownloadReport })
+ * onDownloadReport gives the repair report as a JSON file (only offered when the result has one).
  */
-export function showExportDialog(dialog, { result, step, fileName, onDownload }) {
+export function showExportDialog(dialog, { result, step, fileName, onDownload, onDownloadReport }) {
   dialog.textContent = '';
   const tiers = result.components.map((c) => TIER_TEXT[c.tier]?.name ?? String(c.tier));
   const faces = result.components.reduce((s, c) => s + c.counts.faces, 0);
@@ -64,12 +65,16 @@ export function showExportDialog(dialog, { result, step, fileName, onDownload })
   });
   const close = h('button', { type: 'button', class: 'btn ghost' }, 'Schließen');
   close.addEventListener('click', () => dialog.close());
+  const report = onDownloadReport && result.repair
+    ? h('button', { type: 'button', class: 'btn ghost', title: 'Befund vorher und nachher, Reparaturen, Prüfung gegen die Eingabe und Zeiten als JSON' }, 'Reparaturbericht (JSON)')
+    : null;
+  report?.addEventListener('click', () => onDownloadReport());
 
   dialog.append(
     h('div', { class: 'dialog-inner' },
       h('div', { class: 'dialog-head' }, h('h2', {}, 'STEP herunterladen')),
       body,
-      h('div', { class: 'dialog-foot' }, close, download)),
+      h('div', { class: 'dialog-foot' }, close, report, download)),
   );
   dialog.showModal();
 }

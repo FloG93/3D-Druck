@@ -29,6 +29,12 @@ const defaults = () => ({
   acceptUncertain: false,
   tolerance: 'standard',
   roundRadius: false,
+  // Repair (core/repair.js): all off or at the safe default.
+  removeShells: false,
+  minShellTriangles: 10,
+  maxDeviationPercent: 1,
+  onExceed: 'warn',
+  checkIntersections: false,
 });
 
 export class App {
@@ -143,7 +149,49 @@ export class App {
     );
     panel.register(recognition.el, null, null);
 
-    container.append(units.el, recognition.el);
+    const repair = section('Netzreparatur', { id: 'reparatur', icon: 'layers' });
+    repair.body.append(
+      toggle(panel, {
+        label: 'Kleine Schalen entfernen',
+        bind: { get: () => this.options.removeShells, set: (v) => this.set('removeShells', v) },
+        title: 'Entfernt lose, winzige Körper (zum Beispiel Splitter aus einem Scan). Jede entfernte Schale steht mit Größe im Bericht. Aus: alle Körper bleiben.',
+      }),
+      numberField(panel, {
+        label: 'weniger Dreiecke als',
+        bind: { get: () => this.options.minShellTriangles, set: (v) => this.set('minShellTriangles', Math.round(v)) },
+        min: 1,
+        max: 100000,
+        step: 1,
+        digits: 0,
+        visible: () => this.options.removeShells,
+      }),
+      numberField(panel, {
+        label: 'Größte erlaubte Abweichung (% der Diagonale)',
+        bind: { get: () => this.options.maxDeviationPercent, set: (v) => this.set('maxDeviationPercent', v) },
+        min: 0.01,
+        max: 50,
+        step: 0.1,
+        digits: 2,
+        title: 'Eine Reparatur, vor allem das Schließen großer Löcher, verändert die Form leicht. Der Bericht misst, wie weit die Reparatur von der Eingabe liegt.',
+      }),
+      selectField(panel, {
+        label: 'Bei Überschreitung',
+        bind: { get: () => this.options.onExceed, set: (v) => this.set('onExceed', v) },
+        options: [
+          ['warn', 'Reparatur behalten und warnen'],
+          ['discard', 'Reparatur verwerfen (Löcher bleiben offen)'],
+          ['abort', 'Abbrechen'],
+        ],
+      }),
+      toggle(panel, {
+        label: 'Selbstüberschneidungen prüfen',
+        bind: { get: () => this.options.checkIntersections, set: (v) => this.set('checkIntersections', v) },
+        title: 'Sucht Dreiecke, die sich durchdringen (zum Beispiel zwei überlappende Körper). Gründlich, aber bei großen Netzen langsam; ab 200 000 Dreiecken wird sie übersprungen.',
+      }),
+    );
+    panel.register(repair.el, null, null);
+
+    container.append(units.el, recognition.el, repair.el);
     panel.refresh();
   }
 
@@ -189,6 +237,12 @@ export class App {
         acceptUncertain: this.options.acceptUncertain,
         tolerance: this.options.tolerance,
         constraints: { roundRadius: this.options.roundRadius },
+        repair: {
+          minShellTriangles: this.options.removeShells ? this.options.minShellTriangles : 0,
+          maxDeviation: this.options.maxDeviationPercent / 100,
+          onExceed: this.options.onExceed,
+          intersections: this.options.checkIntersections,
+        },
       },
     }, [buffer]);
   }

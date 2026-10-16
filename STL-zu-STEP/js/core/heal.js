@@ -23,11 +23,38 @@ export const MAX_HOLE_EDGES = 64;
 export const AREA_EPS_RELATIVE = 1e-6;
 /** A point this far from an edge sits on it (multiple of the welding tolerance). */
 export const T_JUNCTION_TOL_FACTOR = 5;
+/**
+ * A filled hole counts as large – its patch is only an estimate of the real
+ * surface – from this many edges, or when it spans this share of the diagonal.
+ */
+export const LARGE_HOLE_EDGES = 16;
+export const LARGE_HOLE_DIAGONAL_FRACTION = 0.05;
+
+/**
+ * A triangle with a repeated corner or (almost) no area – the rule of step 1,
+ * for callers that only want to ask (diagnose, validate).
+ */
+export function isDegenerateTriangle(V, F, t, diagonal) {
+  const [a, b, c] = [F[3 * t], F[3 * t + 1], F[3 * t + 2]];
+  if (a === b || b === c || a === c) return true;
+  const e1 = [V[3 * b] - V[3 * a], V[3 * b + 1] - V[3 * a + 1], V[3 * b + 2] - V[3 * a + 2]];
+  const e2 = [V[3 * c] - V[3 * a], V[3 * c + 1] - V[3 * a + 1], V[3 * c + 2] - V[3 * a + 2]];
+  const nx = e1[1] * e2[2] - e1[2] * e2[1];
+  const ny = e1[2] * e2[0] - e1[0] * e2[2];
+  const nz = e1[0] * e2[1] - e1[1] * e2[0];
+  const areaEps = (diagonal * AREA_EPS_RELATIVE) ** 2;
+  return (nx * nx + ny * ny + nz * nz) / 4 < areaEps * areaEps;
+}
 
 /**
  * healMesh({ V, F }, opts?) → { V, F, report, components }
  * opts: { weldTol, maxHoleEdges, fillHoles, splitTJunctions } – every repair
  * can be switched off, and then says so in the report.
+ * Optional, off unless given: { minShellTriangles, minShellVolume } drops tiny
+ * loose shells (fewer triangles than the first, or a volume below that share
+ * of the largest shell), and { largeHoleEdges, largeHoleDiagonalFraction }
+ * sets when a filled hole is reported as large.
+ * The report also carries the time of every step in milliseconds.
  */
 export function healMesh(mesh, opts = {}) {
   const V0 = mesh.V;
@@ -45,37 +72,63 @@ export function healMesh(mesh, opts = {}) {
     flipped: 0,
     holesFilled: 0,
     holesOpen: [],
+    holesLarge: [],
+    shellsRemoved: [],
     unusedPoints: 0,
     components: 1,
     orientedGlobally: false,
     skipped: [],
+    timings: {},
+  };
+  let lapStart = performance.now();
+  const lap = (name) => {
+    const now = performance.now();
+    report.timings[name] = Math.round(now - lapStart);
+    lapStart = now;
   };
 
   let V = Float64Array.from(V0);
   let F = Uint32Array.from(mesh.F);
 
   F = dropBadTriangles(V, F, (box.diagonal * AREA_EPS_RELATIVE) ** 2, report);
+  lap('entartete und doppelte Dreiecke');
 
   if (opts.splitTJunctions === false) report.skipped.push('T-Kreuzungen');
   else F = splitTJunctions(V, F, weldTol * T_JUNCTION_TOL_FACTOR, box.diagonal, report);
+  lap('T-Kreuzungen');
 
   F = dropNonManifold(V, F, report);
+  lap('nicht-manifold Kanten');
 
   F = orientConsistently(F, report);
+  lap('Orientierung');
 
+  const largeHole = {
+    edges: opts.largeHoleEdges ?? LARGE_HOLE_EDGES,
+    diameter: box.diagonal * (opts.largeHoleDiagonalFraction ?? LARGE_HOLE_DIAGONAL_FRACTION),
+  };
   if (opts.fillHoles === false) report.skipped.push('Löcher füllen');
-  else F = fillHoles(V, F, maxHoleEdges, report);
+  else F = fillHoles(V, F, maxHoleEdges, report, largeHole);
 
   // Filling may insert triangles against the winding of their neighbours –
   // but only then, and the pass costs a full run over the mesh.
   if (report.holesFilled > 0) F = orientConsistently(F, report);
+  lap('Löcher');
 
   ({ V, F } = dropUnusedPoints(V, F, report));
 
   // orientGlobally needs the components anyway, so it hands them back.
   const oriented = orientGlobally(V, F, report);
   F = oriented.F;
-  const parts = oriented.parts;
+  let parts = oriented.parts;
+  lap('Schalen und Richtung');
+
+  const trimmed = dropSmallShells(V, F, parts, opts, report);
+  if (trimmed) {
+    ({ V, F } = dropUnusedPoints(trimmed.V, trimmed.F, report));
+    parts = splitComponents(V, F);
+    lap('kleine Schalen');
+  }
   report.components = parts.length;
   report.points = V.length / 3;
   report.triangles = F.length / 3;
@@ -328,7 +381,7 @@ export function boundaryLoops(F) {
  * run against the loop, because the loop follows the half-edges that are
  * still missing their partner.
  */
-function fillHoles(V, F, maxEdges, report) {
+function fillHoles(V, F, maxEdges, report, large = { edges: Infinity, diameter: Infinity }) {
   const faces = Array.from(F);
   for (const loop of boundaryLoops(faces)) {
     const center = loopCenter(V, loop);
@@ -343,8 +396,26 @@ function fillHoles(V, F, maxEdges, report) {
     }
     for (const [a, b, c] of added) faces.push(c, b, a); // against the loop
     report.holesFilled += 1;
+    const diameter = loopDiameter(V, loop);
+    // A hole of three edges is one missing triangle: only one patch fits, nothing to estimate.
+    if (loop.length > 3 && (loop.length >= large.edges || diameter >= large.diameter)) {
+      report.holesLarge.push({ edges: loop.length, diameter, center });
+    }
   }
   return Uint32Array.from(faces);
+}
+
+/** Diagonal of the box around the points of a loop: how far across the hole is. */
+function loopDiameter(V, loop) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const i of loop) {
+    for (let k = 0; k < 3; k++) {
+      if (V[3 * i + k] < lo[k]) lo[k] = V[3 * i + k];
+      if (V[3 * i + k] > hi[k]) hi[k] = V[3 * i + k];
+    }
+  }
+  return Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
 }
 
 function loopCenter(V, loop) {
@@ -466,6 +537,32 @@ function dropUnusedPoints(V, F, report) {
     out.push(V[3 * i], V[3 * i + 1], V[3 * i + 2]);
   }
   const faces = Uint32Array.from(F, (v) => remap[v]);
-  report.unusedPoints = unused;
+  report.unusedPoints += unused;
   return { V: Float64Array.from(out), F: faces };
+}
+
+/**
+ * 8. Tiny loose shells (optional, off by default): floating specks from a
+ * scan or a slicer. A shell goes when it has fewer triangles than
+ * `minShellTriangles` or a volume below `minShellVolume` times that of the
+ * largest shell. At least one shell always stays. Every shell that goes is
+ * named in the report with its size – nothing disappears silently.
+ */
+function dropSmallShells(V, F, parts, opts, report) {
+  const minTriangles = opts.minShellTriangles ?? 0;
+  const minVolume = opts.minShellVolume ?? 0;
+  if (!(minTriangles > 0 || minVolume > 0) || parts.length < 2) return null;
+  const volumes = parts.map((part) => Math.abs(signedVolume(part.V, part.F)));
+  const largest = volumes.reduce((best, v) => (v > best ? v : best), 0);
+  const drop = parts.map((part, i) => part.F.length / 3 < minTriangles || volumes[i] < minVolume * largest);
+  if (!drop.includes(true) || !drop.includes(false)) return null;
+  parts.forEach((part, i) => {
+    if (drop[i]) report.shellsRemoved.push({ triangles: part.F.length / 3, volume: volumes[i] });
+  });
+  const label = components(F).label;
+  const keep = [];
+  for (let t = 0; t < F.length / 3; t++) {
+    if (!drop[label[t]]) keep.push(F[3 * t], F[3 * t + 1], F[3 * t + 2]);
+  }
+  return { V, F: Uint32Array.from(keep) };
 }

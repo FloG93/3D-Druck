@@ -5,6 +5,7 @@
 
 import { h } from '../../../shared/js/controls.js';
 import { icon } from '../../../shared/js/icons.js';
+import { comparisonRows, validationSummary, repairSteps } from '../core/repair.js';
 
 const de = (v, digits = 2) => (Number.isFinite(v) ? v.toLocaleString('de-DE', { maximumFractionDigits: digits, minimumFractionDigits: 0 }) : '–');
 const plural = (n, one, many) => `${de(n, 0)} ${n === 1 ? one : many}`;
@@ -29,24 +30,21 @@ function axisText(axis) {
 }
 
 /** The repairs of the healing, each with its number – empty when nothing happened. */
-export function repairLines(report) {
-  const lines = [];
-  const add = (n, text) => {
-    if (n > 0) lines.push(`${plural(n, ...text)}`);
-  };
-  add(report.degenerate, ['Dreieck ohne Fläche entfernt', 'Dreiecke ohne Fläche entfernt']);
-  add(report.duplicate, ['doppeltes Dreieck entfernt', 'doppelte Dreiecke entfernt']);
-  add(report.tJunctionsSplit, ['T-Kreuzung geteilt', 'T-Kreuzungen geteilt']);
-  add(report.nonManifoldRemoved, ['überzähliges Dreieck an einer Kante entfernt', 'überzählige Dreiecke an Kanten entfernt']);
-  add(report.flipped, ['Dreieck gedreht', 'Dreiecke gedreht']);
-  add(report.holesFilled, ['Loch gefüllt', 'Löcher gefüllt']);
-  add(report.unusedPoints, ['unbenutzter Punkt entfernt', 'unbenutzte Punkte entfernt']);
-  if (report.orientedGlobally) lines.push('Das Netz war komplett nach innen gedreht und wurde umgedreht.');
-  for (const hole of report.holesOpen) {
-    lines.push(`Loch mit ${plural(hole.edges, 'Kante', 'Kanten')} blieb offen (${hole.reason}).`);
-  }
-  for (const skipped of report.skipped || []) lines.push(`Abgeschaltet: ${skipped}.`);
-  return lines;
+export const repairLines = repairSteps;
+
+/**
+ * What the repair did, side by side: only the rows that changed, plus what
+ * the validation found. Nothing is shown for a mesh that needed no repair.
+ */
+function repairDetails(repair) {
+  if (!repair || repair.outcome === 'unverändert') return null;
+  const changed = comparisonRows(repair).filter((row) => row.changed);
+  return h('details', { class: 'report-compare', open: repair.outcome === 'verworfen' || repair.validation.exceeded },
+    h('summary', {}, `Vorher / Nachher${repair.outcome === 'verworfen' ? ' (Reparatur verworfen)' : ''}`),
+    h('table', {},
+      h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'vorher'), h('th', {}, 'nachher'))),
+      h('tbody', {}, ...changed.map((row) => h('tr', {}, h('td', {}, row.label), h('td', {}, row.before), h('td', {}, row.after))))),
+    h('p', { class: 'report-note' }, validationSummary(repair.validation)));
 }
 
 function badge(text, kind = '') {
@@ -157,7 +155,8 @@ export function renderReport(container, result, handlers = {}) {
     h('h3', {}, 'Netz geprüft'),
     repairs.length === 0
       ? h('p', { class: 'report-ok' }, h('span', { class: 'inline-icon', html: icon('check') }), 'Das Netz war geschlossen und brauchte keine Reparatur.')
-      : h('ul', { class: 'report-list' }, ...repairs.map((r) => h('li', {}, r)))));
+      : h('ul', { class: 'report-list' }, ...repairs.map((r) => h('li', {}, r))),
+    repairDetails(result.repair)));
 
   container.append(h('div', { class: 'report-section' },
     h('h3', {}, bodies > 1 ? 'Körper' : 'Ergebnis'),

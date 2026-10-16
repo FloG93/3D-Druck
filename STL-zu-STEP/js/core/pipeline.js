@@ -10,7 +10,7 @@
 
 import { parseMesh } from './parse.js';
 import { weldMesh } from './weld.js';
-import { healMesh } from './heal.js';
+import { repairMesh } from './repair.js';
 import { growPatches } from './patches.js';
 import { detectCylinders } from './cylinders.js';
 import { facetedBrep, brepCounts, brepVolume } from './brep.js';
@@ -58,7 +58,8 @@ export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress =
   const welded = weldMesh(parsed.tris);
 
   step('heal', 'Netz prüfen und heilen', 0.3);
-  const healed = healMesh({ V: welded.V, F: welded.F }, { weldTol: welded.tol, ...opts });
+  const healed = repairMesh({ V: welded.V, F: welded.F }, { weldTol: welded.tol, ...opts });
+  warnings.push(...healed.repair.warnings);
 
   const components = [];
   const total = healed.components.length || 1;
@@ -84,6 +85,7 @@ export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress =
     components,
     warnings,
     healReport: healed.report,
+    repair: healed.repair,
     mesh: { V: healed.V, F: healed.F },
     meshVolume,
     triangles: healed.F.length / 3,
@@ -134,6 +136,7 @@ export function toTransferable(result) {
     meshVolume: result.meshVolume,
     warnings: [...result.warnings],
     healReport: { ...result.healReport, holesOpen: result.healReport.holesOpen.map((h) => ({ ...h })) },
+    repair: structuredClone(result.repair),
     components: result.components.map((c) => ({
       tier: c.tier,
       open: c.open,
