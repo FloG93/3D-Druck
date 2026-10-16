@@ -135,6 +135,46 @@ if (screenshot) {
   console.log(`     Screenshot: ${screenshot}`);
 }
 
+// Zurück: from a finished result back to the start screen …
+const backVisible = () => page.isVisible('#btn-back');
+check(await backVisible(), 'Zurück-Knopf ist beim Ergebnis sichtbar');
+await page.click('#btn-back');
+const start = await page.evaluate(() => ({
+  state: document.getElementById('app').dataset.state,
+  file: window.stlApp.file,
+  result: window.stlApp.result,
+  report: document.getElementById('report').innerText.replace(/\s+/g, ' '),
+  exportDisabled: document.getElementById('btn-export').disabled,
+}));
+check(start.state === 'leer', 'Zurück führt zum Startbildschirm');
+check(start.file === null && start.result === null, 'Datei und Ergebnis sind verworfen');
+check(!start.report.includes('Netz geprüft'), 'Der Bericht ist leer');
+check(start.exportDisabled, 'Export ist wieder gesperrt');
+check(await page.isVisible('#drop'), 'Ablegefläche ist wieder sichtbar');
+check(!(await backVisible()), 'Zurück-Knopf ist am Start versteckt');
+
+// … and in the middle of the work: the worker stops, and a late answer must
+// not bring the result back.
+await page.evaluate(async (name) => {
+  const blob = await (await fetch(`tests/fixtures/${name}`)).blob();
+  window.stlApp.open(new File([blob], name));
+}, fixture);
+await page.waitForSelector('#app[data-state="arbeitet"]');
+await page.click('#btn-back');
+await page.waitForTimeout(2500);
+const midway = await page.evaluate(() => ({
+  state: document.getElementById('app').dataset.state,
+  result: window.stlApp.result,
+  busy: window.stlApp.busy,
+  worker: window.stlApp.worker,
+}));
+check(midway.state === 'leer' && midway.result === null && !midway.busy && midway.worker === null, 'Zurück mitten in der Arbeit bricht ab und bleibt am Start');
+
+// A new file works after going back.
+await page.setInputFiles('#file-input', path.join(ROOT, 'STL-zu-STEP/tests/fixtures/', fixture));
+await page.waitForFunction(() => window.stlApp?.result && !window.stlApp.busy, null, { timeout: 120000 });
+check(await page.evaluate(() => document.getElementById('app').dataset.state) === 'fertig', 'Nach Zurück lässt sich eine neue Datei umwandeln');
+
 check(errors.length === 0, errors.length ? `Fehler in der Seite: ${errors.join(' | ')}` : 'Keine Fehler in der Browser-Konsole');
 await browser.close();
 stop();

@@ -79,7 +79,7 @@ Vor der Erkennung wird das Netz geheilt, in dieser Reihenfolge, und alles davon 
   Sehnen, nicht auf dem Kreis. Der Bericht nennt die Unsicherheit, „Radien runden“ hilft bei Normmaßen.
 - **Kugel, Kegel, Torus, Freiform** bleiben Facetten (Stufe 2).
 - **Dauer** (gemessen): 20 000 Dreiecke ≈ 2 s, 100 000 ≈ 2–5 s (je nach Teil), 225 000 ≈ 35 s. Ab 500 000 Dreiecken fragt das
-  Werkzeug vorher nach; die Umwandlung läuft im Hintergrund und lässt sich abbrechen.
+  Werkzeug vorher nach; die Umwandlung läuft im Hintergrund und lässt sich mit „Zurück“ (oben links, Taste Esc) abbrechen; das führt zum Startbildschirm.
 - **Dateigröße:** Bleibt ein Teil facettiert (Stufe 1 oder 2), wird die STEP-Datei groß – für ein Modell mit 225 000
   Dreiecken rund 200 MB. Das ist die ehrliche Folge von „jede Facette eine Fläche“.
 - **Echte Dateien:** Sieben öffentliche Modelle (CAD-Klassiker, 3DBenchy, Stanford-Bunny, ein Drache mit 250 000

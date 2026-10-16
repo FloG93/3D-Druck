@@ -40,6 +40,7 @@ export class App {
     this.step = null;
     this.worker = null;
     this.busy = false;
+    this.run = 0; // counts conversions, so that an answer from a cancelled one is ignored
     setStoragePrefix(STORAGE_PREFIX);
     this.buildOptions();
     this.renderReport();
@@ -159,7 +160,10 @@ export class App {
   async convert() {
     if (!this.file) return;
     this.stop(false);
-    const buffer = await this.file.arrayBuffer();
+    const run = ++this.run;
+    const file = this.file;
+    const buffer = await file.arrayBuffer();
+    if (run !== this.run) return; // went back to the start while the file was being read
     this.busy = true;
     this.dom.app.dataset.state = 'arbeitet';
     this.setProgress(0.02, 'Datei lesen');
@@ -167,14 +171,18 @@ export class App {
 
     const worker = new Worker(new URL('../worker.js', import.meta.url), { type: 'module' });
     this.worker = worker;
-    worker.addEventListener('message', (event) => this.onWorkerMessage(event.data));
+    // A worker that was stopped (back to the start, new file) must not answer any more.
+    worker.addEventListener('message', (event) => {
+      if (this.worker === worker) this.onWorkerMessage(event.data);
+    });
     worker.addEventListener('error', (event) => {
+      if (this.worker !== worker) return;
       this.fail(event.message || 'Der Worker ist abgestürzt.');
     });
     worker.postMessage({
       type: 'convert',
       buffer,
-      fileName: this.file.name,
+      fileName: file.name,
       opts: {
         unitScale: this.scale,
         cylinders: this.options.cylinders,
@@ -211,6 +219,26 @@ export class App {
       ? 'Fertig, aber das Netz ließ sich nicht schließen: offene Schale.'
       : `Fertig: ${tiers.map((t) => `Stufe ${t}`).join(', ')}, ${this.result.components.reduce((s, c) => s + c.counts.faces, 0)} Flächen, ${Math.round(this.step.bytes / 1024)} kB STEP.`);
     this.stop(false);
+  }
+
+  /**
+   * Back to the start screen: a running conversion is stopped, the file, the
+   * result and the report are dropped. Unlike stop(), nothing stays behind.
+   */
+  reset() {
+    this.run += 1;
+    this.stop(false);
+    this.file = null;
+    this.result = null;
+    this.step = null;
+    this.busy = false;
+    this.dom.cancel.hidden = true;
+    this.dom.progress.hidden = true;
+    this.dom.exportButton.disabled = true;
+    this.dom.app.dataset.state = 'leer';
+    this.renderReport();
+    this.onReset?.();
+    this.setStatus('Bereit. Datei ablegen oder auswählen.');
   }
 
   /** Cancel: the worker is terminated, the previous result stays. */
