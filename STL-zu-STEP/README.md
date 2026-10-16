@@ -78,7 +78,7 @@ Vor der Erkennung wird das Netz geheilt, in dieser Reihenfolge, und alles davon 
 - Aus einem **unterteilten Netz** kommt der Radius etwas zu klein heraus (gemessen −0,18 %): Die Punkte liegen auf den
   Sehnen, nicht auf dem Kreis. Der Bericht nennt die Unsicherheit, „Radien runden“ hilft bei Normmaßen.
 - **Kugel, Kegel, Torus, Freiform** bleiben Facetten (Stufe 2).
-- **Dauer** (gemessen): 20 000 Dreiecke ≈ 3 s, 100 000 ≈ 11 s, 225 000 ≈ 47 s. Ab 500 000 Dreiecken fragt das
+- **Dauer** (gemessen): 20 000 Dreiecke ≈ 2 s, 100 000 ≈ 2–5 s (je nach Teil), 225 000 ≈ 35 s. Ab 500 000 Dreiecken fragt das
   Werkzeug vorher nach; die Umwandlung läuft im Hintergrund und lässt sich abbrechen.
 - **Dateigröße:** Bleibt ein Teil facettiert (Stufe 1 oder 2), wird die STEP-Datei groß – für ein Modell mit 225 000
   Dreiecken rund 200 MB. Das ist die ehrliche Folge von „jede Facette eine Fläche“.

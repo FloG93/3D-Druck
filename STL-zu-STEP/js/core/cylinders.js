@@ -76,11 +76,16 @@ export function detectCylinders(mesh, patchResult, opts = {}) {
     const inCandidate = new Set([seed]);
     let frontier = [seed];
     let model = null;
-    let seedTriangles = [...patches[seed]];
+    let seedTriangles = [];
+    // The covariance grows with the seed instead of being summed again from
+    // scratch at every step (same order of summation, same numbers).
+    const covariance = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    addCovariance(covariance, N, area, patches[seed]);
     while (candidate.length < o.maxSeedPatches) {
-      seedTriangles = candidate.flatMap((k) => [...patches[k]]);
-      const spread = normalSpread(N, area, seedTriangles);
+      const values = eigh3(covariance).values;
+      const spread = values[1] / Math.max(values[2], 1e-12);
       if (candidate.length >= o.minPatches && spread >= o.seedSpread) {
+        seedTriangles = candidate.flatMap((k) => [...patches[k]]);
         model = fitCylinder(V, F, N, area, seedTriangles, o);
         break;
       }
@@ -90,10 +95,11 @@ export function detectCylinders(mesh, patchResult, opts = {}) {
       const pick = next.reduce((best, j) => (patchArea[j] < patchArea[best] ? j : best), next[0]);
       candidate.push(pick);
       inCandidate.add(pick);
+      addCovariance(covariance, N, area, patches[pick]);
       frontier = [pick];
     }
     if (!model) continue;
-    if (!seedTriangles.every((t) => isMember(V, F, N, t, model, o))) continue;
+    if (!allMembers(V, F, N, seedTriangles, model, o)) continue;
 
     // 2. Grow the region over the patch graph, patch by patch.
     const region = new Set(candidate);
@@ -103,7 +109,7 @@ export function detectCylinders(mesh, patchResult, opts = {}) {
       for (const k of frontier) {
         for (const j of graph.get(k) || []) {
           if (region.has(j) || taken.has(j)) continue;
-          if (![...patches[j]].every((t) => isMember(V, F, N, t, model, o))) continue;
+          if (!allMembers(V, F, N, patches[j], model, o)) continue;
           region.add(j);
           next.push(j);
         }
@@ -136,19 +142,35 @@ export function detectCylinders(mesh, patchResult, opts = {}) {
   return { cylinders, rejected, uncertain, merged: merged.count, options: o };
 }
 
-/** λ₂/λ₃ of the area-weighted covariance of the normals (angular spread). */
-function normalSpread(N, area, triangles) {
-  const values = normalCovarianceEigen(N, area, triangles).values;
-  return values[1] / Math.max(values[2], 1e-12);
+/** Adds the area-weighted outer products of the triangle normals to a 3×3 sum. */
+function addCovariance(m, N, area, triangles) {
+  for (const t of triangles) {
+    const x = N[3 * t];
+    const y = N[3 * t + 1];
+    const z = N[3 * t + 2];
+    const w = area[t];
+    m[0][0] += x * x * w;
+    m[0][1] += x * y * w;
+    m[0][2] += x * z * w;
+    m[1][0] += y * x * w;
+    m[1][1] += y * y * w;
+    m[1][2] += y * z * w;
+    m[2][0] += z * x * w;
+    m[2][1] += z * y * w;
+    m[2][2] += z * z * w;
+  }
 }
 
 function normalCovarianceEigen(N, area, triangles) {
   const m = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
-  for (const t of triangles) {
-    const n = [N[3 * t], N[3 * t + 1], N[3 * t + 2]];
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m[i][j] += n[i] * n[j] * area[t];
-  }
+  addCovariance(m, N, area, triangles);
   return eigh3(m);
+}
+
+/** True when every triangle passes the member test (no array copies in between). */
+function allMembers(V, F, N, triangles, model, o) {
+  for (const t of triangles) if (!isMember(V, F, N, t, model, o)) return false;
+  return true;
 }
 
 /** Unique point indices of a set of triangles. */

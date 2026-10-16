@@ -132,15 +132,29 @@ Quellen: [common-3d-test-models](https://github.com/alecjacobson/common-3d-test-
 
 **Toleranz-Stufen.** Dabei fiel auf, dass „grobe Toleranz" das Ergebnis *verschlechterte* (fandisk: 12 145 statt 11 801 Flächen), weil die größeren Stücke dann an der strengen Ebenheitsgrenze scheiterten und wieder in Facetten zerfielen. Beide Schwellen skalieren jetzt gemeinsam (SPEC 6.4): fandisk kommt mit `grob` auf **7007 Flächen** (−41 %) bei 7,3e-4 mm größtem Abstand zum Netz.
 
-### Leistung (gemessen, Node 22, synthetische Kugelnetze)
+### Leistung (gemessen, Node 22)
 
-| Dreiecke | Umwandeln | STEP schreiben | gesamt |
+Zwei Messreihen, jeweils **alter und neuer Stand nacheinander auf derselben Maschine** (Zeit für „Umwandeln", STEP schreiben nicht eingerechnet). Die erste Reihe sind Kugelnetze – der härteste einfache Fall, weil jedes Dreieck eine eigene Facette bleibt (Stufe 2, 35–190 MB STEP); die zweite die unterteilte Platte (Stufe 3, 15 kB STEP).
+
+| Netz | Dreiecke | vorher | nachher |
 |---|---|---|---|
-| 19 800 | 2,7 s | 0,5 s | 3,2 s |
-| 50 880 | 4,4 s | 1,1 s | 5,5 s |
-| 99 904 | 8,2 s | 2,5 s | **10,7 s** |
+| Kugel | 39 600 | 7,4 s | **2,5 s** |
+| Kugel | 101 760 | 19,9 s | **5,3 s** |
+| Kugel | 199 808 | 31,9 s | **9,5 s** |
+| Platte, unterteilt | 8 512 | 0,71 s | **0,30 s** |
+| Platte, unterteilt | 34 048 | 2,2 s | **0,63 s** |
+| Platte, unterteilt | 136 192 | 8,6 s | **1,8 s** |
+| rocker-arm (real) | 20 088 | 3,3 s | **2,2 s** |
+| 3DBenchy (real) | 225 154 | 71 s | **35 s** |
 
-Das Budget in SPEC 8 („100 000 Dreiecke < 5 s") war eine Zielvorgabe ohne Messung und wird **verfehlt**; die Zahl oben ist der Stand nach zwei Optimierungen (doppelte Durchläufe in der Heilung entfernt, Erkennung ohne Allokationen in der inneren Schleife: 16,1 s → 10,7 s). Die Oberfläche bleibt dabei bedienbar (Worker, Fortschritt, Abbrechen) und warnt ab 500 000 Dreiecken.
+Die Ergebnisse sind dabei Byte für Byte dieselben: Flächen, Stufen, Volumen und Berichte von 28 Dateien (alle Fixtures plus die drei realen) stimmen vor und nach der Änderung überein, die STEP-Dateien sind gleich groß.
+
+**Was es war.** Das Profil (`node --cpu-prof`) zeigte keinen einzelnen Algorithmus, sondern Speicherverwaltung: Kanten hießen `"u,v"` (ein String je Kante und Suche, dazu ein Array je Kante in zwei Maps), und die Müllabfuhr nahm bis zu 24 % der Zeit. Drei Änderungen, jede ohne Änderung der Logik:
+1. **Kanten-Tabelle aus Typed Arrays** (`edgeTable` in `meshops.js`, offene Adressierung): ersetzt `edgeMap`, die Kantenschlüssel als Zeichenketten und die Paar-Arrays je Dreieckskante in Heilung, Nachbarschaft, Komponenten und `buildTopology`. Allein das brachte auf dem 136k-Netz 8,6 → 3,3 s.
+2. **`buildTopology` ohne Maps je Punkt:** Dreiecke je Punkt als CSR, Regionen nur für Eckpunkte (die Zwangsbedingungen kennen keine anderen), Randkanten als flache Zahlenlisten.
+3. **Keimwachstum der Zylindererkennung inkrementell:** Die Kovarianz der Normalen wird beim Wachsen fortgeschrieben statt bei jedem Schritt neu aus allen Dreiecken summiert (gleiche Summationsreihenfolge, gleiche Zahlen). Benchy: 14,4 → 7,3 s in diesem Schritt.
+
+Das Budget in SPEC 8 („100 000 Dreiecke < 5 s") wird für Stufe-3-Teile (Platte: 1,8 s bei 136 000) **eingehalten**, für ein Netz, das in Stufe 2 mit 100 000 einzelnen Facetten endet (Kugel), knapp **verfehlt** (5,3 s) – dort wird die Zeit zu einem großen Teil für Bau und Prüfung von 100 000 Flächen gebraucht. Bei Benchy (Stufe 3 gebaut, an einer Prüfung gescheitert, dann Stufe 2) rechnet die Pipeline alles zweimal; das ist der Preis des Rückfalls und steht im Bericht. Die Oberfläche bleibt bedienbar (Worker, Fortschritt, Abbrechen) und warnt ab 500 000 Dreiecken.
 
 ### Was der Realitätstest offen lässt
 

@@ -231,7 +231,7 @@ Feldbedienung: Ziele ≥ 44 px; Zustände nie nur über Farbe; Kontrast ≥ 4,5 
 |---|---|
 | Echte Dateien verhalten sich anders als die Testsammlung | Plan-Schritt „Realitätstest": Nutzer liefert 5–10 echte STL; jeder Fehlschlag wird Fixture und Test. |
 | Tangenten-Zwänge (5.6) lösen Rundungen nicht | Rückfall Stufe 2 ist immer gültig; Mess-Test `platte-unterteilt*`. Fallback-Alternative: Rundungen mit nicht exakt passender Wand als eigene Flächen an Polygonzug anlegen und Spalt per Sewing-Toleranz 1e-3 schließen (nur wenn Volumen/Abstandsprüfung bestanden). |
-| Leistung > 500 k Dreiecke | Typed Arrays, Worker, Hash-Gitter, keine rekursiven Algorithmen, keine Objekte pro Dreieck. *Nachtrag 15.10.2026:* gemessen sind **10,7 s für 100 000 Dreiecke** (8,2 s umwandeln, 2,5 s STEP schreiben) – das Budget von 5 s war eine Zielvorgabe ohne Messung und wird verfehlt. Siehe MACHBARKEIT 7. |
+| Leistung > 500 k Dreiecke | Typed Arrays, Worker, Hash-Gitter, keine rekursiven Algorithmen, keine Objekte pro Dreieck. *Nachtrag 16.10.2026:* gemessen (MACHBARKEIT 7): Stufe-3-Teile mit 136 000 Dreiecken in **1,8 s**, ein Kugelnetz mit 102 000 Einzelfacetten (Stufe 2) in **5,3 s** – das Budget von 5 s gilt damit für typische Teile, nicht für Netze mit Zehntausenden Facetten. Gewonnen wurde durch Typed Arrays statt Zeichenkettenschlüsseln, nicht durch gelockerte Prüfungen. Siehe MACHBARKEIT 7. |
 | Fusion öffnet Stufe 1 mit sehr vielen Flächen langsam | Warnbanner mit Flächenzahl; Empfehlung, Stufe 2/3 zu erlauben. |
 | Einheiten falsch (Zoll) | Warnung bei Bounding-Box-Diagonale < 1 oder > 5000; Einheitenfeld sichtbar. |
 | Scheinzylinder (Torus) | Randprüfung (5.5), Vertrauen, Nutzer schaltet pro Merkmal ab. |
