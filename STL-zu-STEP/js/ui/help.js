@@ -18,6 +18,8 @@ export function showHelp(dialog) {
           <li>Den Bericht lesen: Reparaturen, erreichte Stufe, erkannte Merkmale.</li>
           <li>Auf <b>Exportieren</b> klicken und die <code>.step</code>-Datei herunterladen.</li>
         </ol>
+        <p>Mit <b>Zurück</b> (oben links, Taste <kbd>Esc</kbd>) brichst du die Umwandlung ab und kommst zum Startbildschirm
+        zurück; die Datei und das Ergebnis werden dabei verworfen.</p>
 
         <h3>Die drei Stufen</h3>
         <ul>

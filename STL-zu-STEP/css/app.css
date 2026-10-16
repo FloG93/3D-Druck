@@ -47,6 +47,8 @@
 
 .app-convert .view3d { position: absolute; inset: 0; }
 .app[data-state='leer'] .view3d { visibility: hidden; }
+/* Back to the start screen only makes sense once a file is loaded. */
+.app[data-state='leer'] #btn-back { display: none; }
 .app-convert .view3d canvas { display: block; width: 100%; height: 100%; }
 
 /* --- progress ------------------------------------------------------------- */

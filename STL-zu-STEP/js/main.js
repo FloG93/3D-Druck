@@ -38,6 +38,7 @@ function main() {
 
   $('logo').innerHTML = LOGO;
   $('drop-icon').innerHTML = icon('open');
+  $('btn-back').innerHTML = `${icon('back')}<span>Zurück</span>`;
   $('btn-fit').innerHTML = icon('fit');
   $('btn-help').innerHTML = icon('help');
   $('btn-export').innerHTML = `${icon('download')}<span>Exportieren</span>`;
@@ -116,6 +117,7 @@ function main() {
     });
   });
   dom.cancel.addEventListener('click', () => app.stop(true));
+  $('btn-back').addEventListener('click', () => app.reset());
 
   // --- preview --------------------------------------------------------------
   let preview = null;
@@ -143,7 +145,9 @@ function main() {
     setMode('ergebnis');
   };
 
-  // Keyboard: open with o, export with e, help with ?
+  app.onReset = () => preview?.clear();
+
+  // Keyboard: open with o, export with e, help with ?, Escape = back
   window.addEventListener('keydown', (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const el = document.activeElement;
@@ -152,6 +156,7 @@ function main() {
     else if (event.key === 'e' && !dom.exportButton.disabled) dom.exportButton.click();
     else if (event.key === '?') showHelp($('help-dialog'));
     else if (event.key === 'f') preview?.resetCamera();
+    else if (event.key === 'Escape' && dom.app.dataset.state !== 'leer' && !document.querySelector('dialog[open]')) app.reset();
   });
 }
 
