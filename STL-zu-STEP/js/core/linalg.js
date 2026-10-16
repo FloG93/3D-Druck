@@ -11,6 +11,22 @@ export const scale = (a, f) => [a[0] * f, a[1] * f, a[2] * f];
 export const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 export const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 
+/**
+ * Largest and smallest value of a list of any length. Math.max(...list) puts
+ * every element on the stack as an argument and fails with "Maximum call stack
+ * size exceeded" from about 120 000 elements – a finely meshed cylinder has more.
+ */
+export function maxOf(values) {
+  let best = -Infinity;
+  for (const v of values) if (v > best) best = v;
+  return best;
+}
+export function minOf(values) {
+  let best = Infinity;
+  for (const v of values) if (v < best) best = v;
+  return best;
+}
+
 export function normalize(a) {
   const l = norm(a);
   return l > 0 ? [a[0] / l, a[1] / l, a[2] / l] : [0, 0, 0];
