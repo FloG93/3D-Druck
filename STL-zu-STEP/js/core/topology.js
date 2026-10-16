@@ -9,7 +9,7 @@
 //     the exact arc on the cylinder (552 free edges in the reference).
 //   * one corner is one vertex id, shared by every edge that ends there.
 
-import { triEdges, edgeKey, triangleNormals } from './meshops.js';
+import { edgeTable, triangleNormals } from './meshops.js';
 import { BrepBuilder } from './brep.js';
 import { cross, dot, normalize, sub, norm, frame } from './linalg.js';
 
@@ -21,66 +21,90 @@ export const COLLINEAR_RELATIVE = 1e-6;
 /**
  * buildTopology(mesh, regionOfTriangle, models, opts?) → {
  *   corners: Set<vertex>, chains: [{ region, points, neighbours }],
- *   chainsByRegion: Map<region, chainIndex[]>, loops: Map<region, chainIndex[][]>
+ *   chainsByRegion: Map<region, chainIndex[]>, loops: Map<region, chainIndex[][]>,
+ *   regionsAt: Map<corner vertex, Set<region>>
  * }
  */
 export function buildTopology(mesh, regionOfTriangle, models, opts = {}) {
   const { F } = mesh;
-  const halfEdge = new Map(); // 'u,v' → triangle
-  for (let t = 0; t < F.length / 3; t++) for (const [u, v] of triEdges(F, t)) halfEdge.set(edgeKey(u, v), t);
+  const n = F.length / 3;
+  const vertexCount = mesh.V.length / 3;
 
-  // Regions at every vertex, and the boundary half-edges per region.
+  // Regions at every corner point: the triangles around each vertex in CSR
+  // form, then the distinct regions among them. Only points that touch at
+  // least CORNER_REGIONS regions are kept (the constraints look at no others).
+  const vStart = new Uint32Array(vertexCount + 1);
+  for (let i = 0; i < F.length; i++) vStart[F[i] + 1]++;
+  for (let v = 0; v < vertexCount; v++) vStart[v + 1] += vStart[v];
+  const vTriangles = new Uint32Array(F.length);
+  const fill = vStart.slice(0, vertexCount);
+  for (let i = 0; i < F.length; i++) vTriangles[fill[F[i]]++] = (i / 3) | 0;
   const regionsAt = new Map();
-  const touch = (v, r) => {
-    const set = regionsAt.get(v);
-    if (set) set.add(r);
-    else regionsAt.set(v, new Set([r]));
-  };
-  const boundary = new Map(); // region → [[u, v]]
-  for (const [key, t] of halfEdge) {
-    const [u, v] = key.split(',').map(Number);
-    const region = regionOfTriangle[t];
-    touch(u, region);
-    touch(v, region);
-    const twin = halfEdge.get(edgeKey(v, u));
-    if (twin === undefined || regionOfTriangle[twin] === region) continue;
-    const list = boundary.get(region);
-    if (list) list.push([u, v]);
-    else boundary.set(region, [[u, v]]);
+  const corners = new Set();
+  for (let v = 0; v < vertexCount; v++) {
+    const distinct = [];
+    for (let i = vStart[v]; i < vStart[v + 1]; i++) {
+      const r = regionOfTriangle[vTriangles[i]];
+      if (!distinct.includes(r)) distinct.push(r);
+    }
+    if (distinct.length >= CORNER_REGIONS) {
+      regionsAt.set(v, new Set(distinct));
+      corners.add(v);
+    }
   }
 
-  const corners = new Set();
-  for (const [v, set] of regionsAt) if (set.size >= CORNER_REGIONS) corners.add(v);
+  // Boundary half-edges per region as flat triples [u, v, region on the other side].
+  const { group, start: gStart, members } = edgeTable(F);
+  const boundary = new Map();
+  for (let t = 0; t < n; t++) {
+    const region = regionOfTriangle[t];
+    for (let slot = 0; slot < 3; slot++) {
+      const e = 3 * t + slot;
+      const g = group[e];
+      if (gStart[g + 1] - gStart[g] < 2) continue;
+      const u = F[e];
+      const v = F[slot === 2 ? e - 2 : e + 1];
+      // The twin runs v → u; with several candidates the last one counts.
+      let twin = -1;
+      for (let i = gStart[g]; i < gStart[g + 1]; i++) {
+        const o = members[i];
+        if (F[o] === v && F[o % 3 === 2 ? o - 2 : o + 1] === u) twin = (o / 3) | 0;
+      }
+      if (twin < 0 || regionOfTriangle[twin] === region) continue;
+      const list = boundary.get(region);
+      if (list) list.push(u, v, regionOfTriangle[twin]);
+      else boundary.set(region, [u, v, regionOfTriangle[twin]]);
+    }
+  }
 
   // Chains from corner to corner, with the region on the left. Rings without
   // a corner (a hole against a cap plane) become one closed chain.
   const chains = [];
   const chainsByRegion = new Map();
-  for (const [region, halfEdges] of boundary) {
-    const next = new Map();
-    for (const [u, v] of halfEdges) {
-      const list = next.get(u);
-      if (list) list.push(v);
-      else next.set(u, [v]);
+  for (const [region, flat] of boundary) {
+    const m = flat.length / 3;
+    const next = new Map(); // start point → entries that begin there
+    for (let i = 0; i < m; i++) {
+      const list = next.get(flat[3 * i]);
+      if (list) list.push(i);
+      else next.set(flat[3 * i], [i]);
     }
-    const used = new Set();
-    const starts = [...halfEdges.filter(([u]) => corners.has(u)), ...halfEdges];
+    const used = new Uint8Array(m);
+    const starts = [];
+    for (let i = 0; i < m; i++) if (corners.has(flat[3 * i])) starts.push(i);
+    for (let i = 0; i < m; i++) starts.push(i);
     const ids = [];
-    for (const [u, v] of starts) {
-      if (used.has(edgeKey(u, v))) continue;
-      used.add(edgeKey(u, v));
-      const points = [u, v];
+    for (const i of starts) {
+      if (used[i]) continue;
+      used[i] = 1;
+      const points = [flat[3 * i], flat[3 * i + 1]];
+      const neighbours = new Set([flat[3 * i + 2]]);
       while (!corners.has(points[points.length - 1]) && points[points.length - 1] !== points[0]) {
-        const from = points[points.length - 1];
-        const candidate = (next.get(from) || []).find((w) => !used.has(edgeKey(from, w)));
+        const candidate = (next.get(points[points.length - 1]) || []).find((j) => !used[j]);
         if (candidate === undefined) break;
-        used.add(edgeKey(from, candidate));
-        points.push(candidate);
-      }
-      const neighbours = new Set();
-      for (let i = 0; i + 1 < points.length; i++) {
-        const twin = halfEdge.get(edgeKey(points[i + 1], points[i]));
-        if (twin !== undefined) neighbours.add(regionOfTriangle[twin]);
+        used[candidate] = 1;
+        points.push(flat[3 * candidate + 1]);
+        neighbours.add(flat[3 * candidate + 2]);
       }
       ids.push(chains.length);
       chains.push({ region, points, neighbours: [...neighbours] });
@@ -90,7 +114,7 @@ export function buildTopology(mesh, regionOfTriangle, models, opts = {}) {
 
   const loops = new Map();
   for (const [region, ids] of chainsByRegion) loops.set(region, assembleLoops(chains, ids));
-  return { corners, chains, chainsByRegion, loops, regionsAt, halfEdge };
+  return { corners, chains, chainsByRegion, loops, regionsAt };
 }
 
 /** Chains of a region into closed loops: the end of one is the start of the next. */

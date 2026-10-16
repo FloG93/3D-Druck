@@ -14,7 +14,7 @@
 // prototype got wrong: a second body must not be lost silently, and an edge
 // with three triangles must lose the surplus one.
 
-import { bbox, components, edgeMap, signedVolume, splitComponents, triEdges, undirectedKey, edgeKey, triangleNormals } from './meshops.js';
+import { bbox, components, edgeTable, openHalfEdges, signedVolume, splitComponents, edgeKey, triangleNormals } from './meshops.js';
 import { HashGrid } from './weld.js';
 
 /** Loops with more edges than this stay open (SPEC 5.3 step 5). */
@@ -198,16 +198,7 @@ function splitTJunctions(V, F, tol, diagonal, report) {
 /** Open directed edges as [u, v, triangle, slot]. */
 function openDirectedEdges(faces) {
   const F = faces instanceof Uint32Array ? faces : Uint32Array.from(faces);
-  const directed = new Set();
-  const n = F.length / 3;
-  for (let t = 0; t < n; t++) for (const [u, v] of triEdges(F, t)) directed.add(edgeKey(u, v));
-  const out = [];
-  for (let t = 0; t < n; t++) {
-    triEdges(F, t).forEach(([u, v], slot) => {
-      if (!directed.has(edgeKey(v, u))) out.push([u, v, t, slot]);
-    });
-  }
-  return out;
+  return openHalfEdges(F).map((e) => [F[e], F[e % 3 === 2 ? e - 2 : e + 1], (e / 3) | 0, e % 3]);
 }
 
 /**
@@ -219,22 +210,23 @@ function openDirectedEdges(faces) {
 function dropNonManifold(V, F, report) {
   let faces = Uint32Array.from(F);
   for (let round = 0; round < 32; round += 1) {
-    const { undirected } = edgeMap(faces);
-    const bad = [...undirected.values()].filter((tris) => tris.length > 2);
+    const { count, group, start, members } = edgeTable(faces);
+    const size = (g) => start[g + 1] - start[g];
+    const bad = [];
+    for (let g = 0; g < count; g++) if (size(g) > 2) bad.push(g);
     if (bad.length === 0) break;
-    const counts = new Map();
-    for (const [key, tris] of undirected) counts.set(key, tris.length);
     const { area } = triangleNormals(V, faces);
     const victims = new Set();
-    for (const tris of bad) {
+    for (const g of bad) {
+      const tris = Array.from(members.subarray(start[g], start[g + 1]), (e) => (e / 3) | 0);
       const surplus = tris.length - 2;
       // A flap has an edge nobody else uses; otherwise take the smallest.
-      const ranked = tris.slice().sort((a, b) => {
-        const flap = (t) => triEdges(faces, t).filter(([u, v]) => counts.get(undirectedKey(u, v)) === 1).length;
-        const fa = flap(a);
-        const fb = flap(b);
-        if (fa !== fb) return fb - fa;
-        return area[a] - area[b];
+      const flap = (t) => [0, 1, 2].filter((slot) => size(group[3 * t + slot]) === 1).length;
+      const ranked = tris.sort((x, y) => {
+        const fx = flap(x);
+        const fy = flap(y);
+        if (fx !== fy) return fy - fx;
+        return area[x] - area[y];
       });
       for (let i = 0; i < surplus; i++) victims.add(ranked[i]);
     }
@@ -259,7 +251,7 @@ function dropNonManifold(V, F, report) {
 function orientConsistently(F, report) {
   const faces = Uint32Array.from(F);
   const n = faces.length / 3;
-  const { undirected } = edgeMap(faces);
+  const { group, start, members } = edgeTable(faces);
   const seen = new Uint8Array(n);
   const queue = new Int32Array(n);
   for (let seed = 0; seed < n; seed++) {
@@ -270,16 +262,27 @@ function orientConsistently(F, report) {
     queue[tail++] = seed;
     while (head < tail) {
       const t = queue[head++];
-      for (const [u, v] of triEdges(faces, t)) {
-        const tris = undirected.get(undirectedKey(u, v));
-        if (!tris || tris.length !== 2) continue;
-        const other = tris[0] === t ? tris[1] : tris[0];
+      for (let slot = 0; slot < 3; slot++) {
+        const g = group[3 * t + slot];
+        if (start[g + 1] - start[g] !== 2) continue;
+        const first = (members[start[g]] / 3) | 0;
+        const other = first === t ? (members[start[g] + 1] / 3) | 0 : first;
         if (seen[other]) continue;
-        const sameDirection = triEdges(faces, other).some(([p, q]) => p === u && q === v);
+        // Same undirected edge, so the neighbour contradicts when it runs the same way.
+        const u = faces[3 * t + slot];
+        const v = faces[3 * t + ((slot + 1) % 3)];
+        let sameDirection = false;
+        for (let k = 0; k < 3; k++) {
+          if (faces[3 * other + k] === u && faces[3 * other + ((k + 1) % 3)] === v) sameDirection = true;
+        }
         if (sameDirection) {
+          // Swapping two corners moves the edges of the table: slot 0 and 2 trade places.
           const tmp = faces[3 * other + 1];
           faces[3 * other + 1] = faces[3 * other + 2];
           faces[3 * other + 2] = tmp;
+          const g0 = group[3 * other];
+          group[3 * other] = group[3 * other + 2];
+          group[3 * other + 2] = g0;
           report.flipped += 1;
         }
         seen[other] = 1;

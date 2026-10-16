@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { parseMesh } from '../js/core/parse.js';
 import { weldMesh } from '../js/core/weld.js';
 import { healMesh } from '../js/core/heal.js';
-import { signedVolume, openEdges, edgeMap } from '../js/core/meshops.js';
+import { signedVolume, openEdges, edgeTable } from '../js/core/meshops.js';
 import { loadFixture, expected, meshStats } from './helpers.mjs';
 
 const healed = (name, opts) => {
@@ -25,8 +25,8 @@ function assertClosed(V, F, msg = '') {
   const stats = meshStats(V, F);
   assert.equal(stats.open, 0, `${msg}: ${stats.open} open edges`);
   assert.equal(stats.doubled, 0, `${msg}: ${stats.doubled} directed edges used twice`);
-  const { undirected } = edgeMap(F);
-  for (const tris of undirected.values()) assert.ok(tris.length === 2, `${msg}: non-manifold edge`);
+  const table = edgeTable(F);
+  for (let g = 0; g < table.count; g++) assert.ok(table.start[g + 1] - table.start[g] === 2, `${msg}: non-manifold edge`);
   assert.ok(stats.volume > 0, `${msg}: volume ${stats.volume} is not positive`);
 }
 

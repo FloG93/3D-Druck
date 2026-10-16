@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import { parseMesh } from '../js/core/parse.js';
 import { weldMesh } from '../js/core/weld.js';
-import { edgeMap, signedVolume, components, splitComponents, bbox, adjacency, triangleNormals, openEdges } from '../js/core/meshops.js';
+import { edgeTable, signedVolume, components, splitComponents, bbox, adjacency, triangleNormals, openEdges } from '../js/core/meshops.js';
 import { loadFixture, expected, meshStats } from './helpers.mjs';
 
 const mesh = (name) => weldMesh(parseMesh(loadFixture(name), name).tris);
@@ -74,13 +74,13 @@ test('every fixture: triangle count stays, volume matches expected.json', () => 
   }
 });
 
-test('edgeMap: directed and undirected edges of the cube', () => {
+test('edgeTable: edges of the cube', () => {
   const { V, F } = mesh('wuerfel.stl');
   assert.equal(V.length / 3, 8);
-  const em = edgeMap(F);
-  assert.equal(em.undirected.size, 18, 'cube from 12 triangles has 18 edges');
+  const em = edgeTable(F);
+  assert.equal(em.count, 18, 'cube from 12 triangles has 18 edges');
   assert.equal(openEdges(F).length, 0);
-  for (const tris of em.undirected.values()) assert.equal(tris.length, 2, 'every edge has two triangles');
+  for (let g = 0; g < em.count; g++) assert.equal(em.start[g + 1] - em.start[g], 2, 'every edge has two triangles');
 });
 
 test('bbox, normals and adjacency', () => {

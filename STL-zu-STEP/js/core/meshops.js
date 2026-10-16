@@ -4,9 +4,17 @@
 // a mesh with hundreds of thousands of triangles stays within the budget of
 // SPEC 8.
 
-/** Key of a directed edge (u,v); vertex indices stay below 2^26 per key half. */
-export const edgeKey = (u, v) => `${u},${v}`;
-export const undirectedKey = (u, v) => (u < v ? `${u},${v}` : `${v},${u}`);
+/**
+ * Key of a directed edge (u,v) as one number: u·2^26 + v stays an exact double
+ * for vertex indices below 2^26 (67 million). Numbers hash far cheaper than
+ * the strings they replace and allocate nothing.
+ */
+const KEY_BASE = 67108864;
+export const edgeKey = (u, v) => u * KEY_BASE + v;
+export const undirectedKey = (u, v) => (u < v ? u * KEY_BASE + v : v * KEY_BASE + u);
+/** The two vertices of an edge key. */
+export const keyStart = (key) => Math.floor(key / KEY_BASE);
+export const keyEnd = (key) => key % KEY_BASE;
 
 /** The three directed edges of triangle t. */
 export function triEdges(F, t) {
@@ -17,36 +25,83 @@ export function triEdges(F, t) {
 }
 
 /**
- * edgeMap(F) → { directed: Map('u,v' → [triangles]), undirected: Map('min,max' → [triangles]) }
- * A directed edge in more than one triangle means the winding is inconsistent;
- * an undirected edge in more than two means the mesh is non-manifold.
+ * edgeTable(F) → { count, group: Int32Array(3n), start: Uint32Array(count+1), members: Uint32Array(3n) }
+ * Every triangle t has three half-edges 3t+slot, running from F[3t+slot] to
+ * the next corner. Half-edges on the same undirected edge share a group; the
+ * members of group g are members[start[g] … start[g+1]) in triangle order.
+ * A group of one is a boundary edge, of more than two a non-manifold edge, and
+ * two members that run in the same direction mean inconsistent winding.
+ *
+ * Open addressing over typed arrays: this is the hot path of every step, and
+ * a Map with an array per edge cost more than the rest of the healing.
  */
-export function edgeMap(F) {
-  const directed = new Map();
-  const undirected = new Map();
-  const n = F.length / 3;
-  for (let t = 0; t < n; t++) {
-    for (const [u, v] of triEdges(F, t)) {
-      const dk = edgeKey(u, v);
-      const d = directed.get(dk);
-      if (d) d.push(t); else directed.set(dk, [t]);
-      const uk = undirectedKey(u, v);
-      const e = undirected.get(uk);
-      if (e) e.push(t); else undirected.set(uk, [t]);
+export function edgeTable(F) {
+  const h = F.length;
+  let size = 16;
+  while (size < 2 * h) size *= 2;
+  const mask = size - 1;
+  const slotA = new Int32Array(size).fill(-1);
+  const slotB = new Int32Array(size);
+  const slotGroup = new Int32Array(size);
+  const group = new Int32Array(h);
+  let count = 0;
+  for (let e = 0; e < h; e++) {
+    const slot = e % 3;
+    let a = F[e];
+    let b = F[slot === 2 ? e - 2 : e + 1];
+    if (a > b) {
+      const tmp = a;
+      a = b;
+      b = tmp;
     }
+    let x = Math.imul(a, 0x9e3779b1) ^ Math.imul(b, 0x85ebca6b);
+    x ^= x >>> 15;
+    let i = x & mask;
+    while (slotA[i] !== -1 && (slotA[i] !== a || slotB[i] !== b)) i = (i + 1) & mask;
+    if (slotA[i] === -1) {
+      slotA[i] = a;
+      slotB[i] = b;
+      slotGroup[i] = count++;
+    }
+    group[e] = slotGroup[i];
   }
-  return { directed, undirected };
+  const start = new Uint32Array(count + 1);
+  for (let e = 0; e < h; e++) start[group[e] + 1]++;
+  for (let g = 0; g < count; g++) start[g + 1] += start[g];
+  const members = new Uint32Array(h);
+  const fill = start.slice(0, count);
+  for (let e = 0; e < h; e++) members[fill[group[e]]++] = e;
+  return { count, group, start, members };
 }
 
-/** Directed edges without an opposite edge – the boundary of an open mesh. */
-export function openEdges(F) {
-  const { directed } = edgeMap(F);
+/** The corner a half-edge runs to. */
+const halfEdgeEnd = (F, e) => F[e % 3 === 2 ? e - 2 : e + 1];
+
+/**
+ * Half-edges without an opposite edge, in triangle order: the boundary of an
+ * open mesh. Two triangles that run along their shared edge in the same
+ * direction leave both of them without a partner, so they count here too.
+ */
+export function openHalfEdges(F) {
+  const { group, start, members } = edgeTable(F);
   const out = [];
-  for (const key of directed.keys()) {
-    const [u, v] = key.split(',');
-    if (!directed.has(edgeKey(v, u))) out.push([Number(u), Number(v)]);
+  for (let e = 0; e < F.length; e++) {
+    const g = group[e];
+    const u = F[e];
+    const v = halfEdgeEnd(F, e);
+    let opposite = false;
+    for (let j = start[g]; j < start[g + 1] && !opposite; j++) {
+      const o = members[j];
+      opposite = F[o] === v && halfEdgeEnd(F, o) === u;
+    }
+    if (!opposite) out.push(e);
   }
   return out;
+}
+
+/** The same boundary as [u, v] pairs. */
+export function openEdges(F) {
+  return openHalfEdges(F).map((e) => [F[e], halfEdgeEnd(F, e)]);
 }
 
 /** Σ p0·(p1×p2)/6 – positive when the triangles face outwards (SPEC 5.3 step 6). */
@@ -100,19 +155,26 @@ export function triangleNormals(V, F) {
  */
 export function adjacency(F) {
   const n = F.length / 3;
-  const { undirected } = edgeMap(F);
+  const { count, start: gStart, members } = edgeTable(F);
   const counts = new Uint32Array(n);
-  for (const tris of undirected.values()) {
-    if (tris.length < 2) continue;
-    for (const t of tris) counts[t] += tris.length - 1;
+  for (let g = 0; g < count; g++) {
+    const size = gStart[g + 1] - gStart[g];
+    if (size < 2) continue;
+    for (let i = gStart[g]; i < gStart[g + 1]; i++) counts[(members[i] / 3) | 0] += size - 1;
   }
   const start = new Uint32Array(n + 1);
   for (let t = 0; t < n; t++) start[t + 1] = start[t] + counts[t];
   const list = new Uint32Array(start[n]);
   const fill = start.slice(0, n);
-  for (const tris of undirected.values()) {
-    if (tris.length < 2) continue;
-    for (const t of tris) for (const o of tris) if (o !== t) list[fill[t]++] = o;
+  for (let g = 0; g < count; g++) {
+    if (gStart[g + 1] - gStart[g] < 2) continue;
+    for (let i = gStart[g]; i < gStart[g + 1]; i++) {
+      const t = (members[i] / 3) | 0;
+      for (let j = gStart[g]; j < gStart[g + 1]; j++) {
+        const o = (members[j] / 3) | 0;
+        if (o !== t) list[fill[t]++] = o;
+      }
+    }
   }
   return { start, list };
 }
@@ -148,17 +210,12 @@ export function components(F) {
     }
     return r;
   };
-  const edges = new Map();
-  for (let t = 0; t < n; t++) {
-    for (const [u, v] of triEdges(F, t)) {
-      const key = undirectedKey(u, v);
-      const first = edges.get(key);
-      if (first === undefined) {
-        edges.set(key, t);
-        continue;
-      }
+  const { count: groups, start, members } = edgeTable(F);
+  for (let g = 0; g < groups; g++) {
+    const first = (members[start[g]] / 3) | 0;
+    for (let i = start[g] + 1; i < start[g + 1]; i++) {
       const a = find(first);
-      const b = find(t);
+      const b = find((members[i] / 3) | 0);
       if (a !== b) parent[a < b ? b : a] = a < b ? a : b;
     }
   }
