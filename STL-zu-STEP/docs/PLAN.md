@@ -4,7 +4,7 @@ Für Claude Code. Vorher lesen: [`SPEC.md`](SPEC.md) (was), [`MACHBARKEIT.md`](M
 
 ## Stand (15.10.2026)
 
-**Schritte 0 bis 10 sind gebaut**, jeder mit Tests und einem eigenen Commit; `npm test` und `npm run validate:stl` sind grün (34 STEP-Dateien von OpenCascade gelesen). Gelöst sind dabei auch die beiden offenen Punkte der Machbarkeitsstudie: **Torus 0 statt 3 Scheinzylinder** (Randprüfung) und **Stufe 3 für die unterteilten Netze** (Zwangsbedingungen, Ecken geschlossen gelöst). Abweichungen vom ursprünglichen Plan stehen mit Messwert in `SPEC.md` und `MACHBARKEIT.md`.
+**Schritte 0 bis 10 sind gebaut**, jeder mit Tests und einem eigenen Commit; `npm test` und `npm run validate:stl` sind grün (37 STEP-Dateien von OpenCascade gelesen). Gelöst sind dabei auch die beiden offenen Punkte der Machbarkeitsstudie: **Torus 0 statt 3 Scheinzylinder** (Randprüfung) und **Stufe 3 für die unterteilten Netze** (Zwangsbedingungen, Ecken geschlossen gelöst). Abweichungen vom ursprünglichen Plan stehen mit Messwert in `SPEC.md` und `MACHBARKEIT.md`.
 
 **Schritt 11 (Realitätstest) ist zur Hälfte erledigt:** sieben öffentlich verfügbare Modelle sind gemessen (`MACHBARKEIT.md` Abschnitt 7); sie haben fünf Fehler zutage gefördert, die behoben und als Fixtures und Tests abgesichert sind. Was fehlt, sind **echte Druckteile mit Bohrungen vom Auftraggeber** und das Öffnen der Ergebnisse in Fusion 360 oder FreeCAD – beides kann nur er liefern.
 
