@@ -4,7 +4,7 @@ Web-Werkzeuge für den 3D-Druck: `MusterGenerator/`, `Text-Generator/`, `STL-zu-
 
 ## Regeln, die überall gelten
 
-- Reines HTML/CSS/JavaScript (ES-Module), **kein Build-Schritt, keine npm-Pakete im Repo**. Hilfsprogramme (Python, OpenCascade, Playwright) nur in `<Werkzeug>/tests/tools/` und außerhalb des Repos installiert.
+- Reines HTML/CSS/JavaScript (ES-Module), **kein Build-Schritt, keine npm-Pakete im Repo**. Hilfsprogramme (Python, OpenCascade, Playwright) nur in `<Werkzeug>/tests/tools/` und außerhalb des Repos installiert. Ausgenommen ist `.claude/skills/`: Agent Skills für Claude Code, kein Code der Seite — wird weder veröffentlicht noch getestet.
 - Code-Kommentare auf **Englisch**, Dokumentation, README und Oberfläche auf **Deutsch**. Commit-Betreff englisch im Imperativ.
 - Nur relative Pfade (läuft lokal mit `python3 -m http.server` und auf GitHub Pages). Design und Bedienelemente aus `shared/`.
 - Jeder Ordner mit einer `index.html` wird von `pages.yml` veröffentlicht: **`index.html` erst anlegen, wenn die Seite vorzeigbar ist.**
