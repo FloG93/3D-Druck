@@ -950,21 +950,24 @@ stage.addEventListener("keydown", (ev) => {
 });
 
 // Legende: ein Eintrag hebt seine Gruppen hervor und erklaert ihre Aufgabe
-function pick(key) {
-  picked = key;
+function show(key) {
   const wanted = key ? key.split(" ") : null;
-  for (const el of groups) el.classList.toggle("dim", !!wanted && !wanted.includes(el.dataset.g));
+  for (const el of groups) {
+    const hit = !!wanted && wanted.includes(el.dataset.g);
+    el.classList.toggle("mark", hit);
+    el.classList.toggle("dim", !!wanted && !hit);
+  }
   for (const b of document.querySelectorAll("[data-pick]")) b.setAttribute("aria-pressed", String(b.dataset.pick === key));
   info.textContent = key ? INFO[key] : INTRO;
   if (key) { touring = false; clearTimeout(idle); idle = setTimeout(() => { touring = !still.matches; s = 0; run(); }, 4200); }
   else run();
 }
 for (const b of document.querySelectorAll("[data-pick]")) {
-  b.addEventListener("pointerenter", () => pick(b.dataset.pick));
-  b.addEventListener("focus", () => pick(b.dataset.pick));
-  b.addEventListener("click", () => pick(picked === b.dataset.pick ? null : b.dataset.pick));
+  b.addEventListener("pointerenter", () => show(b.dataset.pick));
+  b.addEventListener("focus", () => show(b.dataset.pick));
+  b.addEventListener("click", () => { picked = picked === b.dataset.pick ? null : b.dataset.pick; show(picked); });
 }
-document.querySelector(".iso-keys").addEventListener("pointerleave", () => { if (picked) return; pick(null); });
+document.querySelector(".iso-keys").addEventListener("pointerleave", () => show(picked));
 
 // Hell/Dunkel: dieselbe Taste und derselbe Speicherschluessel wie in den
 // Werkzeugen, damit die Wahl fuer die ganze Seite gilt.
@@ -994,7 +997,7 @@ function applyKontrast(save) {
   const t = kontrast.valueAsNumber / 100;
   window.anatomieKontrast(t);
   kontrastWert.textContent = kontrast.value + " %";
-  if (save) { try { localStorage.setItem("anatomie.kontrast", String(t)); } catch (e) { /* ignore */ } }
+  if (save) { try { localStorage.setItem("3d-druck.kontrast", kontrast.value); } catch (e) { /* ignore */ } }
 }
 kontrast.value = String(Math.round((window.anatomieKontrastWert ?? ${K_DEFAULT}) * 100));
 // Beim Ziehen nur zeichnen, erst beim Loslassen speichern.
@@ -1047,6 +1050,27 @@ ${TONE_CSS}
 .themebtn svg { display: block; width: 17px; height: 17px }
 .pickinfo { font-size: 12.5px; line-height: 1.55; margin: 11px 3px 0; min-height: 3.1em; max-width: 64ch;
   color: color-mix(in srgb, currentColor 72%, transparent) }
+.iso-stage svg [data-g] { transition: opacity .2s ease }
+.iso-stage svg [data-g].dim { opacity: .16 }
+/* Gewaehlte Teile im Hausorange (shared/css: --accent). Abblenden allein reichte
+   auf dem Beamer nicht; die vier Toene behalten ihr Gefaelle, damit die Form
+   lesbar bleibt. */
+.iso-stage svg [data-g].mark {
+  --anatomy-shade-0: #6b2e04; --anatomy-shade-1: #93400a;
+  --anatomy-shade-2: #bb5310; --anatomy-shade-3: #e26a19;
+  --anatomy-top: #f98b33; --anatomy-face: #a8490c;
+  --anatomy-lit-top: #ffb067; --anatomy-lit-shade: #d1600f;
+  --anatomy-faint: #a8551e; --anatomy-lo: #d27b3a;
+  --anatomy-mid: #f6a365; --anatomy-hi: #ffd9b8;
+}
+.iso[data-theme="light"] .iso-stage svg [data-g].mark {
+  --anatomy-shade-0: #c25e0a; --anatomy-shade-1: #d86f12;
+  --anatomy-shade-2: #ee8322; --anatomy-shade-3: #fb9a42;
+  --anatomy-top: #ffb673; --anatomy-face: #f08722;
+  --anatomy-lit-top: #ffcd9e; --anatomy-lit-shade: #ee8322;
+  --anatomy-faint: #d4813f; --anatomy-lo: #b25f14;
+  --anatomy-mid: #8a460a; --anatomy-hi: #4e2605;
+}
 @media (max-width: 460px) { .iso-keys { grid-template-columns: 1fr 1fr } .pickbtn { font-size: 11px } }
 `;
 
@@ -1079,8 +1103,8 @@ const THEME_SWITCH = `<script>
   } catch (e) { /* ignore */ }
   var t = ${K_DEFAULT};
   try {
-    var saved = parseFloat(localStorage.getItem("anatomie.kontrast"));
-    if (saved >= 0 && saved <= 1) t = saved;
+    var saved = parseFloat(localStorage.getItem("3d-druck.kontrast"));
+    if (saved >= 0 && saved <= 100) t = saved / 100;
   } catch (e) { /* ignore */ }
   window.anatomieKontrastWert = t;
   window.anatomieKontrast(t);

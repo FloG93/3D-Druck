@@ -92,7 +92,7 @@
     @media (min-width: 640px) { .wrap { padding: 0 28px; } }
 
     .site-head { padding: 32px 0 26px; }
-    .head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px 14px; }
+    .head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px 14px; }
     .mark { width: 40px; height: 40px; display: block; }
     h1 { margin: 0; font-size: clamp(24px, 4.2vw, 34px); line-height: 1.15; letter-spacing: -0.3px; }
     .lead { grid-column: 1 / -1; margin: 0; max-width: 62ch; color: var(--text-muted); font-size: 17px; }
@@ -169,6 +169,8 @@
       .tool-preview:hover svg { transform: none; }
     }
   </style>
+  <link rel="stylesheet" href="shared/css/kontrast.css">
+  <script type="module" src="shared/js/kontrast.js"></script>
 </head>
 <body>
   <header class="site-head">

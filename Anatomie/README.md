@@ -18,14 +18,17 @@ laufenden Schicht ab – dieselbe Linie, die auf dem Werkstück liegt.
 
 Unter der Zeichnung stehen elf Einträge. Wer einen anfährt, sieht nur noch dessen
 Teile; der Rest tritt zurück, und darunter steht in einem Satz, was die Baugruppe
-tut. Hell und Dunkel folgen der Übersichtsseite.
+tut. Die gewählte Baugruppe steht dabei in Orange, der Rest tritt zurück.
+Hell und Dunkel folgen der Übersichtsseite.
 
 Über der Zeichnung steht ein Kontrastregler. Er spreizt die vier Flächentöne und
 die Linien von der ruhigen Voreinstellung des Kits (0 %, Flächen 1,08:1 im
 Dunkeln) bis zu einer bewusst harten Endstufe (100 %, 5,59:1 im Dunkeln, 2,81:1
 im Hellen). 45 % ist der Start. Die Stufe gilt für beide Modi und steht in
-`anatomie.kontrast` im Browser, also hält jedes Gerät – Schreibtisch, Laptop,
-Beamer im hellen Raum – seine eigene Einstellung.
+`3d-druck.kontrast` im Browser, also hält jedes Gerät – Schreibtisch, Laptop,
+Beamer im hellen Raum – seine eigene Einstellung. Denselben Regler tragen die
+Übersicht und die drei Werkzeuge (`shared/js/kontrast.js`); er wirkt dort auf
+Text- und Linienfarben, der Wert gilt für alle fünf Seiten.
 
 ## Neu erzeugen
 

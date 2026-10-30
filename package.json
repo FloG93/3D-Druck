@@ -5,13 +5,14 @@
   "description": "3D-Druck-Werkzeuge: Muster-Generator, Text-Generator und STL-zu-STEP – Web-Tools für Fusion 360 und den 3D-Druck",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "test": "npm run test:muster && npm run test:text && npm run test:stl",
+    "test": "npm run test:shared && npm run test:muster && npm run test:text && npm run test:stl",
     "test:muster": "node --test \"MusterGenerator/tests/*.test.mjs\" && python3 MusterGenerator/tests/test_fusion_script.py",
     "test:text": "node --test \"Text-Generator/tests/*.test.mjs\"",
     "test:stl": "node --test \"STL-zu-STEP/tests/*.test.mjs\"",
     "validate:muster": "node MusterGenerator/tests/tools/generate-exports.mjs build/exports && python3 MusterGenerator/tests/tools/validate_exports.py build/exports",
     "validate:text": "node Text-Generator/tests/tools/generate-exports.mjs build/text-exports && python3 Text-Generator/tests/tools/validate_exports.py build/text-exports",
-    "validate:stl": "node STL-zu-STEP/tests/tools/generate-exports.mjs build/stl-exports && python3 STL-zu-STEP/tests/tools/validate_step.py build/stl-exports"
+    "validate:stl": "node STL-zu-STEP/tests/tools/generate-exports.mjs build/stl-exports && python3 STL-zu-STEP/tests/tools/validate_step.py build/stl-exports",
+    "test:shared": "node --test \"shared/tests/*.test.mjs\""
   },
   "engines": {
     "node": ">=22"
