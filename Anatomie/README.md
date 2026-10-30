@@ -21,6 +21,23 @@ Teile; der Rest tritt zurück, und darunter steht in einem Satz, was die Baugrup
 tut. Die gewählte Baugruppe steht dabei in Orange, der Rest tritt zurück.
 Hell und Dunkel folgen der Übersichtsseite.
 
+Links über der Zeichnung steht **„Zerlegen und zusammenbauen"**. Die Maschine
+fährt in zehn Baugruppen auseinander – entlang ihrer eigenen Achsen, nicht
+strahlenförmig –, hält kurz still und setzt sich dann von innen nach außen
+wieder zusammen: erst der Rahmen, dann Elektronik, Filter, Z-Achse, Heizbett,
+Antrieb, X-Träger, Werkzeugkopf, AMS und zuletzt der Filamentweg. Jede
+einfahrende Baugruppe wird unter der Zeichnung benannt und erklärt. Ein zweiter
+Druck oder Escape bricht ab und setzt zusammen. Ein Klick auf einen
+Legendeneintrag fährt dessen Baugruppe allein heraus und hält sie orange –
+zum Betrachten in Ruhe, wenn der Durchlauf zu schnell war.
+
+Im auseinandergefahrenen Zustand tragen die Baugruppen ihre Legendennummer mit
+Führungslinie. Die Düse ist mit 24 × 22 Einheiten zu klein, um allein zu stehen,
+und sitzt konstruktiv im Werkzeugkopf; sie fährt deshalb mit ihm, behält aber
+ihre eigene Nummer 07. Die Reihenfolge steht in `STAGGER`, die Fluchtwege in
+`MOVE`, die Federn in `SPRING` – dieselben Zahlen liest der Prüfer, damit Seite
+und Prüfung nicht auseinanderlaufen können.
+
 Über der Zeichnung steht ein Kontrastregler. Er spreizt die vier Flächentöne und
 die Linien von der ruhigen Voreinstellung des Kits (0 %, Flächen 1,08:1 im
 Dunkeln) bis zu einer bewusst harten Endstufe (100 %, 5,59:1 im Dunkeln, 2,81:1
@@ -36,6 +53,15 @@ Die Seite ist erzeugt, nicht von Hand geschrieben:
 
     node Anatomie/tests/tools/build-figur.mjs            # schreibt Anatomie/index.html
     node Anatomie/tests/tools/build-figur.mjs --audit    # prüft die Geometrie
+    node Anatomie/tests/tools/build-figur.mjs --quick    # nur zum Hinsehen, ohne Tiefenlöser
+    node Anatomie/tests/tools/build-figur.mjs --names    # was in welcher Baugruppe steckt
+
+Seit der Explosionsdarstellung prüft `--audit` **jedes Einzelbild** der
+Bewegung – auch jeden Abbruch mitten im Flug – auf Teile, die sich durchdringen,
+und auf falsche Zeichenreihenfolge. Das dauert auf diesem Rechner rund eine halbe Stunde, weil die Maschine ein
+dichter Kasten ist, in dem sich fast alles mit fast allem überdeckt; `--quick` lässt den
+Tiefenlöser die Explosionszustände aus und ist nur für Zwischenstände gedacht.
+Veröffentlicht wird nur, was ohne `--quick` gebaut wurde und `--audit` besteht.
 
 Das Skript zeichnet mit dem Agent Skill `anatomy` unter `.claude/skills/anatomy/`.
 Die Prüfung misst an der echten Geometrie, ob sich Teile durchdringen, ob jede

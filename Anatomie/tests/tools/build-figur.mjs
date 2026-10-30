@@ -85,12 +85,70 @@ const Dots = (points, style) => k.dotsSvg(points, style);
 const byDepth = (pts) => [...pts].sort((a, b) => k.depthOf([a[0], a[1], a[2] ?? 0], P) - k.depthOf([b[0], b[1], b[2] ?? 0], P));
 const f1 = (v) => Math.round(v * 10) / 10;
 
-const R = A.recorder(P);
+// --- Baugruppen fuer die Explosionsdarstellung ---------------------------
+// Die 14 Zeichengruppen fallen auf 11 Baugruppen, deckungsgleich mit der
+// Legende. STAGGER ist die Reihenfolge beim Zerlegen (aussen zuerst); das Kit
+// dreht sie beim Zusammensetzen um, also wird von innen nach aussen gebaut.
+// Der Rahmen steht nicht darin: er ist die Grundlage und bleibt stehen.
+const PIECE_OF = {
+  rahmen: "rahmen", elektronik: "elektronik", filter: "filter",
+  riemen: "antrieb", corexy: "corexy", kopf: "kopf", kabel: "kopf",
+  duese: "kopf", bett: "bett", druck: "bett", zachse: "zachse",
+  ams: "ams", filament: "filament", ptfe: "filament",
+};
+// Die Zeichengruppen folgen der Legende, nicht der Montage: in "corexy" liegen
+// auch beide Motoren und alle Umlenkrollen, und "duese.bahn" ist die Bahn der
+// laufenden Schicht, die zum Druck gehoert. Was zusammen ausgebaut wuerde, muss
+// auch zusammen herausfahren - sonst bleibt eine Riemenschlaufe allein stehen.
+const PIECE_BY_NAME = [
+  ["corexy.motor", "antrieb"], ["corexy.scheibe", "antrieb"], ["corexy.welle", "antrieb"],
+  ["corexy.bolzen", "antrieb"], ["corexy.umlenk", "antrieb"], ["corexy.rolle", "antrieb"],
+  ["duese.bahn", "bett"],
+];
+const pieceOf = (group, name) => {
+  const hit = PIECE_BY_NAME.find(([prefix]) => name.startsWith(prefix));
+  return hit ? hit[1] : PIECE_OF[group];
+};
+const NUM_PIECE = { duese: "kopf" };
+// Welchem Legendeneintrag ein Teil fuer seine Nummer zugerechnet wird.
+const labelOf = (group, name) => (group === "duese" && !name.startsWith("duese.bahn") ? "duese" : pieceOf(group, name));
+const STAGGER = ["filament", "ams", "kopf", "corexy", "antrieb", "bett", "zachse", "filter", "elektronik"];
+// stagger ist der ENGSTE Abstand, den die Seite je benutzt - damit rechnet der
+// Pruefer. Erzaehlt wird langsamer (OUT_GAP/IN_GAP): groessere Abstaende trennen
+// die Teile nur weiter, und die Praefix-Zustaende des Pruefers decken jede
+// solche Staffelung ab. Mit 0,5 s hier brauchte der Tiefenloeser das Vierfache
+// an Zustaenden und ueber zehn Minuten je Build.
+const SPRING = { stagger: 0.16, stiffness: 52, damping: 13.6, substeps: 4 };
+const OUT_GAP = 300, IN_GAP = 950;   // Millisekunden zwischen den Baugruppen
+// Fluchtweg je Baugruppe, entlang der Maschinenachsen. Vorlaeufig: die Zahlen
+// stellt der Audit, nicht das Auge.
+// Auf dem Bildschirm zeigt +x rechts-runter, +y links-runter, +z hoch; das AMS
+// steht bei -x. Die Wege sind so gelegt, dass sich die Baugruppen auch im Bild
+// trennen und nicht nur im Raum.
+const MOVE = {
+  rahmen: [0, 0, 0],            // Grundlage, bleibt stehen
+  filament: [-120, 0, 250],     // Schlauch hebt nach oben ab
+  ams: [-300, 0, 0],            // weiter nach links oben
+  kopf: [0, 300, 60],           // nach links aus der Kammer
+  corexy: [0, 0, 400],          // X-Traeger und Y-Schienen heben ueber das Dach
+  antrieb: [0, -300, 120],      // Motoren und Riemen nach rechts oben
+  bett: [280, 0, -40],          // Platte faehrt nach rechts heraus
+  zachse: [0, 0, -330],         // Spindeln unter den Sockel
+  filter: [0, -280, -40],       // nach rechts oben aus der Wand
+  elektronik: [150, 0, -170],   // wie eine Schublade aus dem Sockel
+};
+
+// --quick laesst den Tiefenloeser die Explosionszustaende auslassen: er braucht
+// dafuer Minuten. Nur zum Hinsehen waehrend der Arbeit - was veroeffentlicht
+// wird, entsteht immer ohne die Abkuerzung und geht durch --audit.
+const QUICK = process.argv.includes("--quick");
+const R = A.recorder(P, QUICK ? {} : { order: STAGGER, spring: SPRING });
 const rec = R.solid;
 let GROUP = "rahmen";
 function put(at3, svg, shapes = [], extra = {}) {
   const { bias = 0, group = GROUP, name = group, ...rest } = extra;
-  R.put({ name: R.nameFor(name), piece: "machine", at: at3, bias, svg, shapes, group, ...rest });
+  const piece = pieceOf(group, name);
+  R.put({ name: R.nameFor(name), piece, label: labelOf(group, name), move: MOVE[piece], at: at3, pos: at3, bias, svg, shapes, group, ...rest });
 }
 // Ein Bauteil, das sich nicht in die Tiefensortierung einreiht (Wand, Boden).
 const ring3 = (plan, z, steps = 10) => { const r = k.roundedPlan(plan, steps).map(([x, y]) => [x, y, z]); return [...r, r[0]]; };
@@ -577,7 +635,7 @@ function ptfeRun() {
   pieces.forEach((piece) => put(piece.mid, tubeSvg(piece, { tone: "hi" }),
     [rec(A.tube(piece.points, 3, { name: "ptfe.stueck", owner: "ptfe.schlauch", limp: true, bundle: "ptfe" }))],
     { bias: 1, name: "ptfe.schlauch" }));
-  R.route("ptfe.schlauch", route, 3, { piece: "machine", touch: ["ams.sammelrohr", "ptfe.fuehrung"] });
+  R.route("ptfe.schlauch", route, 3, { piece: "filament", move: MOVE.filament, touch: ["ams.sammelrohr", "ptfe.fuehrung"] });
 }
 
 // --- Riemen: je sechs Trume, Segment fuer Segment eigenes Element --------
@@ -694,7 +752,7 @@ function chamberGuts() {
     put(piece.mid, tubeSvg(piece, { tone: "lo" }),
       [rec(A.tube(piece.points, 5, { name: "kabel.stueck", owner: "kabel.strang", limp: true, bundle: "kabel" }))],
       { bias: 0.2, name: "kabel.strang" }));
-  R.route("kabel.strang", loom, 5, { piece: "machine", limp: true, gaps, touch: ["kabel.tuelle", "kabel.schelle", "corexy.quertraeger", "rahmen.wand.links"] });
+  R.route("kabel.strang", loom, 5, { piece: "kopf", move: MOVE.kopf, limp: true, gaps, touch: ["kabel.tuelle", "kabel.schelle", "corexy.quertraeger", "rahmen.wand.links"] });
   for (const [cx, cy, cz] of clips) {
     const cp = { x: cx - 10, y: cy - 10, w: 20, d: 20, r: 3 };
     put([cx, cy, cz], S(k.slabOf(cp, cz - 5, 10, P, 3, 0.4), { tone: "mid" }),
@@ -767,7 +825,7 @@ const svg = k.figureSvg({
     + "Darunter steht ein hohes Werkstück auf der Druckplatte, die auf drei Spindeln nach unten fährt. Aus dem Mehrfarbsystem führt ein PTFE-Schlauch über den "
     + "Rahmen zum Werkzeugkopf. Bewegt man den Kopf, zeigt die Anzeige, wie weit sich dafür jeder der beiden Riemen bewegen muss.",
   body: [
-    R.items.map((it) => `<g data-g="${it.group}">${it.svg}</g>`).join(""),
+    R.items.map((it) => `<g data-g="${it.group}" data-piece="${it.piece}">${it.svg}</g>`).join(""),
     LIVE_LINES,
   ],
 });
@@ -787,6 +845,14 @@ const LEGEND = [
   ["filament ptfe", "11", "Filamentweg", "Jede Vorschubeinheit schiebt ihr Filament in das Sammelrohr. Von dort führt ein PTFE-Schlauch über den Rahmen zum Werkzeugkopf — immer nur eine Farbe."],
 ];
 const TOUR_PTS = k.roundedPlan(TOUR, 10);
+
+// Welcher Legendeneintrag zu welcher Baugruppe gehoert. Eintrag 04 deckt
+// Antrieb und Riemen ab, 05 den X-Traeger - daher zwei Baugruppen auf
+// benachbarte Eintraege.
+const LEGEND_OF = { rahmen: 0, elektronik: 1, filter: 2, antrieb: 3, corexy: 4, kopf: 5, duese: 6, bett: 7, zachse: 8, ams: 9, filament: 10 };
+// Zusammenbau von innen nach aussen: die Umkehr der Zerlegereihenfolge, mit dem
+// Rahmen davor, der schon steht.
+const BUILD_ORDER = ["rahmen", ...[...STAGGER].reverse()];
 
 // Sonne und Mond wie in shared/js/icons.js, hier eingesetzt statt importiert:
 // die Seite ist in sich geschlossen und soll keine zweite Datei laden.
@@ -829,7 +895,9 @@ const MOON = '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>';
 const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
 // Der helle Grundzustand steht schon im Markup, damit nichts aufblitzt.
 const KN = Math.round(K_DEFAULT * 100);
+const PLAY_LABEL = "Zerlegen und zusammenbauen";
 const themeBar = `<div class="themebar">`
+  + `<button type="button" class="playbtn" id="btn-explode" aria-pressed="false">${PLAY_LABEL}</button>`
   + `<label class="ctrlab" for="kontrast">Kontrast</label>`
   + `<input class="ctrrange" type="range" id="kontrast" min="0" max="100" step="5" value="${KN}"`
   + ` aria-label="Kontrast der Zeichnung" aria-describedby="kontrast-wert">`
@@ -837,6 +905,43 @@ const themeBar = `<div class="themebar">`
   + `<button type="button" class="themebtn" id="btn-theme" aria-label="Auf dunklen Modus umschalten">${themeGlyph(false)}</button>`
   + `</div>`;
 
+
+// Schwerpunkt je Baugruppe: daran haengt spaeter die Nummer mit ihrer Linie.
+const CENTRE = {};
+{
+  const sum = {};
+  for (const it of R.items) {
+    if (!it.pos) continue;
+    const c = (sum[it.label] ??= [0, 0, 0, 0]);
+    for (let i = 0; i < 3; i++) c[i] += it.pos[i];
+    c[3]++;
+  }
+  for (const [id, c] of Object.entries(sum)) CENTRE[id] = [c[0] / c[3], c[1] / c[3], c[2] / c[3]];
+}
+// Blickfeld, wenn alles draussen ist: die Huelle aller Teile in ihrer
+// Endstellung, mit demselben Rand, den die Zeichnung in Ruhe hat. Eine grobe
+// Abschaetzung liess die Maschine in viel Leerraum schrumpfen.
+const VIEW_APART = (() => {
+  const at = [], out = [];
+  for (const it of R.items) {
+    if (!it.pos) continue;
+    const m = MOVE[it.piece] || [0, 0, 0];
+    at.push(k.iso(it.pos, P));
+    out.push(k.iso([it.pos[0] + m[0], it.pos[1] + m[1], it.pos[2] + m[2]], P));
+  }
+  const span = (pts, i) => [Math.min(...pts.map((q) => q[i])), Math.max(...pts.map((q) => q[i]))];
+  const [ax0, ax1] = span(at, 0), [ay0, ay1] = span(at, 1);
+  const [ox0, ox1] = span(out, 0), [oy0, oy1] = span(out, 1);
+  // Rand, den die Ruhezeichnung ueber ihre Ankerpunkte hinaus braucht
+  const padL = ax0, padR = W - ax1, padU = ay0, padD = H - ay1;
+  const x0 = ox0 - padL, y0 = oy0 - padU;
+  let w = ox1 + padR - x0, h = oy1 + padD - y0;
+  // Seitenverhaeltnis festhalten: sonst waechst die Zeichnung in der Hoehe,
+  // die Legende darunter rutscht weg und die Maus steht ueber einem anderen
+  // Eintrag als dem, den man angeklickt hat.
+  if (w / h > W / H) h = w * H / W; else w = h * W / H;
+  return [x0 - (w - (ox1 + padR - x0)) / 2, y0 - (h - (oy1 + padD - y0)) / 2, w, h];
+})();
 
 const live = `
 const P = ${JSON.stringify(P)};
@@ -851,6 +956,18 @@ const REACH_X = ${JSON.stringify(REACH_X)}, REACH_Y = ${JSON.stringify(REACH_Y)}
 const GUIDE = ${JSON.stringify(GUIDE)}, PULR = 11, HEAD_Y = ${HEAD_Y};
 const ANCH = ${JSON.stringify(CABLE_ANCHOR)};
 const INFO = ${JSON.stringify(Object.fromEntries(LEGEND.map(([g, , , text]) => [g, text])))};
+const PLAY_LABEL = ${JSON.stringify(PLAY_LABEL)};
+const MOVE = ${JSON.stringify(MOVE)};
+const ORDER = ${JSON.stringify(STAGGER)};
+const SPR = ${JSON.stringify(SPRING)};
+const OUT_GAP = ${OUT_GAP}, IN_GAP = ${IN_GAP};
+const BUILD = ${JSON.stringify(BUILD_ORDER)};
+const CENTRE = ${JSON.stringify(CENTRE)};
+const PIECE_OF = ${JSON.stringify(PIECE_OF)};
+const NUM_PIECE = ${JSON.stringify(NUM_PIECE)};
+const ALSO = ${JSON.stringify({ corexy: ["corexy", "antrieb"] })};
+const STEP = ${JSON.stringify(Object.fromEntries(Object.entries(LEGEND_OF).map(([id, i]) => [id, { no: LEGEND[i][1], name: LEGEND[i][2], text: LEGEND[i][3] }])))};
+const VIEW0 = [0, 0, ${W}, ${H}], VIEW1 = ${JSON.stringify(VIEW_APART.map((v) => Math.round(v * 10) / 10))};
 const stage = document.querySelector(".iso-stage");
 const svg = stage.querySelector("svg");
 const readout = document.querySelector("[data-readout]");
@@ -884,6 +1001,7 @@ let tx = TOUR[0][0], gy = TOUR[0][1], want = [tx, gy];
 let frame = 0, last = 0, s = 0, touring = true, visible = false, idle = 0, picked = null;
 
 function draw() {
+  poseExplode();
   const cy = gy - HEAD_Y;          // Lage des Schlittens hinter der Duese
   for (const el of movers.y) el.setAttribute("transform", translateAlong(P, [0, cy, 0]));
   for (const el of movers.xy) el.setAttribute("transform", translateAlong(P, [tx, cy, 0]));
@@ -917,12 +1035,14 @@ function tick(now) {
   tx += (want[0] - tx) * ease;
   gy += (want[1] - gy) * ease;
   if (Math.abs(want[0] - tx) < 0.02 && Math.abs(want[1] - gy) < 0.02) { tx = want[0]; gy = want[1]; }
+  const moving = springStep(calm && !playing ? 1 / 12 : dt);
   draw();
-  const settled = !touring && tx === want[0] && gy === want[1];
+  const settled = !touring && !moving && tx === want[0] && gy === want[1];
   frame = visible && !settled ? requestAnimationFrame(tick) : 0;
 }
 const run = () => { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } };
 const steer = (x, y) => {
+  if (playing) return;                     // waehrend des Zerlegens faehrt nichts
   touring = false;
   want = [clamp(x, REACH_X[0], REACH_X[1]), clamp(y, REACH_Y[0], REACH_Y[1])];
   clearTimeout(idle);
@@ -949,6 +1069,168 @@ stage.addEventListener("keydown", (ev) => {
   steer(want[0] + d[0], want[1] + d[1]);
 });
 
+// --- Explosionsdarstellung ---------------------------------------------
+// Federn und Staffelung sind dieselben Zahlen, die der Pruefer durchrechnet;
+// beim Schliessen laeuft die Reihenfolge rueckwaerts, aus dem Zerlegen wird so
+// von selbst ein Aufbau von innen nach aussen.
+const byPiece = {};
+for (const el of groups) (byPiece[el.dataset.piece] = byPiece[el.dataset.piece] || []).push(el);
+const spr = {};
+for (const id in MOVE) spr[id] = { x: 0, v: 0, target: 0, pending: null };
+let eclock = 0, playing = false, timers = [];
+
+function schedule(on, gap) {
+  let i = 0;
+  const step = (gap === undefined ? SPR.stagger * 1000 : gap) / 1000;
+  for (const id of on ? ORDER : ORDER.slice().reverse()) {
+    const goal = on ? 1 : 0;
+    if (spr[id].target === goal) spr[id].pending = null;
+    else spr[id].pending = { value: goal, at: eclock + i++ * step };
+  }
+}
+function springStep(dt) {
+  eclock += dt;
+  let moving = false;
+  for (const id in spr) {
+    const p = spr[id];
+    if (p.pending && eclock >= p.pending.at) { p.target = p.pending.value; p.pending = null; }
+    for (let i = 0; i < SPR.substeps; i++) {
+      const h = dt / SPR.substeps;
+      p.v += ((p.target - p.x) * SPR.stiffness - p.v * SPR.damping) * h;
+      p.x += p.v * h;
+    }
+    if (p.pending || Math.abs(p.x - p.target) > 1e-3 || Math.abs(p.v) > 1e-3) moving = true;
+  }
+  return moving;
+}
+
+// Nummern mit Fuehrungslinie. Sie haengen am Schwerpunkt ihrer Baugruppe und
+// weichen in deren Fluchtrichtung aus, damit sie sich nicht gegenseitig decken.
+const NS = "http://www.w3.org/2000/svg";
+const nums = {}, away = {};
+let numLayer = null;
+{
+  const o = iso([0, 0, 0], P);
+  const layer = document.createElementNS(NS, "g");
+  layer.setAttribute("class", "iso-nums");
+  layer.setAttribute("aria-hidden", "true");
+  for (const id in STEP) {
+    const q = iso(MOVE[NUM_PIECE[id] || id] || [0, 0, 0], P);
+    const dx = q[0] - o[0], dy = q[1] - o[1], len = Math.hypot(dx, dy);
+    away[id] = len < 1 ? [-0.72, -0.69] : [dx / len, dy / len];
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("opacity", "0");
+    const line = document.createElementNS(NS, "line");
+    const label = document.createElementNS(NS, "text");
+    label.textContent = STEP[id].no;
+    g.append(line, label);
+    layer.append(g);
+    nums[id] = { g, line, label };
+  }
+  svg.append(layer);
+  numLayer = layer;
+}
+// Zeichnungseinheiten je Bildschirmpixel. Ohne das waeren die Nummern auf dem
+// Telefon sechs Pixel hoch und am grossen Schirm doppelt so gross wie noetig.
+let unitPerPx = 900 / 652, numHide = false, svgWidth = 652;
+function measure() {
+  const box = svg.getBoundingClientRect();
+  if (!box.width) return;
+  const vb = svg.getAttribute("viewBox").split(" ").map(Number);
+  svgWidth = box.width;
+  unitPerPx = vb[2] / box.width;
+  // Unter rund 430 px Zeichnungsbreite stehen elf Nummern dichter als sie
+  // lesbar sind; die Legende darunter traegt sie ohnehin.
+  numHide = box.width < 430;
+  if (numLayer) numLayer.style.display = numHide ? "none" : "";
+}
+new ResizeObserver(measure).observe(stage);
+measure();
+
+function poseExplode() {
+  let open = 0;
+  for (const id in byPiece) {
+    const share = spr[id] ? spr[id].x : 0;
+    if (share > open) open = share;
+    const m = MOVE[id] || [0, 0, 0];
+    const els = byPiece[id];
+    if (Math.abs(share) < 1e-4) { for (const el of els) el.removeAttribute("transform"); continue; }
+    const t = translateAlong(P, [m[0] * share, m[1] * share, m[2] * share]);
+    for (const el of els) el.setAttribute("transform", t);
+  }
+  const box = VIEW0.map((v, i) => v + (VIEW1[i] - v) * open);
+  svg.setAttribute("viewBox", box.map((v) => Math.round(v * 10) / 10).join(" "));
+  unitPerPx = box[2] / Math.max(1, svgWidth);
+  // Nummern und ihre Linien sind in Zeichnungseinheiten gesetzt: beim
+  // Herauszoomen schrumpften sie auf sieben Pixel. Mitwachsen lassen.
+  if (numHide) return open;
+  const zoom = unitPerPx;             // Einheiten je Bildschirmpixel
+  for (const id in nums) {
+    const own = NUM_PIECE[id] || id;
+    const share = spr[own] ? spr[own].x : 0;
+    const m = MOVE[own] || [0, 0, 0], c = CENTRE[id];
+    const at = iso([c[0] + m[0] * share, c[1] + m[1] * share, c[2] + m[2] * share], P);
+    const a = away[id], n = nums[id];
+    const lx = at[0] + a[0] * 26 * zoom, ly = at[1] + a[1] * 26 * zoom;
+    // Der Rahmen bleibt stehen, seine Nummer erscheint mit der Bewegung der anderen.
+    n.g.setAttribute("opacity", clamp(((id === "rahmen" ? open : share) - 0.14) / 0.3, 0, 1));
+    n.line.setAttribute("x1", at[0]); n.line.setAttribute("y1", at[1]);
+    n.line.setAttribute("x2", lx); n.line.setAttribute("y2", ly);
+    n.label.setAttribute("x", lx + a[0] * 6 * zoom); n.label.setAttribute("y", ly + (a[1] * 6 + 4.5) * zoom);
+    n.label.setAttribute("font-size", Math.round(13 * zoom * 10) / 10);
+    n.label.setAttribute("text-anchor", a[0] < -0.3 ? "end" : a[0] > 0.3 ? "start" : "middle");
+  }
+  return open;
+}
+
+// Ein Eintrag der Legende faehrt seine Baugruppe allein heraus (nur beim Klick,
+// nicht schon beim Darueberfahren - sonst zappelt die Zeichnung).
+function focus(key) {
+  // Legendeneintrag 04 deckt Antrieb und Riemen ab, 05 nur den Traeger: beide
+  // liegen auf der Zeichengruppe "corexy", also faehrt 04 zwei Baugruppen heraus.
+  const want = key ? key.split(" ").flatMap((g) => (key.includes("riemen") && ALSO[g]) || [PIECE_OF[g]]) : [];
+  for (const id in spr) { spr[id].pending = null; spr[id].target = want.includes(id) ? 1 : 0; }
+  run();
+}
+
+const playButton = document.getElementById("btn-explode");
+const stopPlay = (quiet) => {
+  for (const t of timers) clearTimeout(t);
+  timers = [];
+  playing = false;
+  playButton.textContent = PLAY_LABEL;
+  playButton.setAttribute("aria-pressed", "false");
+  if (!quiet) { schedule(false); show(picked); }
+  touring = !still.matches && !picked;
+  run();
+};
+function play() {
+  if (playing) { stopPlay(); return; }
+  playing = true;
+  picked = null;
+  show(null);
+  touring = false;                         // Kopf anhalten, er faehrt sonst auf nichts
+  playButton.textContent = "Abbrechen";
+  playButton.setAttribute("aria-pressed", "true");
+  const apart = (ORDER.length - 1) * OUT_GAP + 1100;
+  schedule(true, OUT_GAP);
+  run();
+  // Zerlegen, kurz halten, dann Schritt fuer Schritt zusammensetzen und dabei
+  // jede Baugruppe benennen.
+  timers.push(setTimeout(() => {
+    schedule(false, IN_GAP);
+    run();
+    BUILD.forEach((id, i) => {
+      timers.push(setTimeout(() => {
+        info.textContent = STEP[id].no + " " + STEP[id].name + " \u2014 " + STEP[id].text;
+      }, Math.max(0, i - 1) * IN_GAP + (i ? 180 : 0)));
+    });
+    timers.push(setTimeout(() => { info.textContent = INTRO; stopPlay(true); }, (BUILD.length - 2) * IN_GAP + 1500));
+  }, apart + 1200));
+}
+playButton.addEventListener("click", play);
+stage.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && playing) { stopPlay(); ev.preventDefault(); } });
+
 // Legende: ein Eintrag hebt seine Gruppen hervor und erklaert ihre Aufgabe
 function show(key) {
   const wanted = key ? key.split(" ") : null;
@@ -965,7 +1247,12 @@ function show(key) {
 for (const b of document.querySelectorAll("[data-pick]")) {
   b.addEventListener("pointerenter", () => show(b.dataset.pick));
   b.addEventListener("focus", () => show(b.dataset.pick));
-  b.addEventListener("click", () => { picked = picked === b.dataset.pick ? null : b.dataset.pick; show(picked); });
+  b.addEventListener("click", () => {
+    if (playing) stopPlay(true);
+    picked = picked === b.dataset.pick ? null : b.dataset.pick;
+    show(picked);
+    focus(picked);
+  });
 }
 document.querySelector(".iso-keys").addEventListener("pointerleave", () => show(picked));
 
@@ -1035,6 +1322,19 @@ const EXTRA = `
 ${TONE_CSS}
 .themebar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap;
   gap: 10px; margin: 0 0 14px }
+.playbtn { margin-right: auto; font: inherit; font-size: 13px; line-height: 1; min-height: 40px;
+  padding: 0 15px; cursor: pointer; border-radius: 9px; color: var(--anatomy-strong);
+  background: var(--anatomy-card); border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  box-shadow: var(--anatomy-lift) }
+.playbtn:hover { border-color: color-mix(in srgb, currentColor 38%, transparent) }
+.playbtn:focus-visible { outline: 2px solid var(--anatomy-strong); outline-offset: 2px }
+.playbtn[aria-pressed="true"] { color: #c25e0a; border-color: color-mix(in srgb, #c25e0a 45%, transparent) }
+.iso-nums { pointer-events: none }
+/* Die Nummern liegen ueber der Zeichnung, nicht darin: der Kontur-Umriss haelt
+   sie auch vor einem hellen Teil lesbar. */
+.iso-nums text { font: 600 20px/1 system-ui, sans-serif; fill: var(--anatomy-hi);
+  paint-order: stroke; stroke: var(--anatomy-paper); stroke-width: 4px; stroke-linejoin: round }
+.iso-nums line { stroke: var(--anatomy-mid); stroke-width: 1; vector-effect: non-scaling-stroke }
 .ctrlab, .ctrwert { font-size: 12.5px; color: color-mix(in srgb, currentColor 72%, transparent) }
 .ctrwert { min-width: 3.6em; text-align: right; font-variant-numeric: tabular-nums }
 .ctrrange { width: clamp(104px, 20vw, 190px); height: 40px; margin: 0; cursor: pointer;
@@ -1115,6 +1415,27 @@ const page = k.pageHtml({ title: "Wie ein XY-Drucker arbeitet", theme: THEME, wi
   .replace(/(<body class="iso" data-theme="dark">)/, `$1${THEME_SWITCH}`);
 writeFileSync(OUT, page);
 console.log("wrote", OUT, "-", R.items.length, "Teile");
+if (process.argv.includes("--names")) {
+  const by = {};
+  for (const it of R.items) (by[it.piece] ??= []).push(it.name);
+  for (const [id, ns] of Object.entries(by)) {
+    const base = [...new Set(ns.map((n) => n.split("#")[0]))];
+    console.log(id.padEnd(11), String(ns.length).padStart(3), base.join(" "));
+  }
+}
+if (process.argv.includes("--pieces")) {
+  const box = {};
+  for (const it of R.items) {
+    if (!it.pos) continue;
+    const b = (box[it.piece] ??= { n: 0, lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9] });
+    b.n++;
+    for (let i = 0; i < 3; i++) { b.lo[i] = Math.min(b.lo[i], it.pos[i]); b.hi[i] = Math.max(b.hi[i], it.pos[i]); }
+  }
+  for (const [id, b] of Object.entries(box)) {
+    console.log(id.padEnd(11), String(b.n).padStart(3), "Teile  x", b.lo[0].toFixed(0).padStart(5), b.hi[0].toFixed(0).padStart(5),
+      " y", b.lo[1].toFixed(0).padStart(5), b.hi[1].toFixed(0).padStart(5), " z", b.lo[2].toFixed(0).padStart(5), b.hi[2].toFixed(0).padStart(5));
+  }
+}
 
 A.auditOrExit(R, P, {
   crowd: [["ptfe.schlauch", "rahmen.riegel"], ["kabel.strang", "corexy.quertraeger"]],
