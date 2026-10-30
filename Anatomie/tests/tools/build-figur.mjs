@@ -790,11 +790,52 @@ const TOUR_PTS = k.roundedPlan(TOUR, 10);
 
 // Sonne und Mond wie in shared/js/icons.js, hier eingesetzt statt importiert:
 // die Seite ist in sich geschlossen und soll keine zweite Datei laden.
+// Kontrast-Leiter. QUIET ist die Voreinstellung des Kits (Flaechentoene rund
+// 3 % auseinander, dunkel 1,08:1 - am Schreibtisch ruhig, auf einem Beamer
+// unlesbar), NOW die bisher fest ausgelieferte Stufe. Die Endstufe wird daraus
+// hochgerechnet: der Regler trifft bei K_DEFAULT genau NOW, darueber bleibt
+// mehr als das Doppelte Luft zum Ausprobieren.
+const K_DEFAULT = 0.45;
+const TONE_QUIET = {
+  dark: { "shade-0": "#0f0f0f", "shade-1": "#121212", "shade-2": "#151515", "shade-3": "#181818",
+    top: "#1c1c1c", face: "#1b1b1b", "lit-top": "#262626", "lit-shade": "#1d1d1d",
+    faint: "#2a2a2a", lo: "#3e3e3e", mid: "#6a6a6a", hi: "#d4d4d4" },
+  light: { "shade-0": "#dcdcd9", "shade-1": "#e5e5e2", "shade-2": "#ededea", "shade-3": "#f4f4f1",
+    top: "#ffffff", face: "#ffffff", "lit-top": "#ffffff", "lit-shade": "#eeeeeb",
+    faint: "#d4d4d6", lo: "#b4b4b8", mid: "#8a8a8f", hi: "#26262a" },
+};
+const TONE_NOW = {
+  dark: { "shade-0": "#202020", "shade-1": "#343434", "shade-2": "#484848", "shade-3": "#5c5c5c",
+    top: "#6a6a6a", face: "#3d3d3d", "lit-top": "#7e7e7e", "lit-shade": "#5a5a5a",
+    faint: "#4a4a4a", lo: "#737373", mid: "#a2a2a2", hi: "#e8e8e8" },
+  light: { "shade-0": "#b9b9b3", "shade-1": "#cdcdc7", "shade-2": "#e0e0db", "shade-3": "#f1f1ed",
+    top: "#ffffff", face: "#ffffff", "lit-top": "#ffffff", "lit-shade": "#e0e0db",
+    faint: "#b2b2b6", lo: "#8c8c92", mid: "#63636b", hi: "#1a1a1e" },
+};
+const bytesOf = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const hexOf = (b) => "#" + b.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+const ramp = (from, to, t) => hexOf(bytesOf(from).map((a, i) => a + (bytesOf(to)[i] - a) * t));
+const TONE_STRONG = Object.fromEntries(Object.entries(TONE_QUIET).map(([theme, set]) =>
+  [theme, Object.fromEntries(Object.keys(set).map((n) => [n, ramp(set[n], TONE_NOW[theme][n], 1 / K_DEFAULT)]))]));
+// Voreinstellung zusaetzlich ins Stylesheet, damit ohne JavaScript und vor dem
+// ersten Zeichnen dieselben Toene gelten wie mit.
+const toneBlock = (sel, theme) => `${sel} {\n` + Object.keys(TONE_QUIET[theme])
+  .map((n) => `  --anatomy-${n}: ${ramp(TONE_QUIET[theme][n], TONE_STRONG[theme][n], K_DEFAULT)};`)
+  .join("\n") + "\n}";
+const TONE_CSS = toneBlock(".iso", "dark") + "\n" + toneBlock('.iso[data-theme="light"]', "light");
+
 const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
 const MOON = '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>';
 const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
 // Der helle Grundzustand steht schon im Markup, damit nichts aufblitzt.
-const themeBar = `<div class="themebar"><button type="button" class="themebtn" id="btn-theme" aria-label="Auf dunklen Modus umschalten">${themeGlyph(false)}</button></div>`;
+const KN = Math.round(K_DEFAULT * 100);
+const themeBar = `<div class="themebar">`
+  + `<label class="ctrlab" for="kontrast">Kontrast</label>`
+  + `<input class="ctrrange" type="range" id="kontrast" min="0" max="100" step="5" value="${KN}"`
+  + ` aria-label="Kontrast der Zeichnung" aria-describedby="kontrast-wert">`
+  + `<output class="ctrwert" id="kontrast-wert" for="kontrast">${KN} %</output>`
+  + `<button type="button" class="themebtn" id="btn-theme" aria-label="Auf dunklen Modus umschalten">${themeGlyph(false)}</button>`
+  + `</div>`;
 
 
 const live = `
@@ -940,8 +981,27 @@ themeButton.addEventListener("click", () => {
   document.body.dataset.theme = next;
   try { localStorage.setItem("3d-druck.theme", next); } catch (e) { /* ignore */ }
   paintThemeButton();
+  // Die Toene stehen als Inline-Werte am Koerper: ohne Neuberechnung behielte
+  // das helle Thema die dunkle Leiter.
+  window.anatomieKontrast(kontrast.valueAsNumber / 100);
 });
 paintThemeButton();
+
+// Kontrast: jedes Geraet - Schreibtisch, Laptop, Beamer - haelt seine Stufe.
+const kontrast = document.getElementById("kontrast");
+const kontrastWert = document.getElementById("kontrast-wert");
+function applyKontrast(save) {
+  const t = kontrast.valueAsNumber / 100;
+  window.anatomieKontrast(t);
+  kontrastWert.textContent = kontrast.value + " %";
+  if (save) { try { localStorage.setItem("anatomie.kontrast", String(t)); } catch (e) { /* ignore */ } }
+}
+kontrast.value = String(Math.round((window.anatomieKontrastWert ?? ${K_DEFAULT}) * 100));
+// Beim Ziehen nur zeichnen, erst beim Loslassen speichern.
+kontrast.addEventListener("input", () => applyKontrast(false));
+kontrast.addEventListener("change", () => applyKontrast(true));
+applyKontrast(false);
+
 draw();
 `;
 
@@ -969,40 +1029,15 @@ const body = k.plateHtml({
 });
 
 const EXTRA = `
-/* Stärkerer Kontrast als die Voreinstellung des Kits: dort liegen die vier
-   Flächentöne nur rund 3 % auseinander (dunkel 1,08:1), was am Bildschirm
-   ruhig wirkt, auf einem Beamer aber die einzelnen Bauteile verschwinden
-   lässt. Hier stehen die Nachbarstufen bei 1,2 bis 1,4:1. */
-.iso {
-  --anatomy-shade-0: #202020; --anatomy-shade-1: #343434;
-  --anatomy-shade-2: #484848; --anatomy-shade-3: #5c5c5c;
-  --anatomy-top: #6a6a6a; --anatomy-face: #3d3d3d;
-  --anatomy-lit-top: #7e7e7e; --anatomy-lit-shade: #5a5a5a;
-  --anatomy-faint: #4a4a4a; --anatomy-lo: #737373;
-  --anatomy-mid: #a2a2a2; --anatomy-hi: #e8e8e8;
-}
-.iso[data-theme="light"] {
-  --anatomy-shade-0: #b9b9b3; --anatomy-shade-1: #cdcdc7;
-  --anatomy-shade-2: #e0e0db; --anatomy-shade-3: #f1f1ed;
-  --anatomy-top: #ffffff; --anatomy-face: #ffffff;
-  --anatomy-lit-top: #ffffff; --anatomy-lit-shade: #e0e0db;
-  --anatomy-faint: #b2b2b6; --anatomy-lo: #8c8c92;
-  --anatomy-mid: #63636b; --anatomy-hi: #1a1a1e;
-}
-.iso-stage svg [data-g] { transition: opacity .22s ease }
-.iso-stage svg [data-g].dim { opacity: .14 }
-.iso-keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(188px, 1fr)); gap: 4px; margin: 14px 0 0 }
-.pickbtn { font: inherit; font-size: 11.5px; line-height: 1.35; text-align: left; color: var(--anatomy-ink, currentColor);
-  background: none; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 5px;
-  padding: 5px 8px; cursor: pointer; min-height: 30px }
-.pickbtn b { font-weight: 600; opacity: .55; margin-right: 5px; font-variant-numeric: tabular-nums }
-.pickbtn:hover, .pickbtn:focus-visible { border-color: color-mix(in srgb, currentColor 48%, transparent); outline: none }
-.pickbtn[aria-pressed="true"] { border-color: currentColor; background: color-mix(in srgb, currentColor 9%, transparent) }
-/* Die Karte waechst mit der Breite, wird aber von der Fensterhoehe gedeckelt:
-   auf einem niedrigen Beamer bleibt die Zeichnung so ohne Scrollen sichtbar,
-   auf einem Widescreen wird sie groesser statt in einer schmalen Spalte zu stehen. */
-.iso-page { width: min(1040px, 100% - 40px, 92vh); margin: clamp(16px, 5vh, 64px) auto clamp(32px, 8vh, 96px) }
-.themebar { display: flex; justify-content: flex-end; margin: 0 0 14px }
+${TONE_CSS}
+.themebar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+  gap: 10px; margin: 0 0 14px }
+.ctrlab, .ctrwert { font-size: 12.5px; color: color-mix(in srgb, currentColor 72%, transparent) }
+.ctrwert { min-width: 3.6em; text-align: right; font-variant-numeric: tabular-nums }
+.ctrrange { width: clamp(104px, 20vw, 190px); height: 40px; margin: 0; cursor: pointer;
+  accent-color: var(--anatomy-strong) }
+.ctrrange:focus-visible { outline: 2px solid var(--anatomy-strong); outline-offset: 3px; border-radius: 5px }
+@media (max-width: 420px) { .themebar { justify-content: space-between } }
 .themebtn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; line-height: 1;
   min-height: 40px; padding: 0 14px; cursor: pointer; border-radius: 9px;
   color: var(--anatomy-strong); background: var(--anatomy-card);
@@ -1016,12 +1051,40 @@ const EXTRA = `
 `;
 
 const THEME_SWITCH = `<script>
-// Hell/Dunkel wie in der Übersicht (dort umschaltbar), vor dem ersten Zeichnen.
-try {
-  // Hell ist der Grundzustand, wie auf der Übersicht: ein dunkel eingestellter
-  // Rechner am Beamer zeigte sonst eine Seite, die im hellen Raum niemand liest.
-  if (localStorage.getItem("3d-druck.theme") !== "dark") document.body.dataset.theme = "light";
-} catch (e) { /* ignore */ }
+// Hell/Dunkel wie in der Übersicht (dort umschaltbar) und die gespeicherte
+// Kontraststufe, beides vor dem ersten Zeichnen: nachträglich gesetzt würde
+// die 600-kB-Zeichnung einmal in der falschen Stufe aufblitzen.
+(function () {
+  var Q = ${JSON.stringify(TONE_QUIET)}, S = ${JSON.stringify(TONE_STRONG)};
+  function mix(a, b, t) {
+    var out = "#";
+    for (var i = 1; i < 7; i += 2) {
+      var from = parseInt(a.substr(i, 2), 16);
+      var v = Math.round(from + (parseInt(b.substr(i, 2), 16) - from) * t);
+      v = v < 0 ? 0 : v > 255 ? 255 : v;
+      out += (v < 16 ? "0" : "") + v.toString(16);
+    }
+    return out;
+  }
+  // Auf dem Körper, nicht im Stylesheet: so gilt eine Stufe für beide Themen
+  // und überlebt das Umschalten, ohne dass Regeln nachgeladen werden.
+  window.anatomieKontrast = function (t) {
+    var theme = document.body.dataset.theme === "light" ? "light" : "dark";
+    for (var n in Q[theme]) document.body.style.setProperty("--anatomy-" + n, mix(Q[theme][n], S[theme][n], t));
+  };
+  try {
+    // Hell ist der Grundzustand, wie auf der Übersicht: ein dunkel eingestellter
+    // Rechner am Beamer zeigte sonst eine Seite, die im hellen Raum niemand liest.
+    if (localStorage.getItem("3d-druck.theme") !== "dark") document.body.dataset.theme = "light";
+  } catch (e) { /* ignore */ }
+  var t = ${K_DEFAULT};
+  try {
+    var saved = parseFloat(localStorage.getItem("anatomie.kontrast"));
+    if (saved >= 0 && saved <= 1) t = saved;
+  } catch (e) { /* ignore */ }
+  window.anatomieKontrastWert = t;
+  window.anatomieKontrast(t);
+})();
 </script>`;
 const page = k.pageHtml({ title: "Wie ein XY-Drucker arbeitet", theme: THEME, width: 700, body: `<style>${EXTRA}</style>` + themeBar + body, script: kitScript() + live })
   .replace('<html lang="en">', '<html lang="de">')
