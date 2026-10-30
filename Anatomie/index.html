@@ -128,6 +128,10 @@ try {
 .pickbtn b { font-weight: 600; opacity: .55; margin-right: 5px; font-variant-numeric: tabular-nums }
 .pickbtn:hover, .pickbtn:focus-visible { border-color: color-mix(in srgb, currentColor 48%, transparent); outline: none }
 .pickbtn[aria-pressed="true"] { border-color: currentColor; background: color-mix(in srgb, currentColor 9%, transparent) }
+/* Die Karte waechst mit der Breite, wird aber von der Fensterhoehe gedeckelt:
+   auf einem niedrigen Beamer bleibt die Zeichnung so ohne Scrollen sichtbar,
+   auf einem Widescreen wird sie groesser statt in einer schmalen Spalte zu stehen. */
+.iso-page { width: min(1040px, 100% - 40px, 92vh); margin: clamp(16px, 5vh, 64px) auto clamp(32px, 8vh, 96px) }
 .themebar { display: flex; justify-content: flex-end; margin: 0 0 14px }
 .themebtn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; line-height: 1;
   min-height: 40px; padding: 0 14px; cursor: pointer; border-radius: 9px;
