@@ -119,6 +119,26 @@ try {
   if (localStorage.getItem("3d-druck.theme") !== "dark") document.body.dataset.theme = "light";
 } catch (e) { /* ignore */ }
 </script><main class="iso-page"><style>
+/* Stärkerer Kontrast als die Voreinstellung des Kits: dort liegen die vier
+   Flächentöne nur rund 3 % auseinander (dunkel 1,08:1), was am Bildschirm
+   ruhig wirkt, auf einem Beamer aber die einzelnen Bauteile verschwinden
+   lässt. Hier stehen die Nachbarstufen bei 1,2 bis 1,4:1. */
+.iso {
+  --anatomy-shade-0: #202020; --anatomy-shade-1: #343434;
+  --anatomy-shade-2: #484848; --anatomy-shade-3: #5c5c5c;
+  --anatomy-top: #6a6a6a; --anatomy-face: #3d3d3d;
+  --anatomy-lit-top: #7e7e7e; --anatomy-lit-shade: #5a5a5a;
+  --anatomy-faint: #4a4a4a; --anatomy-lo: #737373;
+  --anatomy-mid: #a2a2a2; --anatomy-hi: #e8e8e8;
+}
+.iso[data-theme="light"] {
+  --anatomy-shade-0: #b9b9b3; --anatomy-shade-1: #cdcdc7;
+  --anatomy-shade-2: #e0e0db; --anatomy-shade-3: #f1f1ed;
+  --anatomy-top: #ffffff; --anatomy-face: #ffffff;
+  --anatomy-lit-top: #ffffff; --anatomy-lit-shade: #e0e0db;
+  --anatomy-faint: #b2b2b6; --anatomy-lo: #8c8c92;
+  --anatomy-mid: #63636b; --anatomy-hi: #1a1a1e;
+}
 .iso-stage svg [data-g] { transition: opacity .22s ease }
 .iso-stage svg [data-g].dim { opacity: .14 }
 .iso-keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(188px, 1fr)); gap: 4px; margin: 14px 0 0 }
