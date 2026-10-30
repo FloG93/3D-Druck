@@ -788,6 +788,15 @@ const LEGEND = [
 ];
 const TOUR_PTS = k.roundedPlan(TOUR, 10);
 
+// Sonne und Mond wie in shared/js/icons.js, hier eingesetzt statt importiert:
+// die Seite ist in sich geschlossen und soll keine zweite Datei laden.
+const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+const MOON = '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>';
+const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
+// Der Grundzustand steht schon im Markup, damit der Knopf nicht leer aufblitzt.
+const themeBar = `<div class="themebar"><button type="button" class="themebtn" id="btn-theme" aria-label="Auf hellen Modus umschalten">${themeGlyph(true)}</button></div>`;
+
+
 const live = `
 const P = ${JSON.stringify(P)};
 const TOUR = ${JSON.stringify(TOUR_PTS)};
@@ -915,6 +924,24 @@ for (const b of document.querySelectorAll("[data-pick]")) {
   b.addEventListener("click", () => pick(picked === b.dataset.pick ? null : b.dataset.pick));
 }
 document.querySelector(".iso-keys").addEventListener("pointerleave", () => { if (picked) return; pick(null); });
+
+// Hell/Dunkel: dieselbe Taste und derselbe Speicherschluessel wie in den
+// Werkzeugen, damit die Wahl fuer die ganze Seite gilt.
+const themeButton = document.getElementById("btn-theme");
+const SUN = ${JSON.stringify(SUN)}, MOON = ${JSON.stringify(MOON)};
+const themeGlyph = ${themeGlyph.toString()};
+function paintThemeButton() {
+  const dark = document.body.dataset.theme !== "light";
+  themeButton.innerHTML = themeGlyph(dark);
+  themeButton.setAttribute("aria-label", dark ? "Auf hellen Modus umschalten" : "Auf dunklen Modus umschalten");
+}
+themeButton.addEventListener("click", () => {
+  const next = document.body.dataset.theme === "light" ? "dark" : "light";
+  document.body.dataset.theme = next;
+  try { localStorage.setItem("3d-druck.theme", next); } catch (e) { /* ignore */ }
+  paintThemeButton();
+});
+paintThemeButton();
 draw();
 `;
 
@@ -951,6 +978,14 @@ const EXTRA = `
 .pickbtn b { font-weight: 600; opacity: .55; margin-right: 5px; font-variant-numeric: tabular-nums }
 .pickbtn:hover, .pickbtn:focus-visible { border-color: color-mix(in srgb, currentColor 48%, transparent); outline: none }
 .pickbtn[aria-pressed="true"] { border-color: currentColor; background: color-mix(in srgb, currentColor 9%, transparent) }
+.themebar { display: flex; justify-content: flex-end; margin: 0 0 14px }
+.themebtn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; line-height: 1;
+  min-height: 40px; padding: 0 14px; cursor: pointer; border-radius: 9px;
+  color: var(--anatomy-strong); background: var(--anatomy-card);
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent); box-shadow: var(--anatomy-lift) }
+.themebtn:hover { border-color: color-mix(in srgb, currentColor 38%, transparent) }
+.themebtn:focus-visible { outline: 2px solid var(--anatomy-strong); outline-offset: 2px }
+.themebtn svg { display: block; width: 17px; height: 17px }
 .pickinfo { font-size: 12.5px; line-height: 1.55; margin: 11px 3px 0; min-height: 3.1em; max-width: 64ch;
   color: color-mix(in srgb, currentColor 72%, transparent) }
 @media (max-width: 460px) { .iso-keys { grid-template-columns: 1fr 1fr } .pickbtn { font-size: 11px } }
@@ -964,7 +999,7 @@ try {
   if (light) document.body.dataset.theme = "light";
 } catch (e) { /* ignore */ }
 </script>`;
-const page = k.pageHtml({ title: "Wie ein XY-Drucker arbeitet", theme: THEME, width: 700, body: `<style>${EXTRA}</style>` + body, script: kitScript() + live })
+const page = k.pageHtml({ title: "Wie ein XY-Drucker arbeitet", theme: THEME, width: 700, body: `<style>${EXTRA}</style>` + themeBar + body, script: kitScript() + live })
   .replace('<html lang="en">', '<html lang="de">')
   .replace(/(<body class="iso" data-theme="dark">)/, `$1${THEME_SWITCH}`);
 writeFileSync(OUT, page);
