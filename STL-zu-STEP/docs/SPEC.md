@@ -52,7 +52,7 @@ Reines ES-Modul, keine Abhängigkeiten außer `shared/` und den dort liegenden B
 
 ```
 core/
-  parse.js        parseMesh(buffer, fileName) → { tris: Float64Array(9·n), warnings: string[], unit: 'mm' }
+  parse.js        parseMesh(buffer, fileName) → { tris: Float64Array(9·n), warnings: string[], unit: 'mm', info }  (info: Analyse einer 3MF-Datei)
   weld.js         weldMesh(tris, tol?) → { V: Float64Array(3·m), F: Uint32Array(3·n) }
   meshops.js      edgeMap(F), signedVolume(V,F), components(F), bbox, adjacency
   heal.js         healMesh({V,F}, opts?) → { V, F, report }
@@ -100,6 +100,7 @@ Alle Zahlen stammen aus den Messungen in `MACHBARKEIT.md`; als Konstanten in ein
 - OBJ: `v`, `f` (auch `a/b/c`, `a//c`, negative Indizes), Vielecke per Fächer in Dreiecke. Vierecke ergeben 2 Dreiecke.
 - Warnungen: Bounding-Box-Diagonale < 1 oder > 5000 (Einheit prüfen: Zoll? Meter?), NaN/Inf-Werte (Dreieck verwerfen, zählen), leere Datei.
 - float32 → Float64.
+- *Nachtrag 30.10.2026 – 3MF (`threemf.js`, `zip.js`, `inflate.js`, `xml.js`):* Ein ZIP-Archiv wird am Anfang erkannt (nicht am Namen) und als 3MF gelesen. Der Leser bleibt **synchron** (`convert()` ist es, ebenso Tests und Worker): eigener Entpacker statt `DecompressionStream`, eigener XML-Scanner statt `DOMParser` (im Worker nicht vorhanden). Bauliste und Komponenten werden mit ihren Transformen zu einer Dreiecksmenge in Millimetern aufgelöst (Zeilenvektor-Konvention, erst Komponente, dann Eltern, zuletzt der Bauteil-Transform; negative Determinante dreht die Umlaufrichtung). `info` liefert für den Bericht je Objekt Name, Instanzen, Dreiecke, Größe, Volumen, Platte und Spiegelung sowie Einheit, Programm und die Liste dessen, was **nicht** übernommen wurde (Stützen, `printable="0"`, Modifizierer, Negativteile) – mit Grund. Einzelheiten, Messungen und was nur nach Beschreibung gebaut ist: MACHBARKEIT 8.
 - *Nachtrag 15.10.2026:* Die drei Würfel-Dateien liefern **nicht** dieselben Dreiecke: die Vierecke im OBJ werden entlang der anderen Diagonale geteilt als bei der Tessellierung der STL-Dateien. Gleich sind Punktmenge (8 Ecken), Dreieckszahl und Volumen – das prüft `tests/parse.test.mjs`.
 
 ### 5.2 weld.js

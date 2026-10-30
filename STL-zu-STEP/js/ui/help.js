@@ -14,12 +14,20 @@ export function showHelp(dialog) {
 
         <h3>So geht es</h3>
         <ol>
-          <li>STL- oder OBJ-Datei ablegen oder auswählen.</li>
+          <li>STL-, OBJ- oder 3MF-Datei ablegen oder auswählen.</li>
           <li>Den Bericht lesen: Reparaturen, erreichte Stufe, erkannte Merkmale.</li>
           <li>Auf <b>Exportieren</b> klicken und die <code>.step</code>-Datei herunterladen.</li>
         </ol>
         <p>Mit <b>Zurück</b> (oben links, Taste <kbd>Esc</kbd>) brichst du die Umwandlung ab und kommst zum Startbildschirm
         zurück; die Datei und das Ergebnis werden dabei verworfen.</p>
+
+        <h3>3MF-Dateien</h3>
+        <p>Eine 3MF-Datei ist die Druckdatei der Slicer (Bambu Studio, PrusaSlicer, Cura, Fusion 360). Das Werkzeug liest
+        alle Bauteile der Bauliste, rechnet <b>Einheit</b> und <b>Transformationen</b> (verschoben, gedreht, skaliert,
+        gespiegelt, verschachtelte Komponenten) ein und macht aus jedem Körper einen Volumenkörper. Der Bericht listet
+        jedes Objekt mit Dreiecken, Größe und Volumen. <b>Nicht übernommen</b> werden Stützstrukturen, Hilfskörper,
+        Modifizierer, Negativteile und als „nicht druckbar“ markierte Teile – jedes mit Grund im Bericht. Farben und
+        Materialien werden nicht gelesen.</p>
 
         <h3>Die drei Stufen</h3>
         <ul>

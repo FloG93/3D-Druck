@@ -202,6 +202,20 @@ check(json.validation.ok === true && json.outcome === 'repariert', 'JSON-Bericht
 if (!args.includes('--keep')) fs.unlinkSync(reportFile);
 await page.evaluate(() => document.getElementById('export-dialog').close());
 
+// A 3MF file: the analysis of the file is part of the report.
+await page.click('#btn-back');
+await page.setInputFiles('#file-input', path.join(ROOT, 'STL-zu-STEP/tests/fixtures/3mf/bambu-stil.3mf'));
+await page.waitForFunction(() => window.stlApp?.result && !window.stlApp.busy, null, { timeout: 120000 });
+const threeMf = await page.evaluate(() => document.getElementById('report').innerText.replace(/\s+/g, ' '));
+check(/3MF-Datei/.test(threeMf) && /Bambu Studio/.test(threeMf), 'Bericht zeigt die 3MF-Analyse und das Programm');
+check(/Gehäuse & Deckel/.test(threeMf) && /Platte 1/.test(threeMf), 'Bericht nennt Objekt und Platte');
+check(/2 Teile nicht übernommen/.test(threeMf) && /Negativteil/.test(threeMf), 'Bericht nennt, was nicht übernommen wurde');
+check(/Stufe 3/.test(threeMf), 'Die Platte aus der 3MF-Datei erreicht Stufe 3');
+if (screenshot) {
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: screenshot.replace(/\.png$/, '-3mf.png') });
+}
+
 check(errors.length === 0, errors.length ? `Fehler in der Seite: ${errors.join(' | ')}` : 'Keine Fehler in der Browser-Konsole');
 await browser.close();
 stop();

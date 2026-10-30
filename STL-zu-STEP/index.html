@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>STL zu STEP</title>
-  <meta name="description" content="STL- und OBJ-Netze im Browser in STEP-Volumenkörper umwandeln: Bohrungen und Rundungen werden wieder echte Zylinder, kaputte Netze werden geheilt, jede Reparatur steht mit Zahl im Bericht. Läuft lokal, ohne Upload, und lässt sich in Fusion 360 und FreeCAD bearbeiten.">
+  <meta name="description" content="STL-, OBJ- und 3MF-Dateien im Browser in STEP-Volumenkörper umwandeln: Bohrungen und Rundungen werden wieder echte Zylinder, kaputte Netze werden geheilt, jede Reparatur steht mit Zahl im Bericht. Läuft lokal, ohne Upload, und lässt sich in Fusion 360 und FreeCAD bearbeiten.">
   <meta name="theme-color" content="#121316">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../shared/css/ui.css">
@@ -55,7 +55,7 @@
       <div class="drop" id="drop">
         <div class="drop-inner">
           <span class="drop-icon" id="drop-icon"></span>
-          <h2>STL- oder OBJ-Datei hierher ziehen</h2>
+          <h2>STL-, OBJ- oder 3MF-Datei hierher ziehen</h2>
           <p>Die Datei bleibt auf diesem Rechner – sie wird im Browser umgewandelt, nichts wird hochgeladen.</p>
           <p>
             <button type="button" class="btn primary" id="btn-choose">Datei auswählen</button>
@@ -84,7 +84,7 @@
     </nav>
   </div>
 
-  <input type="file" id="file-input" accept=".stl,.obj,model/stl,model/obj" hidden>
+  <input type="file" id="file-input" accept=".stl,.obj,.3mf,model/stl,model/obj,model/3mf,application/vnd.ms-package.3dmanufacturing-3dmodel+xml" hidden>
   <dialog id="export-dialog" class="dialog"></dialog>
   <dialog id="help-dialog" class="dialog help"></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -1,10 +1,13 @@
-// Reading a mesh file: binary STL, ASCII STL and OBJ (see docs/SPEC.md 5.1).
+// Reading a mesh file: binary STL, ASCII STL, OBJ and 3MF (see docs/SPEC.md 5.1).
 // The result is a plain triangle soup; welding points into a shared vertex
 // list is the job of weld.js.
 //
 // Measured in docs/MACHBARKEIT.md: STL files from the wild lie about their
 // format (binary files may start with the word "solid"), so the format is
-// decided by the length formula 84 + 50·n, never by that word.
+// decided by the length formula 84 + 50·n, never by that word. A 3MF file is
+// a ZIP archive and is recognised by that, whatever its name says.
+
+import { parseThreeMF, looksLikeZip } from './threemf.js';
 
 /** Bounding box diagonals outside this range hint at inches or metres (SPEC 5.1). */
 const UNIT_MIN_DIAGONAL = 1;
@@ -13,19 +16,31 @@ const UNIT_MAX_DIAGONAL = 5000;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * parseMesh(buffer, fileName) → { tris: Float64Array(9·n), warnings, unit }
+ * parseMesh(buffer, fileName) → { tris: Float64Array(9·n), warnings, unit, info }
+ * `info` is the analysis of a 3MF file (objects, units, what was left out) and
+ * undefined for the other formats.
  * Throws an Error with a German message when the file cannot be read at all.
  */
 export function parseMesh(buffer, fileName = '') {
   const bytes = new Uint8Array(buffer);
   if (bytes.length === 0) throw new Error('Die Datei ist leer.');
   const warnings = [];
-  const isObj = /\.obj$/i.test(fileName) || looksLikeObj(bytes);
-  const raw = isObj ? parseObj(bytes) : parseStl(bytes, warnings);
+  let raw;
+  let info;
+  if (looksLikeZip(bytes) || /\.3mf$/i.test(fileName)) {
+    if (!looksLikeZip(bytes)) throw new Error('Die Datei heißt .3mf, ist aber kein ZIP-Archiv und damit keine gültige 3MF-Datei.');
+    const result = parseThreeMF(bytes);
+    warnings.push(...result.warnings);
+    raw = result.tris;
+    info = result.info;
+  } else {
+    const isObj = /\.obj$/i.test(fileName) || looksLikeObj(bytes);
+    raw = isObj ? parseObj(bytes) : parseStl(bytes, warnings);
+  }
   const tris = clean(raw, warnings);
   if (tris.length === 0) throw new Error('Die Datei enthält kein Dreieck.');
   checkUnit(tris, warnings);
-  return { tris, warnings, unit: 'mm' };
+  return { tris, warnings, unit: 'mm', info };
 }
 
 /** OBJ without the file name: a line starting with "v " and no STL keyword. */
@@ -53,7 +68,7 @@ function parseStl(bytes, warnings) {
     }
   }
   const text = latin1(bytes);
-  if (!/facet|vertex|solid/i.test(text)) throw new Error('Unbekanntes Format: erwartet wird eine STL- oder OBJ-Datei.');
+  if (!/facet|vertex|solid/i.test(text)) throw new Error('Unbekanntes Format: erwartet wird eine STL-, OBJ- oder 3MF-Datei.');
   return parseAsciiStl(text, warnings);
 }
 

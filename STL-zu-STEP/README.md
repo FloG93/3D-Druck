@@ -4,7 +4,7 @@ Ein **STL** ist ein Dreiecksnetz: tausende Facetten, keine Bohrungen, keine Radi
 Thingiverse oder Printables in **Fusion 360** oder **FreeCAD** öffnet, kann es kaum ändern – eine Bohrung verschieben
 geht nicht, weil es keine Bohrung gibt, nur Dreiecke.
 
-Dieses Werkzeug macht aus dem Netz einen **STEP-Volumenkörper** und erkennt dabei **Ebenen und Zylinder**: Aus den
+Dieses Werkzeug macht aus dem Netz (STL, OBJ oder 3MF) einen **STEP-Volumenkörper** und erkennt dabei **Ebenen und Zylinder**: Aus den
 Facetten einer Bohrung wird wieder eine Bohrung, aus einer Rundung wieder eine Rundung. Kaputte Netze werden vorher
 geheilt, und **jede Reparatur, jedes verworfene Merkmal und jeder Rückfall steht mit Zahl im Bericht**. Alles läuft im
 Browser – die Datei verlässt den Rechner nicht.
@@ -15,7 +15,7 @@ Browser – die Datei verlässt den Rechner nicht.
 
 ## In drei Schritten
 
-1. **STL- oder OBJ-Datei ablegen** (ziehen oder auswählen).
+1. **STL-, OBJ- oder 3MF-Datei ablegen** (ziehen oder auswählen).
 2. **Bericht lesen:** Was wurde repariert? Welche Stufe kam heraus? Welche Zylinder wurden erkannt?
 3. **Exportieren** – die `.step`-Datei öffnet jedes CAD-Programm.
 
@@ -38,6 +38,22 @@ Beispiel `tests/fixtures/platte.stl` (Platte 40 × 20 × 10 mit vier Rundungen u
 | 1 | 532 | 372 kB | 7401,857 (= Netz) |
 | 2 | 134 | 97 kB | 7401,857 (= Netz) |
 | **3** | **14** | **16 kB** | **7400,177** |
+
+## 3MF-Dateien
+
+Eine 3MF-Datei ist die Druckdatei der Slicer (Bambu Studio, PrusaSlicer, Cura, Fusion 360). Das Werkzeug liest die
+**Bauliste** mit allen Bauteilen, rechnet **Einheit** und **Transformationen** ein (verschoben, gedreht, skaliert,
+gespiegelt, verschachtelte Komponenten, Teile in eigenen Modelldateien) und macht aus jedem Körper einen
+Volumenkörper. Im Bericht steht eine **Analyse der Datei**: Programm, Einheit, jedes Objekt mit Größe und Volumen,
+Instanzen, Platte und Spiegelung.
+
+**Nicht übernommen** wird, was nicht zum Bauteil gehört – jedes mit Grund im Bericht: Stützstrukturen und Hilfskörper
+(Objekttyp), als „nicht druckbar“ markierte Teile sowie bei Bambu Studio und PrusaSlicer Modifizierer, Stützen-Sperren
+und **Negativteile** (ein Negativteil wird *nicht* vom Körper abgezogen). Farben und Materialien werden nicht gelesen,
+ebenso wenig Gitterstäbe und Schichtdaten.
+
+> **Gemessen an selbst gebauten Dateien**, die auch `lib3mf` (die Referenzbibliothek) liest. Die Layouts von Bambu
+> Studio und PrusaSlicer folgen der Beschreibung der Formate; an echten Slicer-Dateien ist das noch nicht geprüft.
 
 ## Was erkannt wird
 
@@ -72,7 +88,8 @@ ist nur eine Schätzung der Fläche. Der **Reparaturbericht** lässt sich im Exp
 ## Einstellungen
 
 - **Einheit:** Millimeter, Zoll, Zentimeter, Meter oder ein eigener Faktor. STL kennt keine Einheit; ist das Teil
-  verdächtig groß oder klein, warnt das Werkzeug.
+  verdächtig groß oder klein, warnt das Werkzeug. Eine 3MF-Datei bringt ihre Einheit mit; eine hier eingestellte gilt
+  zusätzlich, und der Bericht sagt es.
 - **Zylinder erkennen** (an): aus bleibt alles Ebene – nützlich, wenn die Erkennung bei einem Teil danebenliegt.
 - **Unsichere übernehmen** (aus): nimmt auch Löcher mit 8 bis 11 Facetten als Zylinder.
 - **Toleranz** (streng / Standard / grob): wie krumm ein Flächenstück noch als eine Ebene durchgeht. „grob“ ist für
@@ -124,6 +141,8 @@ npm run test:stl                 # Unit-Tests (Node >= 22)
 node STL-zu-STEP/tests/tools/measure.mjs <dateien…>   # echte Dateien durchmessen (Stufe, Dauer, Merkmale)
 node STL-zu-STEP/tests/tools/repair-report.mjs <datei> [--json] [--step]   # Reparatur: Vorher/Nachher, Abweichung, Zeiten
 python3 STL-zu-STEP/tests/tools/crosscheck_trimesh.py   # Diagnose und Reparatur gegen trimesh/pymeshfix prüfen
+python3 STL-zu-STEP/tests/tools/crosscheck_3mf.py   # 3MF-Leser gegen lib3mf prüfen
+node STL-zu-STEP/tests/tools/make_3mf_fixtures.mjs   # 3MF-Testdateien neu erzeugen
 npm run validate:stl             # STEP aus allen Fixtures mit OpenCascade prüfen (pip install cadquery-ocp)
 # Selbsttest der Oberfläche im echten Browser (Playwright außerhalb des Repos installieren):
 PLAYWRIGHT=~/pw/node_modules/playwright node STL-zu-STEP/tests/tools/ui-selftest.mjs --screenshot docs/screenshot.png

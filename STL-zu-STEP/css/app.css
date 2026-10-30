@@ -131,6 +131,10 @@
   font-size: 0.9rem;
 }
 .report-ok { color: var(--text-muted); }
+.report-objects { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.report-objects th { text-align: right; font-weight: 500; color: var(--text-faint); padding-bottom: 2px; }
+.report-objects th:first-child, .report-objects td:first-child { text-align: left; }
+.report-objects td { text-align: right; padding: 3px 0; border-top: 1px solid var(--line); vertical-align: top; }
 .report-compare { margin-top: 8px; font-size: 0.85rem; }
 .report-compare summary { cursor: pointer; color: var(--text-muted); }
 .report-compare table { width: 100%; border-collapse: collapse; margin: 6px 0; font-variant-numeric: tabular-nums; }
