@@ -13,7 +13,8 @@
     // Apply the saved theme (shared by all tools) before first paint.
     try {
       const t = localStorage.getItem('3d-druck.theme');
-      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      // Hell ist der Grundzustand, damit die Seite auf einem Beamer lesbar startet.
+      document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light';
     } catch (e) { /* ignore */ }
   </script>
   <script type="importmap">

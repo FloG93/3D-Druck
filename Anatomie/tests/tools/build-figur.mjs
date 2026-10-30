@@ -793,8 +793,8 @@ const TOUR_PTS = k.roundedPlan(TOUR, 10);
 const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
 const MOON = '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>';
 const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
-// Der Grundzustand steht schon im Markup, damit der Knopf nicht leer aufblitzt.
-const themeBar = `<div class="themebar"><button type="button" class="themebtn" id="btn-theme" aria-label="Auf hellen Modus umschalten">${themeGlyph(true)}</button></div>`;
+// Der helle Grundzustand steht schon im Markup, damit nichts aufblitzt.
+const themeBar = `<div class="themebar"><button type="button" class="themebtn" id="btn-theme" aria-label="Auf dunklen Modus umschalten">${themeGlyph(false)}</button></div>`;
 
 
 const live = `
@@ -994,9 +994,9 @@ const EXTRA = `
 const THEME_SWITCH = `<script>
 // Hell/Dunkel wie in der Übersicht (dort umschaltbar), vor dem ersten Zeichnen.
 try {
-  const t = localStorage.getItem("3d-druck.theme");
-  const light = t === "light" || (!t && matchMedia("(prefers-color-scheme: light)").matches);
-  if (light) document.body.dataset.theme = "light";
+  // Hell ist der Grundzustand, wie auf der Übersicht: ein dunkel eingestellter
+  // Rechner am Beamer zeigte sonst eine Seite, die im hellen Raum niemand liest.
+  if (localStorage.getItem("3d-druck.theme") !== "dark") document.body.dataset.theme = "light";
 } catch (e) { /* ignore */ }
 </script>`;
 const page = k.pageHtml({ title: "Wie ein XY-Drucker arbeitet", theme: THEME, width: 700, body: `<style>${EXTRA}</style>` + themeBar + body, script: kitScript() + live })
