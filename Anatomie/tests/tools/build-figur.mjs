@@ -1360,14 +1360,15 @@ ${TONE_CSS}
   box-shadow: var(--anatomy-lift) }
 .playbtn:hover { border-color: color-mix(in srgb, currentColor 38%, transparent) }
 .playbtn:focus-visible { outline: 2px solid var(--anatomy-strong); outline-offset: 2px }
-.playbtn[aria-pressed="true"] { color: #c25e0a; border-color: color-mix(in srgb, #c25e0a 45%, transparent) }
+.playbtn[aria-pressed="true"] { color: #f2912f; border-color: color-mix(in srgb, #f2912f 45%, transparent) }
+.iso[data-theme="light"] .playbtn[aria-pressed="true"] { color: #9a4c05; border-color: color-mix(in srgb, #9a4c05 45%, transparent) }
 .iso-nums { pointer-events: none }
 /* Die Nummern liegen ueber der Zeichnung, nicht darin: der Kontur-Umriss haelt
    sie auch vor einem hellen Teil lesbar. */
 .iso-nums text { font: 600 20px/1 system-ui, sans-serif; fill: var(--anatomy-hi);
   paint-order: stroke; stroke: var(--anatomy-paper); stroke-width: 4px; stroke-linejoin: round }
 .iso-nums line { stroke: var(--anatomy-mid); stroke-width: 1; vector-effect: non-scaling-stroke }
-.ctrlab, .ctrwert { font-size: 12.5px; color: color-mix(in srgb, currentColor 72%, transparent) }
+.ctrlab, .ctrwert { font-size: 12.5px; color: color-mix(in srgb, currentColor 88%, transparent) }
 .ctrwert { min-width: 3.6em; text-align: right; font-variant-numeric: tabular-nums }
 .ctrrange { width: clamp(104px, 20vw, 190px); height: 40px; margin: 0; cursor: pointer;
   accent-color: var(--anatomy-strong) }
@@ -1381,7 +1382,7 @@ ${TONE_CSS}
 .themebtn:focus-visible { outline: 2px solid var(--anatomy-strong); outline-offset: 2px }
 .themebtn svg { display: block; width: 17px; height: 17px }
 .pickinfo { font-size: 12.5px; line-height: 1.55; margin: 11px 3px 0; min-height: 3.1em; max-width: 64ch;
-  color: color-mix(in srgb, currentColor 72%, transparent) }
+  color: color-mix(in srgb, currentColor 88%, transparent) }
 .iso-stage svg [data-g] { transition: opacity .2s ease }
 .iso-stage svg [data-g].dim { opacity: .16 }
 /* Gewaehlte Teile im Hausorange (shared/css: --accent). Abblenden allein reichte

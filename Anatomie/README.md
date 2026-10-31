@@ -19,7 +19,9 @@ laufenden Schicht ab – dieselbe Linie, die auf dem Werkstück liegt.
 Unter der Zeichnung stehen elf Einträge. Wer einen anfährt, sieht nur noch dessen
 Teile; der Rest tritt zurück, und darunter steht in einem Satz, was die Baugruppe
 tut. Die gewählte Baugruppe steht dabei in Orange, der Rest tritt zurück.
-Hell und Dunkel folgen der Übersichtsseite.
+Hell und Dunkel folgen der Übersichtsseite; Thema und Kontrast lassen sich auch
+mitten im Lauf umstellen, ohne dass die Teile zurückspringen. Alle Beschriftungen
+halten in beiden Modi mindestens 4,5:1 – nachgemessen, nicht geschätzt.
 
 Links über der Zeichnung steht **„Zerlegen und zusammenbauen"**. Die Maschine
 fährt in zehn Baugruppen auseinander – entlang ihrer eigenen Achsen, nicht
