@@ -281,6 +281,42 @@ export const BUILTIN_PRESETS = [
     colors: { base: '#222222', text: '#ffffff', border: '#ffffff' },
   },
   {
+    // Single wire in a control cabinet (H07V-K 1,5 mm², about Ø 3 mm): the
+    // marking reads along the wire, as on bought-in markers.
+    name: 'Ader-Clip 1,5',
+    texts: [{ text: '-X1:1', font: MONTSERRAT, size: 4, rotation: 90, letterSpacing: 0.02 }],
+    base: { shape: 'clip' },
+    clip: { cable: 3.2, play: 0.15, opening: 100, length: 14 },
+    body: { relief: 'raised', thickness: 0.9, height: 0.5 },
+    colors: { base: '#f5f5f5', text: '#1d1d1f', border: '#1d1d1f' },
+  },
+  {
+    // Sheathed cable feeding a cabinet (NYM-J 5x1,5, about Ø 12 mm): a tag
+    // on a cable tie survives being pulled through a conduit.
+    name: 'NYM-Anhänger',
+    texts: [{ text: 'NYM-J\n5×1,5', font: ROBOTO, size: 5, bold: 0.15, lineSpacing: 1.1 }],
+    base: { shape: 'rect', padding: 3, radius: 2 },
+    mount: { type: 'slot', position: 'left', diameter: 2.2, length: 6, ring: 2 },
+    body: { relief: 'raised', thickness: 1.6, height: 0.6 },
+    colors: { base: '#e9c46a', text: '#1d1d1f', border: '#1d1d1f' },
+  },
+  {
+    name: 'HDMI-Clip',
+    texts: [{ text: 'HDMI', font: MONTSERRAT, size: 5, letterSpacing: 0.05 }],
+    base: { shape: 'clip' },
+    clip: { cable: 7, play: 0.2, opening: 95, length: 14 },
+    body: { relief: 'raised', thickness: 1.2, height: 0.6 },
+    colors: { base: '#222222', text: '#f1faee', border: '#f1faee' },
+  },
+  {
+    name: 'Netzwerk-Clip',
+    texts: [{ text: 'LAN 1', font: MONTSERRAT, size: 4.5, letterSpacing: 0.05 }],
+    base: { shape: 'clip' },
+    clip: { cable: 5.5, play: 0.2, opening: 100, length: 13 },
+    body: { relief: 'raised', thickness: 1.1, height: 0.5 },
+    colors: { base: '#1f6feb', text: '#ffffff', border: '#ffffff' },
+  },
+  {
     name: 'Türhänger',
     texts: [
       { text: 'Bitte\nnicht\nstören', font: LOBSTER, size: 16, lineSpacing: 1.05, y: -12 },

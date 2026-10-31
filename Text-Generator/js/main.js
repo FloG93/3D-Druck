@@ -167,7 +167,11 @@ async function main() {
     const s = m.stats;
     const parts = [];
     if (app.loading.size) parts.push('<span class="warn">Schrift wird geladen …</span>');
-    if (m.cup?.conical) {
+    if (m.cup?.open) {
+      parts.push(`<span title="Für dieses Kabel – Außendurchmesser des Clips × Länge am Kabel entlang">Clip für <b>Ø ${de(m.cup.cable)} mm</b> (außen ${de(s.width)} × ${de(s.top)} mm)</span>`);
+      // What actually decides whether the clip holds: the gap against the cable.
+      parts.push(`<span title="Der Spalt muss schmaler als das Kabel sein, damit der Clip aufschnappt und hält">Spalt <b>${de(m.cup.gap)} mm</b> bei ${Math.round(m.cup.opening)}°</span>`);
+    } else if (m.cup?.conical) {
       parts.push(`<span title="Außendurchmesser unten – oben (ohne Schrift) × Höhe">Becher <b>Ø ${de(m.cup.diameter)}–${de(m.cup.top)} × ${de(s.top)} mm</b></span>`);
       parts.push(`<span title="Die Vorschau zeigt die Wand abgewickelt: so breit wie der Umfang auf halber Höhe">Umfang Mitte <b>${de(m.cup.circumference)} mm</b></span>`);
     } else if (m.cup) {

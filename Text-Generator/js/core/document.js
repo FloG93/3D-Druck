@@ -5,10 +5,13 @@ import { QR_LEVELS } from '../../../shared/js/qr.js';
 
 export const DOC_VERSION = 1;
 
-export const BASE_SHAPES = ['contour', 'rect', 'capsule', 'oval', 'circle', 'cup', 'none'];
+export const BASE_SHAPES = ['contour', 'rect', 'capsule', 'oval', 'circle', 'cup', 'clip', 'none'];
 export const RELIEF_MODES = ['raised', 'engraved', 'flush', 'cut'];
 // Stencils: plate thickness suggested for PLA/PETG, directions of bridges.
 export const STENCIL_THICKNESS = 1.2;
+// A cable clip has to spring over the cable: a thin wall gives, a thick one
+// does not. Suggested when the base shape is switched to 'clip'.
+export const CLIP_WALL = 1.2;
 export const BRIDGE_DIRECTIONS = ['vertical', 'horizontal', 'auto'];
 // Stamps: ink, cookies and fondant, clay/soap/leather – each with settings
 // that suit it (applied when chosen).
@@ -140,6 +143,11 @@ export const DEFAULTS = {
   // in mm; the wall is body.thickness, the lettering runs around it.
   // Conical: diameter at the bottom, top at the top (a flower pot).
   cup: { diameter: 70, height: 100, bottom: 2.4, conical: false, top: 85 },
+  // Cable clip (base shape 'clip'): a ring that does not close, so it snaps
+  // sideways onto a cable. cable: its diameter, play: room per side,
+  // opening: the gap in degrees, length: how far the clip follows the cable.
+  // The wall is body.thickness, the lettering runs around the outside.
+  clip: { cable: 7, play: 0.2, opening: 95, length: 14 },
   // Series: one piece per name of the list (one per line), the first text
   // replaced; gap between the pieces on the bed (mm).
   series: { enabled: false, names: '', gap: 5 },
@@ -330,6 +338,10 @@ export function normalizeDoc(input) {
   out.cup.bottom = clamp(out.cup.bottom, 0.4, 20);
   out.cup.conical = out.cup.conical === true;
   out.cup.top = clamp(out.cup.top, 10, 500);
+  out.clip.cable = clamp(out.clip.cable, 1, 120);
+  out.clip.play = clamp(out.clip.play, 0, 3);
+  out.clip.opening = clamp(out.clip.opening, 20, 170);
+  out.clip.length = clamp(out.clip.length, 3, 200);
   out.series.enabled = out.series.enabled === true;
   out.series.names = String(out.series.names ?? '').slice(0, 20000);
   out.series.gap = clamp(out.series.gap, 1, 50);
