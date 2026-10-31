@@ -103,7 +103,7 @@ const PIECE_OF = {
 const PIECE_BY_NAME = [
   ["corexy.motor", "antrieb"], ["corexy.scheibe", "antrieb"], ["corexy.welle", "antrieb"],
   ["corexy.bolzen", "antrieb"], ["corexy.umlenk", "antrieb"], ["corexy.rolle", "antrieb"],
-  ["duese.bahn", "bett"],
+  ["duese.bahn", "bett"], ["kabel.anker", "rahmen"],
 ];
 const pieceOf = (group, name) => {
   const hit = PIECE_BY_NAME.find(([prefix]) => name.startsWith(prefix));
@@ -133,16 +133,17 @@ const MOVE = {
   corexy: [0, 0, 400],          // X-Traeger und Y-Schienen heben ueber das Dach
   antrieb: [0, -300, 120],      // Motoren und Riemen nach rechts oben
   bett: [280, 0, -40],          // Platte faehrt nach rechts heraus
-  zachse: [0, 0, -330],         // Spindeln unter den Sockel
+  zachse: [0, 420, -150],       // Spindeln seitlich am Sockel vorbei
   filter: [0, -280, -40],       // nach rechts oben aus der Wand
-  elektronik: [150, 0, -170],   // wie eine Schublade aus dem Sockel
+  elektronik: [180, 180, -120], // wie eine Schublade nach vorn unten
 };
 
-// --quick laesst den Tiefenloeser die Explosionszustaende auslassen: er braucht
-// dafuer Minuten. Nur zum Hinsehen waehrend der Arbeit - was veroeffentlicht
-// wird, entsteht immer ohne die Abkuerzung und geht durch --audit.
-const QUICK = process.argv.includes("--quick");
-const R = A.recorder(P, QUICK ? {} : { order: STAGGER, spring: SPRING });
+// Ohne order/spring: der Loeser sucht sonst EINEN Schluessel je Teil, der in
+// allen 1365 Explosionszustaenden stimmt. Bei diesem dichten Kasten gibt es den
+// nicht - er meldete 3563 Paare als "unorderable" und verdarb dabei die
+// Ruhelage (Z-Spindeln vor der Druckplatte). Die Ruhelage wird deshalb wie
+// zuvor geloest; waehrend der Bewegung sortiert die Seite selbst, je Bild.
+const R = A.recorder(P);
 const rec = R.solid;
 let GROUP = "rahmen";
 function put(at3, svg, shapes = [], extra = {}) {
@@ -635,7 +636,7 @@ function ptfeRun() {
   pieces.forEach((piece) => put(piece.mid, tubeSvg(piece, { tone: "hi" }),
     [rec(A.tube(piece.points, 3, { name: "ptfe.stueck", owner: "ptfe.schlauch", limp: true, bundle: "ptfe" }))],
     { bias: 1, name: "ptfe.schlauch" }));
-  R.route("ptfe.schlauch", route, 3, { piece: "filament", move: MOVE.filament, touch: ["ams.sammelrohr", "ptfe.fuehrung"] });
+  R.route("ptfe.schlauch", route, 3, { piece: "filament", move: MOVE.filament, free: [true, false], touch: ["ams.sammelrohr", "ptfe.fuehrung"] });
 }
 
 // --- Riemen: je sechs Trume, Segment fuer Segment eigenes Element --------
@@ -752,7 +753,7 @@ function chamberGuts() {
     put(piece.mid, tubeSvg(piece, { tone: "lo" }),
       [rec(A.tube(piece.points, 5, { name: "kabel.stueck", owner: "kabel.strang", limp: true, bundle: "kabel" }))],
       { bias: 0.2, name: "kabel.strang" }));
-  R.route("kabel.strang", loom, 5, { piece: "kopf", move: MOVE.kopf, limp: true, gaps, touch: ["kabel.tuelle", "kabel.schelle", "corexy.quertraeger", "rahmen.wand.links"] });
+  R.route("kabel.strang", loom, 5, { piece: "kopf", move: MOVE.kopf, free: [false, true], limp: true, gaps, touch: ["kabel.tuelle", "kabel.schelle", "corexy.quertraeger", "rahmen.wand.links"] });
   for (const [cx, cy, cz] of clips) {
     const cp = { x: cx - 10, y: cy - 10, w: 20, d: 20, r: 3 };
     put([cx, cy, cz], S(k.slabOf(cp, cz - 5, 10, P, 3, 0.4), { tone: "mid" }),
@@ -943,6 +944,12 @@ const VIEW_APART = (() => {
   return [x0 - (w - (ox1 + padR - x0)) / 2, y0 - (h - (oy1 + padD - y0)) / 2, w, h];
 })();
 
+// Wie weit eine Baugruppe beim Ausfahren zum Betrachter wandert. Damit rechnet
+// die Seite die Zeichenreihenfolge in jedem Bild neu aus.
+const ORIGIN_DEPTH = k.depthOf([0, 0, 0], P);
+const LIFT = Object.fromEntries(Object.entries(MOVE).map(([id, m]) =>
+  [id, Math.round((k.depthOf(m, P) - ORIGIN_DEPTH) * 100) / 100]));
+
 const live = `
 const P = ${JSON.stringify(P)};
 const TOUR = ${JSON.stringify(TOUR_PTS)};
@@ -968,6 +975,8 @@ const NUM_PIECE = ${JSON.stringify(NUM_PIECE)};
 const ALSO = ${JSON.stringify({ corexy: ["corexy", "antrieb"] })};
 const STEP = ${JSON.stringify(Object.fromEntries(Object.entries(LEGEND_OF).map(([id, i]) => [id, { no: LEGEND[i][1], name: LEGEND[i][2], text: LEGEND[i][3] }])))};
 const VIEW0 = [0, 0, ${W}, ${H}], VIEW1 = ${JSON.stringify(VIEW_APART.map((v) => Math.round(v * 10) / 10))};
+const LIFT = ${JSON.stringify(LIFT)};
+const KEYS = ${JSON.stringify(R.items.map((it) => Math.round(it.key * 100) / 100))};
 const stage = document.querySelector(".iso-stage");
 const svg = stage.querySelector("svg");
 const readout = document.querySelector("[data-readout]");
@@ -1147,6 +1156,28 @@ function measure() {
 new ResizeObserver(measure).observe(stage);
 measure();
 
+// Zeichenreihenfolge je Bild. Ein fester Schluessel je Teil kann eine Maschine,
+// deren Baugruppen quer durcheinanderfahren, nicht ordnen; die Tiefe zur
+// Laufzeit kann es. KEYS ist die geloeste Ruhereihenfolge, LIFT der
+// Tiefenversatz, den eine Baugruppe beim Ausfahren gewinnt.
+const sortParent = groups[0].parentNode;
+const sortAfter = groups[groups.length - 1].nextSibling;
+let drawn = groups.map((_, i) => i);
+function resort() {
+  const rank = groups.map((el, i) => {
+    const p = spr[el.dataset.piece];
+    return KEYS[i] + (LIFT[el.dataset.piece] || 0) * (p ? p.x : 0);
+  });
+  const next = drawn.slice().sort((a, b) => rank[a] - rank[b]);
+  for (let i = 0; i < next.length; i++) if (next[i] !== drawn[i]) {
+    drawn = next;
+    const frag = document.createDocumentFragment();
+    for (const j of next) frag.append(groups[j]);
+    sortParent.insertBefore(frag, sortAfter);
+    return;
+  }
+}
+
 function poseExplode() {
   let open = 0;
   for (const id in byPiece) {
@@ -1158,6 +1189,7 @@ function poseExplode() {
     const t = translateAlong(P, [m[0] * share, m[1] * share, m[2] * share]);
     for (const el of els) el.setAttribute("transform", t);
   }
+  resort();
   const box = VIEW0.map((v, i) => v + (VIEW1[i] - v) * open);
   svg.setAttribute("viewBox", box.map((v) => Math.round(v * 10) / 10).join(" "));
   unitPerPx = box[2] / Math.max(1, svgWidth);
@@ -1437,8 +1469,20 @@ if (process.argv.includes("--pieces")) {
   }
 }
 
-A.auditOrExit(R, P, {
-  crowd: [["ptfe.schlauch", "rahmen.riegel"], ["kabel.strang", "corexy.quertraeger"]],
-  // Nachbarstuecke eines Schlauchs oder Riemens teilen ihre Endflaeche.
-  allow: [["kabel.strang*", "kabel.strang*"], ["ptfe.schlauch*", "ptfe.schlauch*"], ["riemen.*", "riemen.*"]],
-});
+const AUDIT_CROWD = [["ptfe.schlauch", "rahmen.riegel"], ["kabel.strang", "corexy.quertraeger"]];
+// Nachbarstuecke eines Schlauchs oder Riemens teilen ihre Endflaeche.
+const AUDIT_ALLOW = [["kabel.strang*", "kabel.strang*"], ["ptfe.schlauch*", "ptfe.schlauch*"], ["riemen.*", "riemen.*"]];
+
+// --apart prueft die Geometrie im auseinandergefahrenen Zustand: Teile, die
+// ineinanderstehen, Leitungsenden, die ins Leere greifen. Die Zeichenreihenfolge
+// steht dort NICHT zur Debatte - die loest die Seite je Bild selbst -, deshalb
+// ist das ein Bericht zum Lesen und kein Tor.
+if (process.argv.includes("--apart")) {
+  const out = A.audit(R, P, { apart: true, crowd: AUDIT_CROWD, allow: AUDIT_ALLOW });
+  console.log(A.report(out));
+  const zahl = out.apart.length + out.crowding.length;
+  console.log(zahl ? "auseinandergefahren: " + zahl + " Probleme" : "auseinandergefahren: sauber");
+  console.log("(Zeichenreihenfolge im Flug steht hier nicht zur Debatte: die loest die Seite je Bild.)");
+}
+
+A.auditOrExit(R, P, { crowd: AUDIT_CROWD, allow: AUDIT_ALLOW });

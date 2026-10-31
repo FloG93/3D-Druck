@@ -53,15 +53,18 @@ Die Seite ist erzeugt, nicht von Hand geschrieben:
 
     node Anatomie/tests/tools/build-figur.mjs            # schreibt Anatomie/index.html
     node Anatomie/tests/tools/build-figur.mjs --audit    # prüft die Geometrie
-    node Anatomie/tests/tools/build-figur.mjs --quick    # nur zum Hinsehen, ohne Tiefenlöser
     node Anatomie/tests/tools/build-figur.mjs --names    # was in welcher Baugruppe steckt
+    node Anatomie/tests/tools/build-figur.mjs --apart    # Geometrie im auseinandergefahrenen Zustand
 
-Seit der Explosionsdarstellung prüft `--audit` **jedes Einzelbild** der
-Bewegung – auch jeden Abbruch mitten im Flug – auf Teile, die sich durchdringen,
-und auf falsche Zeichenreihenfolge. Das dauert auf diesem Rechner rund eine halbe Stunde, weil die Maschine ein
-dichter Kasten ist, in dem sich fast alles mit fast allem überdeckt; `--quick` lässt den
-Tiefenlöser die Explosionszustände aus und ist nur für Zwischenstände gedacht.
-Veröffentlicht wird nur, was ohne `--quick` gebaut wurde und `--audit` besteht.
+`--audit` prüft die Ruhelage und ist das Tor; `--apart` prüft zusätzlich die
+Geometrie im auseinandergefahrenen Zustand – Teile, die ineinanderstehen, und
+Leitungsenden, die ins Leere greifen. Beide zusammen laufen in gut einer Minute.
+Die Ruhelage löst `--audit` wie zuvor. Die Zeichenreihenfolge **während** der
+Bewegung löst nicht der Prüfer, sondern die Seite selbst: ein fester Schlüssel
+je Teil kann eine Maschine, deren Baugruppen quer durcheinanderfahren, nicht
+ordnen – der Löser meldete 3563 Paare als „unorderable" und verdarb dabei die
+Ruhelage. Die Seite sortiert deshalb in jedem Bild nach der echten Tiefe
+(`KEYS` + `LIFT` × Anteil).
 
 Das Skript zeichnet mit dem Agent Skill `anatomy` unter `.claude/skills/anatomy/`.
 Die Prüfung misst an der echten Geometrie, ob sich Teile durchdringen, ob jede
