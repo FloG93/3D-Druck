@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="#ff9f43"/>
+  <g fill="none" stroke="#1a1206" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- offener Rahmen von vorn oben gesehen, darin die Duese -->
+    <path d="M16 6.5 25 11.5 16 16.5 7 11.5z"/>
+    <path d="M7 11.5v8l9 5 9-5v-8"/>
+    <path d="M16 16.5v3"/>
+  </g>
+  <circle cx="16" cy="21" r="2.1" fill="#1a1206"/>
+</svg>
