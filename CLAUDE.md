@@ -12,6 +12,10 @@ Web-Werkzeuge für den 3D-Druck: `MusterGenerator/`, `Text-Generator/`, `STL-zu-
 - Tests: `npm test` (Node ≥ 22, `node --test`); Exporte werden zusätzlich mit OpenCascade geprüft (`pip install cadquery-ocp`). Vor jedem Commit laufen lassen.
 - STEP-Dateien schreibt `shared/js/step.js` (`StepWriter`); Konventionen: jede Kante genau zweimal gegenläufig, volle Kreise in Hälften, ein Eckpunkt = ein `VERTEX_POINT`.
 
+## Anatomie (Figuren)
+
+**Vor jeder neuen Figur und jeder Änderung an `Anatomie*/` lesen:** `.claude/skills/explosionsfigur/SKILL.md`. Dort stehen die festgelegten Vorgaben (Knopf, Richtung, Reihenfolge, Hell/Kontrast, Orange), das Vorgehen mit seinen Prüftoren und die Fallstricke. Nicht erneut erfragen, was dort steht. Prüfen mit `.claude/skills/explosionsfigur/pruefe-figur.mjs`.
+
 ## STL-zu-STEP
 
 **Vor jeder Arbeit lesen:** `STL-zu-STEP/docs/PLAN.md` (nächster Schritt), `SPEC.md`, `MACHBARKEIT.md`. Die Reihenfolge der Schritte im Plan ist verbindlich. Schritte 0–10 sind gebaut, Schritt 11 (Realitätstest) zur Hälfte: öffentliche Modelle sind gemessen (MACHBARKEIT 7), die Dateien des Auftraggebers fehlen.
