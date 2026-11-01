@@ -21,6 +21,16 @@ export function cupShape(cup) {
 }
 
 /**
+ * A cable clip measured as a cup: the clip is given by the cable it holds,
+ * the cup by its outside. inner = cable + play on each side, outside one
+ * wall further out. Straight (never conical), without a floor.
+ */
+export function clipCup(clip, wall) {
+  const diameter = clip.cable + 2 * clip.play + 2 * wall;
+  return { diameter, height: clip.length, bottom: 0, conical: false, top: diameter };
+}
+
+/**
  * Point of the design (u along the middle line, v up the wall, 0 in the
  * middle) in the flat pattern of the wall: a cone unrolls to a ring sector
  * around its apex, a cylinder stays a rectangle. Lengths along the middle
