@@ -48,7 +48,7 @@ Nutzerin oder der Nutzer von sich aus.
 | Maße | Echte Millimeter, 1 Welteinheit = 1 mm. Kamera Azimut 38°, Höhe 34°, Leinwand 900×800. |
 | Schnitt | Türen, Deckel und eine Seitenwand abgenommen, damit der Mechanismus **das Thema** ist. Nebengeräte (AMS) neben die Maschine, nicht darauf. |
 | Zeichnung | Keine Schrift in der Zeichnung außer den Nummern. Beschriftet wird in Legende und Zeile darunter. |
-| Sprache | Oberfläche, README, Doku **Deutsch**. Code-Kommentare **Englisch** (Repo-Regel, siehe „Offen"). Commit-Betreff englisch im Imperativ. |
+| Sprache | Oberfläche, README, Doku **Deutsch**. Code-Kommentare **Englisch** (Repo-Regel; Teilenamen und Oberflächentexte bleiben Deutsch). Commit-Betreff englisch im Imperativ. |
 
 ## Vorgehen
 
@@ -197,8 +197,6 @@ Beim ersten Umsetzen prüfen und diesen Abschnitt korrigieren.
 - **Durchdringung im Flug nicht geprüft.** `--audit` und `--apart` decken Ruhelage und zerlegten
   Zustand ab, nicht die ~4 s dazwischen. Mehr kann der Audit nicht, ohne die Ruhelage zu verderben
   (Fallstrick 7).
-- **Kommentare im Drucker-Erzeuger sind überwiegend Deutsch**, die Repo-Regel verlangt Englisch.
-  Neue Figuren schreiben Englisch.
 - **Sammlung offen:** mehrere Figuren als eigene Kacheln füllen die Übersicht. Ob sie unter einer
   Kachel „Anatomie" mit Unterseiten wohnen sollen, ist nicht entschieden und würde `pages.yml` und
   den bestehenden Link `/Anatomie/` berühren.

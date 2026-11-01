@@ -112,9 +112,9 @@ body[data-theme="light"]{color-scheme:light}
 body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
 </style></head><body class="iso" data-theme="dark"><script>
-// Hell/Dunkel wie in der Übersicht (dort umschaltbar) und die gespeicherte
-// Kontraststufe, beides vor dem ersten Zeichnen: nachträglich gesetzt würde
-// die 600-kB-Zeichnung einmal in der falschen Stufe aufblitzen.
+// Light/dark as on the overview (switchable there) and the stored
+// contrast step, both before the first paint: set afterwards, the 600 kB
+// drawing would flash once in the wrong step.
 (function () {
   var Q = {"dark":{"shade-0":"#0f0f0f","shade-1":"#121212","shade-2":"#151515","shade-3":"#181818","top":"#1c1c1c","face":"#1b1b1b","lit-top":"#262626","lit-shade":"#1d1d1d","faint":"#2a2a2a","lo":"#3e3e3e","mid":"#6a6a6a","hi":"#d4d4d4"},"light":{"shade-0":"#dcdcd9","shade-1":"#e5e5e2","shade-2":"#ededea","shade-3":"#f4f4f1","top":"#ffffff","face":"#ffffff","lit-top":"#ffffff","lit-shade":"#eeeeeb","faint":"#d4d4d6","lo":"#b4b4b8","mid":"#8a8a8f","hi":"#26262a"}}, S = {"dark":{"shade-0":"#353535","shade-1":"#5e5e5e","shade-2":"#868686","shade-3":"#afafaf","top":"#c9c9c9","face":"#676767","lit-top":"#eaeaea","lit-shade":"#a5a5a5","faint":"#717171","lo":"#b4b4b4","mid":"#e6e6e6","hi":"#ffffff"},"light":{"shade-0":"#8e8e85","shade-1":"#b0b0a6","shade-2":"#d0d0c9","shade-3":"#edede8","top":"#ffffff","face":"#ffffff","lit-top":"#ffffff","lit-shade":"#cfcfc7","faint":"#88888f","lo":"#5b5b64","mid":"#33333f","hi":"#0b0b0f"}};
   function mix(a, b, t) {
@@ -127,15 +127,15 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
     }
     return out;
   }
-  // Auf dem Körper, nicht im Stylesheet: so gilt eine Stufe für beide Themen
-  // und überlebt das Umschalten, ohne dass Regeln nachgeladen werden.
+  // On the body, not in the stylesheet: so one step applies to both themes
+  // and survives switching, without loading rules afterwards.
   window.anatomieKontrast = function (t) {
     var theme = document.body.dataset.theme === "light" ? "light" : "dark";
     for (var n in Q[theme]) document.body.style.setProperty("--anatomy-" + n, mix(Q[theme][n], S[theme][n], t));
   };
   try {
-    // Hell ist der Grundzustand, wie auf der Übersicht: ein dunkel eingestellter
-    // Rechner am Beamer zeigte sonst eine Seite, die im hellen Raum niemand liest.
+    // Light is the default, as on the overview: a machine set to dark showed
+    // a page nobody can read in a bright room on a projector.
     if (localStorage.getItem("3d-druck.theme") !== "dark") document.body.dataset.theme = "light";
   } catch (e) { /* ignore */ }
   var t = 0.45;
@@ -186,8 +186,8 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .playbtn[aria-pressed="true"] { color: #f2912f; border-color: color-mix(in srgb, #f2912f 45%, transparent) }
 .iso[data-theme="light"] .playbtn[aria-pressed="true"] { color: #9a4c05; border-color: color-mix(in srgb, #9a4c05 45%, transparent) }
 .iso-nums { pointer-events: none }
-/* Die Nummern liegen ueber der Zeichnung, nicht darin: der Kontur-Umriss haelt
-   sie auch vor einem hellen Teil lesbar. */
+/* The numbers lie over the drawing, not in it: the outline keeps them
+   readable even in front of a light part. */
 .iso-nums text { font: 600 20px/1 system-ui, sans-serif; fill: var(--anatomy-hi);
   paint-order: stroke; stroke: var(--anatomy-paper); stroke-width: 4px; stroke-linejoin: round }
 .iso-nums line { stroke: var(--anatomy-mid); stroke-width: 1; vector-effect: non-scaling-stroke }
@@ -208,9 +208,9 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
   color: color-mix(in srgb, currentColor 88%, transparent) }
 .iso-stage svg [data-g] { transition: opacity .2s ease }
 .iso-stage svg [data-g].dim { opacity: .16 }
-/* Gewaehlte Teile im Hausorange (shared/css: --accent). Abblenden allein reichte
-   auf dem Beamer nicht; die vier Toene behalten ihr Gefaelle, damit die Form
-   lesbar bleibt. */
+/* Chosen parts in the house orange (shared/css: --accent). Fading alone was
+   not enough on a projector; the four tones keep their gradient so the form
+   stays readable. */
 .iso-stage svg [data-g].mark {
   --anatomy-shade-0: #6b2e04; --anatomy-shade-1: #93400a;
   --anatomy-shade-2: #bb5310; --anatomy-shade-3: #e26a19;
@@ -988,7 +988,7 @@ const still = matchMedia("(prefers-reduced-motion: reduce)");
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const poly = (pts) => "M" + pts.map((p) => iso(p, P).map((n) => Math.round(n * 10) / 10).join(" ")).join("L");
 
-// Laenge der Tourbahn, damit die Duese die gezeichnete Bahn genau abfaehrt
+// Length of the tour path, so the nozzle follows the drawn path exactly
 const legs = TOUR.map((p, i) => { const q = TOUR[(i + 1) % TOUR.length]; return Math.hypot(q[0] - p[0], q[1] - p[1]); });
 const total = legs.reduce((a, b) => a + b, 0);
 function onTour(s) {
@@ -1005,7 +1005,7 @@ let frame = 0, last = 0, s = 0, touring = true, visible = false, idle = 0, picke
 
 function draw() {
   poseExplode();
-  const cy = gy - HEAD_Y;          // Lage des Schlittens hinter der Duese
+  const cy = gy - HEAD_Y;          // position of the carriage behind the nozzle
   for (const el of movers.y) el.setAttribute("transform", translateAlong(P, [0, cy, 0]));
   for (const el of movers.xy) el.setAttribute("transform", translateAlong(P, [tx, cy, 0]));
   for (const which of ["A", "B"]) {
@@ -1014,7 +1014,7 @@ function draw() {
       const el = belts[which + i];
       if (el) el.setAttribute("d", onTop(pts, bz, P));
     });
-    // Riemenweg = Drehung der Scheibe: A = x + y, B = x - y
+    // Belt travel = rotation of the pulley: A = x + y, B = x - y
     const travel = which === "A" ? tx + gy : tx - gy;
     const ang = travel / PULR;
     const c = which === "A" ? MOT_A : MOT_B;
@@ -1045,7 +1045,7 @@ function tick(now) {
 }
 const run = () => { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } };
 const steer = (x, y) => {
-  if (playing) return;                     // waehrend des Zerlegens faehrt nichts
+  if (playing) return;                     // nothing moves while taking apart
   touring = false;
   want = [clamp(x, REACH_X[0], REACH_X[1]), clamp(y, REACH_Y[0], REACH_Y[1])];
   clearTimeout(idle);
@@ -1058,7 +1058,7 @@ if (still.matches) touring = false;
 stage.addEventListener("pointermove", (ev) => {
   const box = svg.getBoundingClientRect();
   const u = (ev.clientX - box.left) / box.width, v = (ev.clientY - box.top) / box.height;
-  // Bildschirm -> Bauraum: rechts/unten heisst +x, links/unten heisst +y
+  // Screen -> build volume: right/down means +x, left/down means +y
   const a = (u - 0.5) * 2, b = (0.62 - v) * 2.6;
   steer((a + b) * 86, (b - a) * 86);
 });
@@ -1072,10 +1072,10 @@ stage.addEventListener("keydown", (ev) => {
   steer(want[0] + d[0], want[1] + d[1]);
 });
 
-// --- Explosionsdarstellung ---------------------------------------------
-// Federn und Staffelung sind dieselben Zahlen, die der Pruefer durchrechnet;
-// beim Schliessen laeuft die Reihenfolge rueckwaerts, aus dem Zerlegen wird so
-// von selbst ein Aufbau von innen nach aussen.
+// --- Exploded view -----------------------------------------------------
+// The springs mirror the kit's springStates (kit/audit.mjs). When closing, the
+// order runs backwards, so taking apart turns into building from the inside
+// out by itself.
 const byPiece = {};
 for (const el of groups) (byPiece[el.dataset.piece] = byPiece[el.dataset.piece] || []).push(el);
 const spr = {};
@@ -1107,8 +1107,8 @@ function springStep(dt) {
   return moving;
 }
 
-// Nummern mit Fuehrungslinie. Sie haengen am Schwerpunkt ihrer Baugruppe und
-// weichen in deren Fluchtrichtung aus, damit sie sich nicht gegenseitig decken.
+// Numbers with leader lines. They hang on the centroid of their assembly and
+// step aside in its escape direction so they do not cover each other.
 const NS = "http://www.w3.org/2000/svg";
 const nums = {}, away = {};
 let numLayer = null;
@@ -1133,8 +1133,8 @@ let numLayer = null;
   svg.append(layer);
   numLayer = layer;
 }
-// Zeichnungseinheiten je Bildschirmpixel. Ohne das waeren die Nummern auf dem
-// Telefon sechs Pixel hoch und am grossen Schirm doppelt so gross wie noetig.
+// Drawing units per screen pixel. Without it the numbers would be six pixels
+// tall on a phone and twice as large as needed on a big screen.
 let unitPerPx = 900 / 652, numHide = false, svgWidth = 652;
 function measure() {
   const box = svg.getBoundingClientRect();
@@ -1142,18 +1142,18 @@ function measure() {
   const vb = svg.getAttribute("viewBox").split(" ").map(Number);
   svgWidth = box.width;
   unitPerPx = vb[2] / box.width;
-  // Unter rund 430 px Zeichnungsbreite stehen elf Nummern dichter als sie
-  // lesbar sind; die Legende darunter traegt sie ohnehin.
+  // Below about 430 px of drawing width eleven numbers stand closer than they
+  // can be read; the legend underneath carries them anyway.
   numHide = box.width < 430;
   if (numLayer) numLayer.style.display = numHide ? "none" : "";
 }
 new ResizeObserver(measure).observe(stage);
 measure();
 
-// Zeichenreihenfolge je Bild. Ein fester Schluessel je Teil kann eine Maschine,
-// deren Baugruppen quer durcheinanderfahren, nicht ordnen; die Tiefe zur
-// Laufzeit kann es. KEYS ist die geloeste Ruhereihenfolge, LIFT der
-// Tiefenversatz, den eine Baugruppe beim Ausfahren gewinnt.
+// Drawing order per frame. One fixed key per part cannot order a machine
+// whose assemblies sweep past each other; depth at run time can. KEYS is the
+// solved rest order, LIFT the depth offset an assembly gains when it moves
+// out.
 const sortParent = groups[0].parentNode;
 const sortAfter = groups[groups.length - 1].nextSibling;
 let drawn = groups.map((_, i) => i);
@@ -1187,10 +1187,10 @@ function poseExplode() {
   const box = VIEW0.map((v, i) => v + (VIEW1[i] - v) * open);
   svg.setAttribute("viewBox", box.map((v) => Math.round(v * 10) / 10).join(" "));
   unitPerPx = box[2] / Math.max(1, svgWidth);
-  // Nummern und ihre Linien sind in Zeichnungseinheiten gesetzt: beim
-  // Herauszoomen schrumpften sie auf sieben Pixel. Mitwachsen lassen.
+  // Numbers and their lines are set in drawing units: when zooming out they
+  // shrank to seven pixels. Let them grow along.
   if (numHide) return open;
-  const zoom = unitPerPx;             // Einheiten je Bildschirmpixel
+  const zoom = unitPerPx;             // drawing units per screen pixel
   for (const id in nums) {
     const own = NUM_PIECE[id] || id;
     const share = spr[own] ? spr[own].x : 0;
@@ -1198,7 +1198,7 @@ function poseExplode() {
     const at = iso([c[0] + m[0] * share, c[1] + m[1] * share, c[2] + m[2] * share], P);
     const a = away[id], n = nums[id];
     const lx = at[0] + a[0] * 26 * zoom, ly = at[1] + a[1] * 26 * zoom;
-    // Der Rahmen bleibt stehen, seine Nummer erscheint mit der Bewegung der anderen.
+    // The frame stays put, its number appears with the movement of the others.
     n.g.setAttribute("opacity", clamp(((id === "rahmen" ? open : share) - 0.14) / 0.3, 0, 1));
     n.line.setAttribute("x1", at[0]); n.line.setAttribute("y1", at[1]);
     n.line.setAttribute("x2", lx); n.line.setAttribute("y2", ly);
@@ -1209,11 +1209,11 @@ function poseExplode() {
   return open;
 }
 
-// Ein Eintrag der Legende faehrt seine Baugruppe allein heraus (nur beim Klick,
-// nicht schon beim Darueberfahren - sonst zappelt die Zeichnung).
+// A legend entry flies its assembly out alone (on click only, not already
+// on hover - the drawing would twitch otherwise).
 function focus(key) {
-  // Legendeneintrag 04 deckt Antrieb und Riemen ab, 05 nur den Traeger: beide
-  // liegen auf der Zeichengruppe "corexy", also faehrt 04 zwei Baugruppen heraus.
+  // Legend entry 04 covers drive and belts, 05 only the beam: both
+  // sit on the drawing group "corexy", so 04 flies two assemblies out.
   const want = key ? key.split(" ").flatMap((g) => (key.includes("riemen") && ALSO[g]) || [PIECE_OF[g]]) : [];
   for (const id in spr) { spr[id].pending = null; spr[id].target = want.includes(id) ? 1 : 0; }
   run();
@@ -1235,14 +1235,14 @@ function play() {
   playing = true;
   picked = null;
   show(null);
-  touring = false;                         // Kopf anhalten, er faehrt sonst auf nichts
+  touring = false;                         // stop the head, it would otherwise move over nothing
   playButton.textContent = "Abbrechen";
   playButton.setAttribute("aria-pressed", "true");
   const apart = (ORDER.length - 1) * OUT_GAP + 1100;
   schedule(true, OUT_GAP);
   run();
-  // Zerlegen, kurz halten, dann Schritt fuer Schritt zusammensetzen und dabei
-  // jede Baugruppe benennen.
+  // Take apart, hold briefly, then put together step by step, naming each
+  // assembly on the way.
   timers.push(setTimeout(() => {
     schedule(false, IN_GAP);
     run();
@@ -1257,7 +1257,7 @@ function play() {
 playButton.addEventListener("click", play);
 stage.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && playing) { stopPlay(); ev.preventDefault(); } });
 
-// Legende: ein Eintrag hebt seine Gruppen hervor und erklaert ihre Aufgabe
+// Legend: an entry highlights its groups and explains their job
 function show(key) {
   const wanted = key ? key.split(" ") : null;
   for (const el of groups) {
@@ -1282,8 +1282,8 @@ for (const b of document.querySelectorAll("[data-pick]")) {
 }
 document.querySelector(".iso-keys").addEventListener("pointerleave", () => show(picked));
 
-// Hell/Dunkel: dieselbe Taste und derselbe Speicherschluessel wie in den
-// Werkzeugen, damit die Wahl fuer die ganze Seite gilt.
+// Light/dark: the same button and the same storage key as in the
+// tools, so the choice applies to the whole site.
 const themeButton = document.getElementById("btn-theme");
 const SUN = "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/>", MOON = "<path d=\"M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z\"/>";
 const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
@@ -1297,13 +1297,13 @@ themeButton.addEventListener("click", () => {
   document.body.dataset.theme = next;
   try { localStorage.setItem("3d-druck.theme", next); } catch (e) { /* ignore */ }
   paintThemeButton();
-  // Die Toene stehen als Inline-Werte am Koerper: ohne Neuberechnung behielte
-  // das helle Thema die dunkle Leiter.
+  // The tones are inline values on the body: without recomputing, the
+  // light theme would keep the dark ladder.
   window.anatomieKontrast(kontrast.valueAsNumber / 100);
 });
 paintThemeButton();
 
-// Kontrast: jedes Geraet - Schreibtisch, Laptop, Beamer - haelt seine Stufe.
+// Contrast: every device - desk, laptop, projector - keeps its own step.
 const kontrast = document.getElementById("kontrast");
 const kontrastWert = document.getElementById("kontrast-wert");
 function applyKontrast(save) {
@@ -1313,7 +1313,7 @@ function applyKontrast(save) {
   if (save) { try { localStorage.setItem("3d-druck.kontrast", kontrast.value); } catch (e) { /* ignore */ } }
 }
 kontrast.value = String(Math.round((window.anatomieKontrastWert ?? 0.45) * 100));
-// Beim Ziehen nur zeichnen, erst beim Loslassen speichern.
+// While dragging only draw, save on release.
 kontrast.addEventListener("input", () => applyKontrast(false));
 kontrast.addEventListener("change", () => applyKontrast(true));
 applyKontrast(false);

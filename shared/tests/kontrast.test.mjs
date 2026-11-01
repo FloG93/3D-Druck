@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-/** Minimaler Ersatz für das, was das Modul beim Laden anfasst. */
+/** Minimal stand-in for what the module touches on load. */
 function stubDom(stored) {
   const gesetzt = {};
   const speicher = new Map(stored === undefined ? [] : [['3d-druck.kontrast', stored]]);
@@ -18,7 +18,7 @@ function stubDom(stored) {
     getElementById: () => null,
     querySelector: () => null,
   };
-  globalThis.MutationObserver = class { observe() { /* nichts zu beobachten */ } };
+  globalThis.MutationObserver = class { observe() { /* nothing to observe */ } };
   return gesetzt;
 }
 
@@ -51,7 +51,7 @@ test('dunkles Thema bekommt seine eigene Leiter', async () => {
   assert.equal(gesetzt['--text-muted'], '#e4e9ef');
 });
 
-// Number(null) ist 0 und damit gültig: ohne Leerpruefung startete der Regler bei 0.
+// Number(null) is 0 and therefore valid: without the empty check the slider started at 0.
 for (const [name, wert, erwartet] of [
   ['ohne Eintrag', undefined, '#5d6570'],
   ['bei leerem Eintrag', '', '#5d6570'],

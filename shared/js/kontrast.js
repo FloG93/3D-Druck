@@ -1,16 +1,16 @@
 import { safeStorage } from './util.js';
 
 /**
- * Kontrastregler, den sich alle Seiten teilen: ein Wert in `3d-druck.kontrast`,
- * jede Seite bildet ihn auf ihre eigenen Farbmarken ab. Hintergrund ist der
- * Beamer im hellen Schulraum, auf dem die ruhige Voreinstellung verschwindet.
+ * Contrast slider shared by all pages: one value in `3d-druck.kontrast`,
+ * each page maps it onto its own colour tokens. The background is the
+ * projector in a bright classroom, where the calm default disappears.
  */
 const KEY = '3d-druck.kontrast';
 const DEFAULT = 45;
 
 /**
- * Je Farbmarke das heutige Aussehen (Regler auf 45) und die Endstufe (100).
- * Dazwischen und darunter wird linear verlängert, 0 ist also blasser als heute.
+ * Per token the current look (slider at 45) and the top step (100).
+ * Between and below them the ramp is extended linearly, so 0 is fainter than today.
  * @type {Record<string, Record<string, [string, string]>>}
  */
 const RAMP = {
@@ -61,7 +61,7 @@ const ICON = '<svg class="kontrast-icon" viewBox="0 0 24 24" aria-hidden="true">
   + '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>'
   + '<path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>';
 
-/** Setzt den Regler vor die Hell/Dunkel-Taste der Seite. */
+/** Puts the slider in front of the page's light/dark button. */
 function mount() {
   const anchor = document.getElementById('btn-theme');
   if (!anchor || document.querySelector('.kontrast')) return;
@@ -75,7 +75,7 @@ function mount() {
   const run = (save) => {
     applyKontrast(range.valueAsNumber);
     out.textContent = `${range.value} %`;
-    // Beim Ziehen nur zeichnen, erst beim Loslassen speichern.
+    // While dragging only draw, save on release.
     if (save) safeStorage()?.setItem(KEY, range.value);
   };
   range.addEventListener('input', () => run(false));
@@ -84,8 +84,8 @@ function mount() {
 }
 
 applyKontrast(stored());
-// Die Stufe steht als Inline-Wert am Wurzelelement; ohne Neuberechnung behielte
-// das umgeschaltete Thema die Farben des alten.
+// The step is an inline value on the root element; without recomputing, the
+// switched theme would keep the colours of the old one.
 new MutationObserver(() => applyKontrast(level)).observe(document.documentElement, {
   attributes: true, attributeFilter: ['data-theme'],
 });

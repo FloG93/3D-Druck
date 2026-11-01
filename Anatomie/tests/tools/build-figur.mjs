@@ -1,6 +1,6 @@
-// XY-3D-Drucker (CoreXY, geschlossene Kammer) mit AMS, als isometrische Figur.
-// Masse in mm, 1 Welteinheit = 1 mm. Bauraum, Riemenfuehrung und die
-// CoreXY-Gleichung sind echt; die Seite rechnet die Motorwege daraus.
+// XY 3D printer (CoreXY, closed chamber) with AMS, as an isometric figure.
+// Dimensions in mm, 1 world unit = 1 mm. The build volume, the belt routing and
+// the CoreXY equation are real; the page computes the motor travel from them.
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,63 +12,63 @@ import { kitScript } from "../../../.claude/skills/anatomy/scripts/inline-kit.mj
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "..", "..", "index.html");
-// Eine Datei für beide Farbmodi: dunkel ist der Grundzustand, die Seite
-// schaltet beim Laden auf hell um, wenn die Übersicht es so gespeichert hat.
+// One file for both colour modes: the markup is rendered dark, and the boot script
+// switches to light unless the visitor has stored dark.
 const THEME = "dark";
 
 const W = 900;
 const H = 800;
 
-// --- Masse ---------------------------------------------------------------
-const ENC = { x: -195, y: -195, w: 390, d: 390, r: 12 };   // Gehaeuse 390 x 390
+// --- Dimensions ----------------------------------------------------------
+const ENC = { x: -195, y: -195, w: 390, d: 390, r: 12 };   // enclosure 390 x 390
 const FOOT_H = 16;
-const SILL = 104;         // Oberkante Sockel = Kammerboden, darunter die Elektronik
-const TOPZ = 448;         // Unterkante Deckel
-const LIDZ = 466;         // Oberkante Deckel
-const COL = 26;           // Eckprofil
-const WALL = 9;           // Wandstaerke
+const SILL = 104;         // top of the base = chamber floor, the electronics below it
+const TOPZ = 448;         // underside of the lid
+const LIDZ = 466;         // top of the lid
+const COL = 26;           // corner profile
+const WALL = 9;           // wall thickness
 
-const BUILD = 256;        // Bauraum 256 x 256 x 256
+const BUILD = 256;        // build volume 256 x 256 x 256
 const BED = { x: -BUILD / 2, y: -BUILD / 2, w: BUILD, d: BUILD, r: 6 };
-const BED_Z = 194;        // Oberkante Druckplatte: 182 mm sind gedruckt
-const BED_LOW = 130;      // tiefster Stand
+const BED_Z = 194;        // top of the print plate: 182 mm are printed
+const BED_LOW = 130;      // lowest position
 const CARRIER = { x: -140, y: -140, w: 280, d: 280, r: 10 };
 
-const RAIL_X = 168;       // |x| der beiden Y-Schienen
+const RAIL_X = 168;       // |x| of the two Y rails
 const RAIL_Z = 376;
 const RAIL_H = 24;
-const BEAM_Z = 376;       // X-Traeger
+const BEAM_Z = 376;       // X beam
 const BEAM_H = 24;
-const RUN = 148;          // |x| der Riementrume laengs
-const OFF = 13;           // y-Versatz der beiden Trume am Schlitten
-const BELT_A = 407;       // Riemen A liegt tiefer
-const BELT_B = 425;       // Riemen B darueber
+const RUN = 148;          // |x| of the belt runs lengthways
+const OFF = 13;           // y offset of the two runs at the carriage
+const BELT_A = 407;       // belt A sits lower
+const BELT_B = 425;       // belt B above it
 const MOT_A = [-RUN, -138];
 const MOT_B = [RUN, -164];
-const IDL_A = [RUN, -138];     // Umlenkrolle fuer Riemen A hinten rechts
-const IDL_B = [-RUN, -164];    // Umlenkrolle fuer Riemen B hinten links
+const IDL_A = [RUN, -138];     // idler for belt A, rear right
+const IDL_B = [-RUN, -164];    // idler for belt B, rear left
 
-const REACH_X = [-110, 110];   // Weg des Werkzeugkopfs in der Figur
-const REACH_Y = [-72, 120];    // Duesenweg; der Schlitten laeuft 28 mm dahinter
+const REACH_X = [-110, 110];   // travel of the tool head in the figure
+const REACH_Y = [-72, 120];    // nozzle travel; the carriage runs 28 mm behind it
 
-const NOZZLE_Z = 378;     // Duesenspitze, fest (die Platte faehrt)
+const NOZZLE_Z = 378;     // nozzle tip, fixed (the plate moves)
 const PRINT_H = NOZZLE_Z - BED_Z;
 
-const ZS = [[-100, -157], [100, -157], [0, 168]];   // drei Spindeln, unter den Quertraegern
+const ZS = [[-100, -157], [100, -157], [0, 168]];   // three lead screws, under the cross beams
 const ZBELT = 153;
 
-const AMSX = -430;        // Mitte des AMS, links neben dem Drucker
+const AMSX = -430;        // centre of the AMS, left of the printer
 const AMS = { x: AMSX - 184, y: -149, w: 368, d: 298, r: 10 };
 const AMS_FOOT = 18;
-const AMS_Z = AMS_FOOT;   // Boden des AMS-Gehaeuses
+const AMS_Z = AMS_FOOT;   // floor of the AMS housing
 const AMS_TOP = AMS_Z + 250;
 const SPOOL_R = 100;
 const SPOOL_X = [-136, -46, 46, 136].map((x) => AMSX + x);
 const SPOOL_CZ = AMS_Z + 130;
-const SPOOL_HW = 34;      // halbe Spulenbreite
-const FEED_Y = 120;       // Vorschubeinheiten vorn im AMS
-const MANI_Z = AMS_Z + 74;  // Sammelrohr quer vor den Spulen
-const GUIDE = [-168, -120, LIDZ + 10];   // PTFE-Fuehrung auf dem Rahmen
+const SPOOL_HW = 34;      // half spool width
+const FEED_Y = 120;       // feeder units at the front of the AMS
+const MANI_Z = AMS_Z + 74;  // manifold across the front of the spools
+const GUIDE = [-168, -120, LIDZ + 10];   // PTFE guide on the frame
 
 const P = k.fitProjection(
   [...k.boxCorners(ENC, -FOOT_H, LIDZ), ...k.boxCorners(AMS, -FOOT_H, AMS_TOP)],
@@ -85,21 +85,21 @@ const Dots = (points, style) => k.dotsSvg(points, style);
 const byDepth = (pts) => [...pts].sort((a, b) => k.depthOf([a[0], a[1], a[2] ?? 0], P) - k.depthOf([b[0], b[1], b[2] ?? 0], P));
 const f1 = (v) => Math.round(v * 10) / 10;
 
-// --- Baugruppen fuer die Explosionsdarstellung ---------------------------
-// Die 14 Zeichengruppen fallen auf 11 Baugruppen, deckungsgleich mit der
-// Legende. STAGGER ist die Reihenfolge beim Zerlegen (aussen zuerst); das Kit
-// dreht sie beim Zusammensetzen um, also wird von innen nach aussen gebaut.
-// Der Rahmen steht nicht darin: er ist die Grundlage und bleibt stehen.
+// --- Assemblies for the exploded view ------------------------------------
+// The 14 drawing groups fall into 10 assemblies (the legend has 11 entries: the nozzle
+// rides in the tool head and keeps its own number). STAGGER is the order when taking apart
+// (outside first); the kit reverses it when closing, so the machine is built inside out.
+// The frame is not listed: it is the base and stays put.
 const PIECE_OF = {
   rahmen: "rahmen", elektronik: "elektronik", filter: "filter",
   riemen: "antrieb", corexy: "corexy", kopf: "kopf", kabel: "kopf",
   duese: "kopf", bett: "bett", druck: "bett", zachse: "zachse",
   ams: "ams", filament: "filament", ptfe: "filament",
 };
-// Die Zeichengruppen folgen der Legende, nicht der Montage: in "corexy" liegen
-// auch beide Motoren und alle Umlenkrollen, und "duese.bahn" ist die Bahn der
-// laufenden Schicht, die zum Druck gehoert. Was zusammen ausgebaut wuerde, muss
-// auch zusammen herausfahren - sonst bleibt eine Riemenschlaufe allein stehen.
+// The drawing groups follow the legend, not the build: "corexy" also holds both
+// motors and all idlers, and "duese.bahn" is the path of the current layer, which
+// belongs to the print. What would be removed together must also fly out together -
+// otherwise a belt loop is left standing alone.
 const PIECE_BY_NAME = [
   ["corexy.motor", "antrieb"], ["corexy.scheibe", "antrieb"], ["corexy.welle", "antrieb"],
   ["corexy.bolzen", "antrieb"], ["corexy.umlenk", "antrieb"], ["corexy.rolle", "antrieb"],
@@ -110,39 +110,39 @@ const pieceOf = (group, name) => {
   return hit ? hit[1] : PIECE_OF[group];
 };
 const NUM_PIECE = { duese: "kopf" };
-// Welchem Legendeneintrag ein Teil fuer seine Nummer zugerechnet wird.
+// Which legend entry a part counts toward for its number.
 const labelOf = (group, name) => (group === "duese" && !name.startsWith("duese.bahn") ? "duese" : pieceOf(group, name));
 const STAGGER = ["filament", "ams", "kopf", "corexy", "antrieb", "bett", "zachse", "filter", "elektronik"];
-// stagger ist der ENGSTE Abstand, den die Seite je benutzt - damit rechnet der
-// Pruefer. Erzaehlt wird langsamer (OUT_GAP/IN_GAP): groessere Abstaende trennen
-// die Teile nur weiter, und die Praefix-Zustaende des Pruefers decken jede
-// solche Staffelung ab. Mit 0,5 s hier brauchte der Tiefenloeser das Vierfache
-// an Zustaenden und ueber zehn Minuten je Build.
+// stagger is the default gap of schedule(); the narrated run overrides it with
+// OUT_GAP/IN_GAP (slower, so each step can be read). The recorder is deliberately
+// not given order/spring (see below), so the audit does not replay these springs.
+// (Handing them to the depth solver cost four times the states at 0.5 s and
+// over ten minutes per build, and still could not order the machine.)
 const SPRING = { stagger: 0.16, stiffness: 52, damping: 13.6, substeps: 4 };
-const OUT_GAP = 300, IN_GAP = 950;   // Millisekunden zwischen den Baugruppen
-// Fluchtweg je Baugruppe, entlang der Maschinenachsen. Vorlaeufig: die Zahlen
-// stellt der Audit, nicht das Auge.
-// Auf dem Bildschirm zeigt +x rechts-runter, +y links-runter, +z hoch; das AMS
-// steht bei -x. Die Wege sind so gelegt, dass sich die Baugruppen auch im Bild
-// trennen und nicht nur im Raum.
+const OUT_GAP = 300, IN_GAP = 950;   // milliseconds between the assemblies
+// Escape path per assembly, along the machine axes. The audit sets the numbers,
+// not the eye.
+// On screen +x points right-down, +y left-down, +z up; the AMS stands at -x.
+// The paths are laid so that the assemblies separate in the picture as well,
+// not only in space.
 const MOVE = {
-  rahmen: [0, 0, 0],            // Grundlage, bleibt stehen
-  filament: [-120, 0, 250],     // Schlauch hebt nach oben ab
-  ams: [-300, 0, 0],            // weiter nach links oben
-  kopf: [0, 300, 60],           // nach links aus der Kammer
-  corexy: [0, 0, 400],          // X-Traeger und Y-Schienen heben ueber das Dach
-  antrieb: [0, -300, 120],      // Motoren und Riemen nach rechts oben
-  bett: [280, 0, -40],          // Platte faehrt nach rechts heraus
-  zachse: [0, 420, -150],       // Spindeln seitlich am Sockel vorbei
-  filter: [0, -280, -40],       // nach rechts oben aus der Wand
-  elektronik: [180, 180, -120], // wie eine Schublade nach vorn unten
+  rahmen: [0, 0, 0],            // base, stays put
+  filament: [-120, 0, 250],     // the hose lifts off upwards
+  ams: [-300, 0, 0],            // further to the upper left
+  kopf: [0, 300, 60],           // out of the chamber to the left
+  corexy: [0, 0, 400],          // X beam and Y rails lift over the roof
+  antrieb: [0, -300, 120],      // motors and belts to the upper right
+  bett: [280, 0, -40],          // the plate slides out to the right
+  zachse: [0, 420, -150],       // lead screws pass the base on the side
+  filter: [0, -280, -40],       // out of the wall to the upper right
+  elektronik: [180, 180, -120], // like a drawer to the front and down
 };
 
-// Ohne order/spring: der Loeser sucht sonst EINEN Schluessel je Teil, der in
-// allen 1365 Explosionszustaenden stimmt. Bei diesem dichten Kasten gibt es den
-// nicht - er meldete 3563 Paare als "unorderable" und verdarb dabei die
-// Ruhelage (Z-Spindeln vor der Druckplatte). Die Ruhelage wird deshalb wie
-// zuvor geloest; waehrend der Bewegung sortiert die Seite selbst, je Bild.
+// Without order/spring: the solver would otherwise look for ONE key per part that
+// holds in all 1365 explode states. For this dense box there is none - it reported
+// 3563 pairs as "unorderable" and spoiled the rest pose while at it (Z screws in front
+// of the print plate). So the rest pose is solved as before; while moving, the page
+// sorts by itself, every frame.
 const R = A.recorder(P);
 const rec = R.solid;
 let GROUP = "rahmen";
@@ -151,15 +151,15 @@ function put(at3, svg, shapes = [], extra = {}) {
   const piece = pieceOf(group, name);
   R.put({ name: R.nameFor(name), piece, label: labelOf(group, name), move: MOVE[piece], at: at3, pos: at3, bias, svg, shapes, group, ...rest });
 }
-// Ein Bauteil, das sich nicht in die Tiefensortierung einreiht (Wand, Boden).
+// A part that does not take part in the depth sorting (wall, floor).
 const ring3 = (plan, z, steps = 10) => { const r = k.roundedPlan(plan, steps).map(([x, y]) => [x, y, z]); return [...r, r[0]]; };
 const faceRing = (map, x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]].map(map);
 const skin = (name, pts3, r = 0.35) => rec(A.tube(pts3, r, { name, limp: true, bundle: "skin" }));
 
-// --- Sockel, Rahmen, Waende ---------------------------------------------
+// --- Base, frame, walls -------------------------------------------------
 GROUP = "rahmen";
 function shell() {
-  // Fuesse und Sockelguss
+  // Feet and cast base
   for (const [x, y] of byDepth(k.corners(ENC, 34))) {
     put([x, y, -FOOT_H / 2], S(k.cylinder(x, y, 15, -FOOT_H, 4, P, 28), { tone: "lo" })
       + S(k.cylinder(x, y, 12, -FOOT_H + 4, FOOT_H - 4, P, 28), { tone: "lo" }),
@@ -169,11 +169,11 @@ function shell() {
     + S(k.slabOf(ENC, 0, SILL, P, 10, 1.4), { tone: "lo" })
     + Ln(k.sideSeam(ENC, SILL - 7, P, 10), { tone: "faint" }),
     [rec(A.slab(ENC, 0, SILL, { name: "stand.base" }, 10))], { name: "stand.base" });
-  // Nut rundum auf der Sockeloberseite, darauf stehen Waende und Saeulen
+  // Groove all round the top of the base, walls and columns stand on it
   put([0, 0, SILL + 0.2], Ln(k.planOutline(k.insetPlan(ENC, WALL + 3), SILL, P, 10), { tone: "faint" }),
     [skin("rahmen.nut", ring3(k.insetPlan(ENC, WALL + 3), SILL))], { bias: 0.3, name: "rahmen.nut" });
 
-  // Rueckwand (y-) und linke Wand (x-): wir sehen ihre Innenseiten
+  // Back wall (y-) and left wall (x-): we see their inner sides
   const back = { x: ENC.x + COL, y: ENC.y, w: ENC.w - 2 * COL, d: WALL, r: 1 };
   const left = { x: ENC.x, y: ENC.y + COL, w: WALL, d: ENC.d - 2 * COL, r: 1 };
   put([back.x + back.w / 2, ENC.y + WALL / 2, (SILL + TOPZ) / 2], S(k.slabOf(back, SILL, TOPZ - SILL, P, 2), { tone: "mid", crease: "faint" }),
@@ -181,7 +181,7 @@ function shell() {
   put([ENC.x + WALL / 2, left.y + left.d / 2, (SILL + TOPZ) / 2], S(k.slabOf(left, SILL, TOPZ - SILL, P, 2), { tone: "mid", crease: "faint" }),
     [rec(A.slab(left, SILL, TOPZ - SILL, { name: "rahmen.wand.links" }, 2))], { name: "rahmen.wand.links" });
 
-  // Vier Eckprofile
+  // Four corner profiles
   const posts = [[ENC.x, ENC.y], [ENC.x + ENC.w - COL, ENC.y], [ENC.x, ENC.y + ENC.d - COL], [ENC.x + ENC.w - COL, ENC.y + ENC.d - COL]];
   posts.forEach(([x, y], i) => {
     const plan = { x, y, w: COL, d: COL, r: 3 };
@@ -193,8 +193,8 @@ function shell() {
       { name: "rahmen.saeule", bias: i === 3 ? 0.4 : 0 });
   });
 
-  // Oberer Rahmen: vier Riegel statt eines Deckels. Der Glasdeckel ist
-  // abgenommen, deshalb sieht man von oben auf den CoreXY-Antrieb.
+  // Upper frame: four rails instead of a lid. The glass lid is
+  // removed, so you look down onto the CoreXY drive.
   const rails = [
     { x: ENC.x, y: ENC.y, w: ENC.w, d: COL, r: 3 },
     { x: ENC.x, y: ENC.y + ENC.d - COL, w: ENC.w, d: COL, r: 3 },
@@ -208,12 +208,12 @@ function shell() {
       [rec(A.slab(plan, TOPZ, LIDZ - TOPZ, { name: "rahmen.riegel" }, 3))],
       { name: "rahmen.riegel", bias: i === 1 || i === 3 ? 0.4 : 0 });
   });
-  // Auflage und Dichtung des abgenommenen Glasdeckels
+  // Seat and gasket of the removed glass lid
   put([0, 0, LIDZ + 0.2], Ln(k.planOutline(k.insetPlan(ENC, 7), LIDZ, P, 10), { tone: "lo" }),
     [skin("rahmen.dichtung", ring3(k.insetPlan(ENC, 7), LIDZ))], { bias: 0.6, name: "rahmen.dichtung" });
 }
 
-// Tuerscharniere und Dichtlippe am offenen Vorderrahmen
+// Door hinges and sealing lip on the open front frame
 function doorTrace() {
   GROUP = "rahmen";
   const hx = ENC.x + COL / 2, hy = ENC.y + ENC.d - COL / 2;
@@ -223,7 +223,7 @@ function doorTrace() {
       + Ln(k.sideArc(hx - 20, hy, 7, z + 17, P, 14), { tone: "faint" }),
       [rec(A.cylinder(hx - 20, hy, 7, z, 22, { name: "rahmen.scharnier" }))], { name: "rahmen.scharnier", bias: 0.3 });
   }
-  // Magnetschnapper am vorderen rechten Profil
+  // Magnetic catch on the front right profile
   const mx = ENC.x + ENC.w - COL, my = ENC.y + ENC.d - COL;
   const catchPlan = { x: mx - 9, y: my + 5, w: 9, d: 16, r: 1.5 };
   put([mx - 4, my + 13, TOPZ - 150], S(k.slabOf(catchPlan, TOPZ - 162, 24, P, 2), { tone: "mid" }),
@@ -231,27 +231,27 @@ function doorTrace() {
 }
 
 const face = (pts) => k.pathOf(pts.map(at), true);
-const FY = (y) => ([x, z]) => [x, y, z];          // Punkt in einer Ebene y = const
-const FX = (x) => ([y, z]) => [x, y, z];          // Punkt in einer Ebene x = const
+const FY = (y) => ([x, z]) => [x, y, z];          // point in a plane y = const
+const FX = (x) => ([y, z]) => [x, y, z];          // point in a plane x = const
 const rect = (map, x0, z0, x1, z1) => face([[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(map));
 
-// --- Elektronik im Sockel: Schild, Gitter, Netzanschluss ------------------
+// --- Electronics in the base: plate, grille, mains inlet ------------------
 function baseFront() {
   GROUP = "elektronik";
-  const fy = FY(ENC.y + ENC.d);       // Vorderseite des Sockels
-  const fx = FX(ENC.x + ENC.w);       // rechte Seite des Sockels
-  // Typenschild vorn mit drei Satzzeilen
+  const fy = FY(ENC.y + ENC.d);       // front of the base
+  const fx = FX(ENC.x + ENC.w);       // right side of the base
+  // Name plate at the front with three lines of text
   const plate = [[-150, 28], [-150, 74], [-44, 74], [-44, 28]];
   put([-97, ENC.y + ENC.d, 51], Ln(face(plate.map(fy)), { tone: "lo" })
     + Ln([[-142, 62, 34], [-142, 54, 34], [-142, 44, 22]].map(([x0, z, w]) => k.segment(fy([x0, z]), fy([x0 + w, z]), P)).join(""), { tone: "lo", free: true })
     + Dots([fy([-146, 32]), fy([-48, 70])].map(at), { size: 0.5 }),
     [skin("elektronik.schild", faceRing(fy, -150, 28, -44, 74))], { bias: 0.5, name: "elektronik.schild" });
-  // Lueftungsgitter des Netzteils, rechte Sockelwand
+  // Ventilation grille of the power supply, right base wall
   const vent = [];
   for (let i = 0; i < 9; i++) vent.push(rect(fx, -130 + i * 15, 26, -122 + i * 15, 76));
   put([ENC.x + ENC.w, -70, 50], Ln(vent.join(""), { tone: "lo" }),
     [skin("elektronik.gitter", faceRing(fx, -130, 26, 5, 76))], { bias: 0.5, name: "elektronik.gitter" });
-  // Kaltgeraetebuchse und Wippschalter
+  // Mains inlet and rocker switch
   put([ENC.x + ENC.w, 90, 52], Ln(rect(fx, 64, 30, 108, 62), { tone: "mid" })
     + Ln(rect(fx, 70, 36, 102, 56), { tone: "lo" })
     + Ln(rect(fx, 118, 36, 142, 58), { tone: "mid" })
@@ -259,11 +259,11 @@ function baseFront() {
     [skin("elektronik.netz", faceRing(fx, 64, 30, 142, 62))], { bias: 0.5, name: "elektronik.netz" });
 }
 
-// --- Kammerrueckwand: Filter, Kammerluefter, PTFE-Durchfuehrung -----------
+// --- Chamber back wall: filter, chamber fan, PTFE feed-through ------------
 function chamberWall() {
   GROUP = "filter";
   const wy = ENC.y + WALL;
-  // Aktivkohlefilter als Kasten an der Rueckwand
+  // Activated-carbon filter as a box on the back wall
   const box = { x: -40, y: ENC.y + WALL, w: 118, d: 26, r: 3 };
   put([19, wy + 13, 300], S(k.slabOf(box, 250, 100, P, 3, 0.6), { tone: "mid" })
     + Ln(k.sideSeam(box, 282, P, 3), { tone: "faint" })
@@ -273,7 +273,7 @@ function chamberWall() {
   for (let c = 0; c < 6; c++) for (let r2 = 0; r2 < 5; r2++) grid.push(at([-28 + c * 19, wy + 26, 266 + r2 * 17]));
   put([19, wy + 26, 300], Dots(grid, { size: 0.55, tone: "lo" }),
     [skin("filter.lochung", faceRing(FY(wy + 26), -28, 266, 67, 334))], { bias: 0.6, name: "filter.lochung" });
-  // Kammerluefter darueber
+  // Chamber fan above it
   GROUP = "filter";
   const FF = G.frameOf([19, wy, 196], [0, 1, 0], [1, 0, 0], [0, 0, 1]);
   put([19, wy + 5, 196], S(G.solidOf([[0, 46], [9, 46], [9, 40]], FF, P), { tone: "mid" })
@@ -282,7 +282,7 @@ function chamberWall() {
     + Ln(G.circleOf(FF, 9, 10, P, 20), { tone: "mid" })
     + Dots(G.dotsOf(FF, 9, 40, 4, P, { all: true }), { size: 0.5 }),
     [rec(A.solid(FF, [[0, 46], [9, 46]], { name: "filter.luefter" }))], { name: "filter.luefter" });
-  // Zugentlastung fuer den Schleppkabelstrang, auf der linken Y-Schiene
+  // Strain relief for the trailing cable loom, on the left Y rail
   GROUP = "kabel";
   const anch = { x: -178, y: -149, w: 16, d: 18, r: 2 };
   put([-170, -140, RAIL_Z + RAIL_H + 7], S(k.slabOf(anch, RAIL_Z + RAIL_H, 14, P, 2, 0.4), { tone: "mid" })
@@ -291,33 +291,33 @@ function chamberWall() {
 }
 const CABLE_ANCHOR = [-170, -140, RAIL_Z + RAIL_H + 10];
 
-// --- Z-Achse: Motor, Zahnriemen, drei Spindeln ---------------------------
+// --- Z axis: motor, toothed belt, three lead screws ----------------------
 const ZMOT = [-160, -60];
-const ZPUL = ZBELT - 7;            // Unterkante der Riemenscheiben
-const SCREW_TOP = 340;    // endet unter dem Quertraeger, nicht neben der Gantry
+const ZPUL = ZBELT - 7;            // underside of the pulleys
+const SCREW_TOP = 340;    // ends below the cross beam, not beside the gantry
 
 function zAxis() {
   GROUP = "zachse";
-  // Motor auf dem Kammerboden
+  // Motor on the chamber floor
   const mp = { x: ZMOT[0] - 21, y: ZMOT[1] - 21, w: 42, d: 42, r: 3 };
   put([ZMOT[0], ZMOT[1], SILL + 21], S(k.slabOf(mp, SILL, 42, P, 3, 0.6), { tone: "mid" })
     + Ln(k.sideSeam(mp, SILL + 32, P, 3), { tone: "faint" })
     + Dots(k.corners(mp, 5).map(([x, y]) => at([x, y, SILL + 42])), { size: 0.5 }),
     [rec(A.slab(mp, SILL, 42, { name: "zachse.motor" }, 3))], { name: "zachse.motor" });
-  // Zahnriemen unten, um Motor- und Spindelscheiben gelegt
+  // Toothed belt at the bottom, wrapped round the motor and screw pulleys
   wrapLoop([ZMOT, ZS[0], ZS[1], ZS[2]], 14.5, false).forEach((pts) => {
     const mid = [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2, ZBELT];
     put(mid, Ln(k.onTop(pts, ZBELT, P), { tone: "mid" }),
       [rec(A.tube(pts.map(([x, y]) => [x, y, ZBELT]), 1.3, { name: "zachse.riemen", limp: true, bundle: "zriemen" }))],
       { bias: -0.2, name: "zachse.riemen" });
   });
-  // Riemenscheiben darueber, sie decken die Mittelpunkte der Segmente ab
+  // Pulleys above it, they cover the midpoints of the segments
   for (const [x, y] of byDepth([ZMOT, ...ZS])) {
     put([x, y, ZPUL + 7], S(k.cylinder(x, y, 13, ZPUL, 14, P, 28, 0.4), { tone: "mid", inner: Ln(k.sideArc(x, y, 13, ZPUL + 2, P, 18) + k.sideArc(x, y, 13, ZPUL + 12, P, 18), { tone: "faint" }) })
       + Ln(k.knurl(x, y, 13, ZPUL + 2, ZPUL + 12, 26, P, 0.3), { tone: "lo" }),
       [rec(A.cylinder(x, y, 13, ZPUL, 14, { name: "zachse.scheibe" }))], { name: "zachse.scheibe", bias: 0.3 });
   }
-  // Spindeln mit Gewinde und Lagerbock oben
+  // Lead screws with thread and bearing block at the top
   for (const [x, y] of byDepth(ZS)) {
     const thread = [];
     for (let z = ZPUL + 20; z < SCREW_TOP - 6; z += 13) thread.push(k.sideArc(x, y, 7, z, P, 14));
@@ -330,12 +330,12 @@ function zAxis() {
   }
 }
 
-// --- Druckplatte, Traeger, Werkstueck ------------------------------------
+// --- Print plate, carrier, workpiece -------------------------------------
 const PRINT = { x: -54, y: -54, w: 108, d: 108, r: 16 };
 function bedStack() {
   GROUP = "bett";
   const mv = (svg) => `<g data-move="z">${svg}</g>`;
-  // Traegerblech mit drei Spindelmuttern
+  // Carrier plate with three screw nuts
   const parts = [];
   parts.push(S(k.slabOf(CARRIER, BED_Z - 26, 12, P, 8, 0.8), { tone: "mid" }));
   for (const [x, y] of ZS) {
@@ -344,20 +344,20 @@ function bedStack() {
     parts.push(S(k.slabOf(arm, BED_Z - 28, 16, P, 4, 0.5), { tone: "mid" }));
     parts.push(Ln(k.ring(x, y, 9, BED_Z - 12, P, 18), { tone: "lo" }));
   }
-  // Heizbett und Druckplatte
+  // Heated bed and print plate
   parts.push(S(k.slabOf(BED, BED_Z - 14, 10, P, 6, 0.8), { tone: "mid" }));
   parts.push(S(k.slabOf(k.insetPlan(BED, 1), BED_Z - 4, 4, P, 6, 0.6), { tone: "mid", crease: "lo" }));
   parts.push(Ln(k.planOutline(k.insetPlan(BED, 10), BED_Z, P, 6), { tone: "faint" }));
   const mag = k.corners(BED, 26);
   parts.push(Ln(mag.map(([x, y]) => k.ring(x, y, 7, BED_Z, P, 16)).join(""), { tone: "lo" }));
   parts.push(Dots(mag.map(([x, y]) => at([x, y, BED_Z])), { size: 0.5 }));
-  // Heizmaeander auf der Unterseite des Heizbetts, als Schild an der Stirnseite
+  // Heater meander on the underside of the bed, as a plate on the end face
   parts.push(Ln(k.sideSeam(BED, BED_Z - 9, P, 6), { tone: "faint" }));
   put([0, 0, BED_Z - 10], mv(parts.join("")),
     [rec(A.slab(CARRIER, BED_Z - 28, 14, { name: "bett.traeger" }, 8)), rec(A.slab(BED, BED_Z - 14, 14, { name: "bett.platte" }, 6))],
     { name: "bett.platte" });
 
-  // Werkstueck mit Schichtlinien
+  // Workpiece with layer lines
   GROUP = "druck";
   const layers = [];
   for (let z = BED_Z + 8; z < NOZZLE_Z - 4; z += 8) layers.push(k.sideSeam(PRINT, z, P, 10));
@@ -365,18 +365,18 @@ function bedStack() {
     [rec(A.slab(PRINT, BED_Z, NOZZLE_Z - 2 - BED_Z, { name: "druck.koerper" }, 10))], { name: "druck.koerper" });
 }
 
-// --- CoreXY: Schienen, Quertraeger, Motoren, Rollen, X-Traeger -----------
-const CROSS_B = { x: -158, y: -186, w: 316, d: 56, r: 3 };   // Quertraeger hinten
-const CROSS_F = { x: -158, y: 158, w: 316, d: 28, r: 3 };    // Quertraeger vorn
+// --- CoreXY: rails, cross beams, motors, pulleys, X beam -----------------
+const CROSS_B = { x: -158, y: -186, w: 316, d: 56, r: 3 };   // rear cross beam
+const CROSS_F = { x: -158, y: 158, w: 316, d: 28, r: 3 };    // front cross beam
 const CROSS_Z = [352, 376];
-const PUL_A = [400, 414];     // Scheiben in der Ebene von Riemen A
-const PUL_B = [418, 432];     // Scheiben in der Ebene von Riemen B
-const CARR_X = 148;           // Mitte der Y-Wagen = Lage der Laengstrume
+const PUL_A = [400, 414];     // pulleys in the plane of belt A
+const PUL_B = [418, 432];     // pulleys in the plane of belt B
+const CARR_X = 148;           // centre of the Y carriages = position of the lengthways runs
 const mvY = (svg) => `<g data-move="y">${svg}</g>`;
 const mvXY = (svg) => `<g data-move="xy">${svg}</g>`;
 
-const PR = 11;            // Radius aller Riemenscheiben
-const BELT_V = k.towardViewer(P);   // Blickrichtung im Grundriss, teilt die Umschlingung
+const PR = 11;            // radius of all belt pulleys
+const BELT_V = k.towardViewer(P);   // viewing direction in plan, splits the wrap
 function pulley(x, y, [z0, z1], r = PR) {
   return S(k.cylinder(x, y, r, z0, z1 - z0, P, 26, 0.4), { tone: "mid" })
     + Ln(k.sideArc(x, y, r, z0 + 2.5, P, 16), { tone: "faint" })
@@ -386,14 +386,14 @@ function pulley(x, y, [z0, z1], r = PR) {
 
 function gantry() {
   GROUP = "corexy";
-  // Quertraeger vorn und hinten, sie tragen die Y-Schienen
+  // Cross beams front and back, they carry the Y rails
   for (const plan of [CROSS_B, CROSS_F]) {
     put([plan.x + plan.w / 2, plan.y + plan.d / 2, (CROSS_Z[0] + CROSS_Z[1]) / 2],
       S(k.slabOf(plan, CROSS_Z[0], CROSS_Z[1] - CROSS_Z[0], P, 3, 0.6), { tone: "mid" })
       + Ln(k.sideSeam(plan, CROSS_Z[1] - 7, P, 3), { tone: "faint" }),
       [rec(A.slab(plan, CROSS_Z[0], CROSS_Z[1] - CROSS_Z[0], { name: "corexy.quertraeger" }, 3))], { name: "corexy.quertraeger" });
   }
-  // Zwei Y-Schienen
+  // Two Y rails
   for (const sx of [-1, 1]) {
     const plan = { x: sx > 0 ? 158 : -178, y: -169, w: 20, d: 338, r: 2 };
     put([sx * 168, 0, RAIL_Z + RAIL_H / 2], S(k.slabOf(plan, RAIL_Z, RAIL_H, P, 2, 0.5), { tone: "mid" })
@@ -401,7 +401,7 @@ function gantry() {
       + Dots([-150, -50, 50, 150].map((y) => at([sx * 168, y, RAIL_Z + RAIL_H])), { size: 0.45, tone: "lo" }),
       [rec(A.slab(plan, RAIL_Z, RAIL_H, { name: "corexy.yschiene" }, 2))], { name: "corexy.yschiene" });
   }
-  // Zwei Schrittmotoren unter dem hinteren Quertraeger, Wellen nach oben
+  // Two stepper motors under the rear cross beam, shafts pointing up
   const motors = [[MOT_A, PUL_A, "A"], [MOT_B, PUL_B, "B"]];
   for (const [[x, y], pz, tag] of byDepth(motors.map(([p, pz, t]) => [p[0], p[1], 0, pz, t])).map((e) => [[e[0], e[1]], e[3], e[4]])) {
     const mp = { x: x - 21, y: y - 21, w: 42, d: 42, r: 3 };
@@ -415,7 +415,7 @@ function gantry() {
       + `<path data-pulley="${tag}" class="iso-line" data-tone="hi" data-free="end" d="${k.lineOnTop([x, y], [x + 11, y], pz[1], P)}"/>`,
       [rec(A.cylinder(x, y, 11, pz[0], pz[1] - pz[0], { name: "corexy.scheibe" + tag }))], { name: "corexy.scheibe" + tag, bias: 0.2 });
   }
-  // Zwei feste Umlenkrollen auf dem hinteren Quertraeger
+  // Two fixed idlers on the rear cross beam
   for (const [[x, y], pz, tag] of [[IDL_A, PUL_A, "A"], [IDL_B, PUL_B, "B"]]) {
     put([x, y, (CROSS_Z[1] + pz[0]) / 2], S(k.cylinder(x, y, 6, CROSS_Z[1], pz[0] - CROSS_Z[1], P, 16), { tone: "mid", crease: "none" }),
       [rec(A.cylinder(x, y, 6, CROSS_Z[1], pz[0] - CROSS_Z[1], { name: "corexy.bolzen" + tag }))], { name: "corexy.bolzen" + tag });
@@ -424,7 +424,7 @@ function gantry() {
   }
 }
 
-// Y-Wagen, X-Traeger und die vier Rollen am Wagen: alles faehrt in y
+// Y carriages, X beam and the four rollers on the carriage: all move in y
 function carriageY() {
   GROUP = "corexy";
   for (const sx of [-1, 1]) {
@@ -443,7 +443,7 @@ function carriageY() {
         [rec(A.cylinder(cx, dy, PR, pz[0], pz[1] - pz[0], { name: "corexy.rolle" }))], { name: "corexy.rolle", bias: 0.2 });
     }
   }
-  // X-Traeger zwischen den Wagen
+  // X beam between the carriages
   const beam = { x: -138, y: -10, w: 276, d: 20, r: 3 };
   put([0, 0, BEAM_Z + BEAM_H / 2], mvY(S(k.slabOf(beam, BEAM_Z, BEAM_H, P, 3, 0.6), { tone: "mid" })
     + Ln(k.sideSeam(beam, BEAM_Z + BEAM_H - 6, P, 3), { tone: "faint" })
@@ -451,35 +451,35 @@ function carriageY() {
     [rec(A.slab(beam, BEAM_Z, BEAM_H, { name: "corexy.xtraeger" }, 3))], { name: "corexy.xtraeger" });
 }
 
-// --- Werkzeugkopf: Riemenklemme, Gehaeuse, Hotend, Duese, Teilekuehlung ---
-const HEAD_Y = 28;          // Mitte von Hotend und Duese, vor dem X-Traeger
+// --- Tool head: belt clamp, housing, hotend, nozzle, part cooling ---------
+const HEAD_Y = 28;          // centre of hotend and nozzle, in front of the X beam
 function toolhead() {
   GROUP = "kopf";
   const clamp = { x: -18, y: -27, w: 36, d: 54, r: 2 };
   const house = { x: -28, y: 27, w: 56, d: 36, r: 5 };
-  // Riemenklemme auf dem X-Traeger: hier greifen beide Riemen an
+  // Belt clamp on the X beam: both belts attach here
   put([0, 0, 414], mvXY(S(k.slabOf(clamp, 400, 34, P, 2, 0.5), { tone: "mid" })
     + Ln(k.sideSeam(clamp, 407, P, 2), { tone: "faint" })
     + Ln(k.sideSeam(clamp, 425, P, 2), { tone: "faint" })
     + Dots([at([-12, 27, 434]), at([12, 27, 434])], { size: 0.5 })),
     [rec(A.slab(clamp, 400, 34, { name: "kopf.klemme" }, 2))], { name: "kopf.klemme", bias: 0.3 });
-  // Gehaeuse mit Kuehlrippen und Deckelfuge
+  // Housing with cooling fins and lid joint
   const fins = [];
   for (let z = 404; z <= 430; z += 6) fins.push(k.sideSeam(house, z, P, 5));
   put([0, 45, 417], mvXY(S(k.slabOf(house, 394, 44, P, 5, 0.8), { tone: "hi", crease: "lo", inner: Ln(fins.join(""), { tone: "faint" }) })
     + Dots([at([-22, 59, 438]), at([22, 59, 438]), at([-22, 31, 438]), at([22, 31, 438])], { size: 0.5 })),
     [rec(A.slab(house, 394, 44, { name: "kopf.gehaeuse" }, 5))], { name: "kopf.gehaeuse", bias: 0.4 });
-  // PTFE-Kupplung oben
+  // PTFE coupling on top
   put([0, 37, 442], mvXY(S(k.cylinder(0, 37, 5.5, 438, 8, P, 18), { tone: "mid" })
     + Ln(k.ring(0, 37, 2.6, 446, P, 14), { tone: "lo" })),
     [rec(A.cylinder(0, 37, 5.5, 438, 8, { name: "kopf.kupplung" }))], { name: "kopf.kupplung", bias: 0.5 });
-  // Extruderrad an der rechten Gehaeuseseite
+  // Extruder gear on the right side of the housing
   const EF = G.frameAlong([28, 45, 418], [1, 0, 0]);
   put([32, 45, 418], mvXY(S(G.disc(0, 9, 11, EF, P), { tone: "mid" })
     + Ln(G.ribsOf(EF, 1, 8, 11, 20, P, { seams: true }), { tone: "lo" })
     + Ln(G.circleOf(EF, 9, 4, P, 16), { tone: "lo" })),
     [rec(A.disc(EF, 0, 9, 11, { name: "kopf.extruder" }))], { name: "kopf.extruder", bias: 0.5 });
-  // Teilekuehlung: Luefter auf der Vorderseite, Duese darunter
+  // Part cooling: fan on the front, nozzle below
   const VF = G.frameAlong([0, 63, 416], [0, 1, 0]);
   put([0, 67, 416], mvXY(S(G.solidOf([[0, 19], [9, 19], [9, 16]], VF, P), { tone: "mid" })
     + Ln(G.circleOf(VF, 9, 16, P, 30), { tone: "lo" })
@@ -490,7 +490,7 @@ function toolhead() {
   const duct = { x: -17, y: 53, w: 34, d: 13, r: 3 };
   put([0, 59, 386], mvXY(S(k.slabOf(duct, 378, 16, P, 3, 0.5), { tone: "mid" })),
     [rec(A.slab(duct, 378, 16, { name: "kopf.duese.kanal" }, 3))], { name: "kopf.kanal", bias: 0.6 });
-  // Heizblock und Duese: der eine helle Akzent der Figur
+  // Heater block and nozzle: the one bright accent of the figure
   GROUP = "duese";
   const heat = { x: -9, y: HEAD_Y - 8, w: 18, d: 16, r: 1.5 };
   put([0, HEAD_Y, 391], mvXY(S(k.slabOf(heat, 386, 8, P, 2, 0.4), { tone: "hi", crease: "lo" })
@@ -501,10 +501,10 @@ function toolhead() {
     [rec(A.solid(NF, [[0, 1.4], [8, 8]], { name: "duese.spitze" }))], { name: "duese.spitze", bias: 0.8 });
 }
 
-// Bahn der aktuellen Schicht auf dem Werkstueck: hier faehrt die Duese entlang
+// Path of the current layer on the workpiece: the nozzle travels along it
 const TOUR = { x: -46, y: -46, w: 92, d: 92, r: 13 };
-// Die laufende Schicht: Aussenbahn, Innenbahn und die Fuellung dazwischen.
-// Genau diese Aussenbahn faehrt die Duese ab, wenn niemand den Zeiger bewegt.
+// The running layer: outer path, inner path and the fill in between.
+// The nozzle travels exactly this outer path when nobody moves the pointer.
 function toolpath() {
   GROUP = "duese";
   const z = NOZZLE_Z - 2;
@@ -518,13 +518,13 @@ function toolpath() {
     [skin("duese.bahn", ring3(TOUR, z, 8), 0.5)], { bias: 0.9, name: "duese.bahn" });
 }
 
-// --- AMS: vier Faecher, Spulen, Vorschub, Sammelrohr --------------------
+// --- AMS: four bays, spools, feeders, manifold --------------------------
 const PART_X = [[-184, -176], [-96, -88], [-4, 4], [88, 96], [176, 184]].map(([a, b]) => [AMSX + a, AMSX + b]);
-const PART_Y = [-137, 130];      // Trennwaende zwischen Rueckwand und Halterohr
-const SPOOL_R2 = 86;             // Aussenradius der Wicklung
+const PART_Y = [-137, 130];      // partition walls between back wall and holder tube
+const SPOOL_R2 = 86;             // outer radius of the winding
 function amsUnit() {
   GROUP = "ams";
-  // Fuesse und Boden
+  // Feet and floor
   for (const [x, y] of byDepth(k.corners(AMS, 30))) {
     put([x, y, (AMS_Z - FOOT_H) / 2], S(k.cylinder(x, y, 13, -FOOT_H, AMS_Z + FOOT_H, P, 24), { tone: "lo" }),
       [rec(A.cylinder(x, y, 13, -FOOT_H, AMS_Z + FOOT_H, { name: "stand.amsfuss" }))], { name: "stand.amsfuss" });
@@ -533,7 +533,7 @@ function amsUnit() {
     + S(k.slabOf(AMS, AMS_Z, 12, P, 8, 1), { tone: "mid" })
     + Ln(k.planOutline(k.insetPlan(AMS, 14), AMS_Z + 12, P, 8), { tone: "faint" }),
     [rec(A.slab(AMS, AMS_Z, 12, { name: "ams.boden" }, 8))], { name: "ams.boden" });
-  // Rueckwand und niedrige Frontleiste
+  // Back wall and low front rail
   const back = { x: AMSX - 176, y: AMS.y, w: 352, d: 12, r: 1 };
   put([AMSX, AMS.y + 6, (AMS_Z + 12 + AMS_TOP) / 2], S(k.slabOf(back, AMS_Z + 12, AMS_TOP - AMS_Z - 12, P, 2), { tone: "mid", crease: "faint" }),
     [rec(A.slab(back, AMS_Z + 12, AMS_TOP - AMS_Z - 12, { name: "ams.rueckwand" }, 2))], { name: "ams.rueckwand" });
@@ -541,7 +541,7 @@ function amsUnit() {
   put([AMSX, 143, AMS_Z + 33], S(k.slabOf(sill, AMS_Z + 12, 42, P, 2, 0.5), { tone: "mid" })
     + Ln(k.sideSeam(sill, AMS_Z + 46, P, 2), { tone: "faint" }),
     [rec(A.slab(sill, AMS_Z + 12, 42, { name: "ams.frontleiste" }, 2))], { name: "ams.frontleiste", bias: 0.6 });
-  // Fuenf Trennwaende, die aeusseren sind die Seitenwaende
+  // Five partitions, the outer ones are the side walls
   PART_X.forEach(([x0, x1], i) => {
     const plan = { x: x0, y: PART_Y[0], w: x1 - x0, d: PART_Y[1] - PART_Y[0], r: 1 };
     put([(x0 + x1) / 2, (PART_Y[0] + PART_Y[1]) / 2, (AMS_Z + 12 + AMS_TOP) / 2],
@@ -550,7 +550,7 @@ function amsUnit() {
       [rec(A.slab(plan, AMS_Z + 12, AMS_TOP - AMS_Z - 12, { name: "ams.trennwand" }, 2))],
       { name: "ams.trennwand", bias: i === 4 ? 0.5 : 0 });
   });
-  // Je Fach eine Trockenmittelschale hinter der Spule
+  // One desiccant tray behind the spool in each bay
   SPOOL_X.forEach((sx) => {
     const dry = { x: sx - 36, y: -132, w: 72, d: 26, r: 3 };
     put([sx, -119, AMS_Z + 29], S(k.slabOf(dry, AMS_Z + 12, 32, P, 3, 0.5), { tone: "lo" })
@@ -558,13 +558,13 @@ function amsUnit() {
       + Dots([at([sx, -119, AMS_Z + 44])], { size: 0.5 }),
       [rec(A.slab(dry, AMS_Z + 12, 32, { name: "ams.trockner" }, 3))], { name: "ams.trockner", bias: 0.3 });
   });
-  // Deckelscharniere hinten oben
+  // Lid hinges at the top rear
   for (const x of [AMSX - 100, AMSX + 100]) {
     put([x, AMS.y + 6, AMS_TOP + 5], S(k.cylinder(x, AMS.y + 6, 7, AMS_TOP, 10, P, 18), { tone: "mid" }),
       [rec(A.cylinder(x, AMS.y + 6, 7, AMS_TOP, 10, { name: "ams.scharnier" }))], { name: "ams.scharnier", bias: 0.3 });
   }
 
-  // Vier Spulen auf je einer Achse, Wicklung mit Lagenringen
+  // Four spools, each on its own axle, winding with layer rings
   SPOOL_X.forEach((sx, i) => {
     const bay = [PART_X[i][1], PART_X[i + 1][0]];
     const F = G.frameOf([sx, 0, SPOOL_CZ], [1, 0, 0], [0, 1, 0], [0, 0, 1]);
@@ -585,7 +585,7 @@ function amsUnit() {
       { name: "ams.spule", bias: 0.4 });
   });
 
-  // Vier Vorschubeinheiten vorn, je ein Antriebsrad sichtbar
+  // Four feeder units at the front, one drive wheel visible on each
   SPOOL_X.forEach((sx) => {
     const plan = { x: sx - 28, y: 104, w: 56, d: 32, r: 3 };
     put([sx, 120, AMS_Z + 37], S(k.slabOf(plan, AMS_Z + 12, 50, P, 3, 0.6), { tone: "mid" })
@@ -599,7 +599,7 @@ function amsUnit() {
       [rec(A.disc(WF, 0, 7, 12, { name: "ams.rad" }))], { name: "ams.rad", bias: 0.8 });
   });
 
-  // Sammelrohr quer vor den Spulen, auf fuenf kurzen Stuetzen
+  // Manifold across the front of the spools, on five short supports
   const MF = G.frameAlong([AMSX - 172, 145, MANI_Z], [1, 0, 0]);
   for (const [x0, x1] of PART_X) {
     const px = (x0 + x1) / 2;
@@ -610,7 +610,7 @@ function amsUnit() {
     + Ln(SPOOL_X.map((sx) => G.circleOf(G.frameAlong([sx, 145, MANI_Z], [1, 0, 0]), 0, 7, P, 18)).join(""), { tone: "faint" }),
     [rec(A.disc(MF, 0, 344, 7, { name: "ams.sammelrohr" }))], { name: "ams.sammelrohr", bias: 0.9 });
 
-  // Vier Filamentstraenge: Spule -> Vorschub -> Sammelrohr
+  // Four filament strands: spool -> feeder -> manifold
   GROUP = "filament";
   SPOOL_X.forEach((sx) => {
     put([sx + 20, 112, SPOOL_CZ - 64], k.wireSvg(at([sx + 34, 77.5, SPOOL_CZ - 64]), at([sx, 145, MANI_Z - 7]), {
@@ -620,11 +620,11 @@ function amsUnit() {
   });
 }
 
-// --- PTFE-Schlauch vom Sammelrohr durch den Deckel ----------------------
+// --- PTFE tube from the manifold through the lid ------------------------
 const GROM = [140, 178];
 function ptfeRun() {
   GROUP = "ptfe";
-  // Fuehrung auf dem linken Rahmenriegel
+  // Guide on the left frame rail
   const gp = { x: GUIDE[0] - 11, y: GUIDE[1] - 11, w: 22, d: 22, r: 3 };
   put([GUIDE[0], GUIDE[1], LIDZ + 9], S(k.slabOf(gp, LIDZ, 18, P, 3, 0.5), { tone: "mid" })
     + Ln(k.ring(GUIDE[0], GUIDE[1], 4.6, LIDZ + 18, P, 16), { tone: "lo" })
@@ -639,9 +639,9 @@ function ptfeRun() {
   R.route("ptfe.schlauch", route, 3, { piece: "filament", move: MOVE.filament, free: [true, false], touch: ["ams.sammelrohr", "ptfe.fuehrung"] });
 }
 
-// --- Riemen: je sechs Trume, Segment fuer Segment eigenes Element --------
-// Ein Trum laeuft tangential von Rolle zu Rolle und legt sich am Ende um die
-// naechste: ohne diesen Bogen liest sich der Riemen als gespannte Schnur.
+// --- Belts: six runs each, every segment its own element -----------------
+// A run goes tangentially from pulley to pulley and wraps round the
+// next one at its end: without this arc the belt reads as a taut string.
 function wrapLoop(loop, R0, clamped) {
   const VX = BELT_V[0], VY = BELT_V[1];
   const n = loop.length;
@@ -695,37 +695,37 @@ function belts() {
   }
 }
 
-// --- Bedienseite am Sockel: Display, Knopf, Kartenschacht, Lueftung ------
+// --- Control side of the base: display, knob, card slot, ventilation -----
 function basePanel() {
   GROUP = "elektronik";
   const fy = FY(ENC.y + ENC.d);
-  // Display in einer Vertiefung, mit Blende und drei Textzeilen
+  // Display in a recess, with bezel and three lines of text
   put([84, ENC.y + ENC.d, 64], Ln(rect(fy, 34, 34, 134, 94), { tone: "mid" })
     + Ln(rect(fy, 40, 40, 128, 88), { tone: "lo" })
     + Ln([[48, 78, 60], [48, 68, 44], [48, 58, 52]].map(([x0, z, w]) => k.segment(fy([x0, z]), fy([x0 + w, z]), P)).join(""), { tone: "faint", free: true })
     + Dots([fy([120, 48])].map(at), { size: 0.6 }),
     [skin("elektronik.display", faceRing(fy, 34, 34, 134, 94))], { bias: 0.6, name: "elektronik.display" });
-  // Drehknopf rechts daneben
+  // Rotary knob next to it on the right
   const KF = G.frameAlong([158, ENC.y + ENC.d, 64], [0, 1, 0]);
   put([158, ENC.y + ENC.d + 5, 64], S(G.disc(0, 9, 14, KF, P), { tone: "mid" })
     + Ln(G.ribsOf(KF, 1, 8, 14, 22, P, { seams: true }), { tone: "lo" })
     + Ln(G.circleOf(KF, 9, 5, P, 16), { tone: "lo" }),
     [rec(A.disc(KF, 0, 9, 14, { name: "elektronik.knopf" }))], { name: "elektronik.knopf", bias: 0.7 });
-  // Kartenschacht und Buchse
+  // Card slot and socket
   put([-116, ENC.y + ENC.d, 20], Ln(rect(fy, -146, 14, -112, 26), { tone: "mid" })
     + Ln(rect(fy, -100, 14, -78, 28), { tone: "mid" }),
     [skin("elektronik.schacht", faceRing(fy, -146, 14, -78, 28))], { bias: 0.6, name: "elektronik.schacht" });
-  // Lueftungsschlitze unten quer ueber die Sockelfront
+  // Ventilation slots across the bottom of the base front
   const slots = [];
   for (let i = 0; i < 11; i++) slots.push(rect(fy, -40 + i * 17, 10, -31 + i * 17, 26));
   put([60, ENC.y + ENC.d, 18], Ln(slots.join(""), { tone: "lo" }),
     [skin("elektronik.schlitze", faceRing(fy, -40, 10, 156, 26))], { bias: 0.6, name: "elektronik.schlitze" });
 }
 
-// --- Kammer: Spuelschacht mit Behaelter, Kabelstrang an der linken Wand ---
+// --- Chamber: purge shaft with bin, cable loom on the left wall -----------
 function chamberGuts() {
   GROUP = "filter";
-  // Spuelschacht hinten links: hier faellt der Farbwechselabfall hinunter
+  // Purge shaft at the back left: the colour-change waste falls down here
   const chute = { x: 118, y: ENC.y + WALL, w: 48, d: 40, r: 3 };
   put([142, ENC.y + WALL + 20, 230], S(k.slabOf(chute, 150, 160, P, 3, 0.6), { tone: "mid" })
     + Ln(k.sideSeam(chute, 290, P, 3), { tone: "faint" })
@@ -737,7 +737,7 @@ function chamberGuts() {
     + Dots([at([128, ENC.y + WALL + 46, SILL + 46]), at([156, ENC.y + WALL + 46, SILL + 46])], { size: 0.5 }),
     [rec(A.slab(bin, SILL, 46, { name: "filter.behaelter" }, 4))], { name: "filter.behaelter", bias: 0.3 });
 
-  // Kabelstrang von der Steuerung an der linken Wand hoch zum Quertraeger
+  // Cable loom from the controller up the left wall to the cross beam
   GROUP = "kabel";
   const wx = ENC.x + WALL + 26;
   const gl = G.frameOf([wx, 20, SILL], [0, 0, 1], [1, 0, 0], [0, 1, 0]);
@@ -761,26 +761,26 @@ function chamberGuts() {
   }
 }
 
-// --- Linke Kammerwand und AMS-Flanke: Licht, Versteifung, Typenschild -----
+// --- Left chamber wall and AMS flank: light, bracing, name plate ----------
 function wallDetail() {
   GROUP = "rahmen";
-  const ix = ENC.x + WALL;                 // Innenseite der linken Wand
-  // Kammerleuchte unter dem Rahmen
+  const ix = ENC.x + WALL;                 // inner side of the left wall
+  // Chamber light under the frame
   const bar = { x: ix, y: -130, w: 8, d: 260, r: 2 };
   const leds = [];
   for (let y = -118; y <= 118; y += 17) leds.push(at([ix + 4, y, 414]));
   put([ix + 4, 0, 419], S(k.slabOf(bar, 414, 10, P, 2, 0.4), { tone: "mid" })
     + Dots(leds, { size: 0.55, tone: "lo" }),
     [rec(A.slab(bar, 414, 10, { name: "rahmen.leuchte" }, 2))], { name: "rahmen.leuchte", bias: 0.4 });
-  // Zwei Versteifungen, von Kante zu Kante der Wandflaeche
+  // Two braces, from edge to edge of the wall surface
   put([ix, 0, (SILL + TOPZ) / 2], Ln([-60, 60].map((y) => k.segment([ix, y, SILL], [ix, y, TOPZ], P)).join(""), { tone: "faint" }),
     [skin("rahmen.versteifung", [[ix, -60, SILL], [ix, -60, TOPZ]]), skin("rahmen.versteifung", [[ix, 60, SILL], [ix, 60, TOPZ]])],
     { bias: 0.3, name: "rahmen.versteifung" });
-  // Nietreihe oben an der Wand
+  // Row of rivets at the top of the wall
   put([ix, 0, TOPZ - 12], Dots([-130, -78, -26, 26, 78, 130].map((y) => at([ix, y, TOPZ - 12])), { size: 0.5 }),
     [skin("rahmen.niete", [[ix, -130, TOPZ - 12], [ix, 130, TOPZ - 12]])], { bias: 0.3, name: "rahmen.niete" });
 
-  // Typenschild auf der rechten AMS-Flanke
+  // Name plate on the right AMS flank
   GROUP = "ams";
   const ax = AMSX + 184;
   const fa = FX(ax);
@@ -791,7 +791,7 @@ function wallDetail() {
     [skin("ams.schild", label)], { bias: 0.6, name: "ams.schild" });
 }
 
-// --- Aufbau --------------------------------------------------------------
+// --- Composition ---------------------------------------------------------
 shell();
 baseFront();
 basePanel();
@@ -831,7 +831,7 @@ const svg = k.figureSvg({
   ],
 });
 
-// --- Legende und Erklaerungen -------------------------------------------
+// --- Legend and explanations --------------------------------------------
 const LEGEND = [
   ["rahmen", "01", "Rahmen und Kammer", "Vier Eckprofile tragen Wände und Deckel. Die geschlossene Kammer hält die Wärme im Bauraum, damit sich ABS und ASA beim Abkühlen nicht verziehen."],
   ["elektronik", "02", "Netzteil und Steuerung", "Im Sockel unter dem Kammerboden sitzen Netzteil und Hauptplatine. Das Gitter an der Seitenwand kühlt sie; der Bauraum bleibt davon getrennt."],
@@ -847,21 +847,21 @@ const LEGEND = [
 ];
 const TOUR_PTS = k.roundedPlan(TOUR, 10);
 
-// Welcher Legendeneintrag zu welcher Baugruppe gehoert. Eintrag 04 deckt
-// Antrieb und Riemen ab, 05 den X-Traeger - daher zwei Baugruppen auf
-// benachbarte Eintraege.
+// Which legend entry belongs to which assembly. Entry 04 covers the
+// drive and the belts, 05 the X beam - hence two assemblies on
+// neighbouring entries.
 const LEGEND_OF = { rahmen: 0, elektronik: 1, filter: 2, antrieb: 3, corexy: 4, kopf: 5, duese: 6, bett: 7, zachse: 8, ams: 9, filament: 10 };
-// Zusammenbau von innen nach aussen: die Umkehr der Zerlegereihenfolge, mit dem
-// Rahmen davor, der schon steht.
+// Assembly from the inside out: the reverse of the take-apart order, with the
+// frame in front, which already stands.
 const BUILD_ORDER = ["rahmen", ...[...STAGGER].reverse()];
 
-// Sonne und Mond wie in shared/js/icons.js, hier eingesetzt statt importiert:
-// die Seite ist in sich geschlossen und soll keine zweite Datei laden.
-// Kontrast-Leiter. QUIET ist die Voreinstellung des Kits (Flaechentoene rund
-// 3 % auseinander, dunkel 1,08:1 - am Schreibtisch ruhig, auf einem Beamer
-// unlesbar), NOW die bisher fest ausgelieferte Stufe. Die Endstufe wird daraus
-// hochgerechnet: der Regler trifft bei K_DEFAULT genau NOW, darueber bleibt
-// mehr als das Doppelte Luft zum Ausprobieren.
+// Sun and moon as in shared/js/icons.js, inlined instead of imported:
+// the page is self-contained and must not load a second file.
+// Contrast ladder. QUIET is the kit's default (face tones about
+// 3 % apart, 1.08:1 in the dark - calm at a desk, unreadable on a projector), NOW the
+// step that used to be shipped fixed. The top end is extrapolated from them: the slider
+// hits NOW exactly at K_DEFAULT and leaves more than double the room above it
+// to experiment.
 const K_DEFAULT = 0.45;
 const TONE_QUIET = {
   dark: { "shade-0": "#0f0f0f", "shade-1": "#121212", "shade-2": "#151515", "shade-3": "#181818",
@@ -884,8 +884,8 @@ const hexOf = (b) => "#" + b.map((v) => Math.max(0, Math.min(255, Math.round(v))
 const ramp = (from, to, t) => hexOf(bytesOf(from).map((a, i) => a + (bytesOf(to)[i] - a) * t));
 const TONE_STRONG = Object.fromEntries(Object.entries(TONE_QUIET).map(([theme, set]) =>
   [theme, Object.fromEntries(Object.keys(set).map((n) => [n, ramp(set[n], TONE_NOW[theme][n], 1 / K_DEFAULT)]))]));
-// Voreinstellung zusaetzlich ins Stylesheet, damit ohne JavaScript und vor dem
-// ersten Zeichnen dieselben Toene gelten wie mit.
+// Default also in the stylesheet, so that without JavaScript and before the
+// first paint the same tones apply as with it.
 const toneBlock = (sel, theme) => `${sel} {\n` + Object.keys(TONE_QUIET[theme])
   .map((n) => `  --anatomy-${n}: ${ramp(TONE_QUIET[theme][n], TONE_STRONG[theme][n], K_DEFAULT)};`)
   .join("\n") + "\n}";
@@ -894,7 +894,7 @@ const TONE_CSS = toneBlock(".iso", "dark") + "\n" + toneBlock('.iso[data-theme="
 const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
 const MOON = '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>';
 const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
-// Der helle Grundzustand steht schon im Markup, damit nichts aufblitzt.
+// The light default is already in the markup, so nothing flashes.
 const KN = Math.round(K_DEFAULT * 100);
 const PLAY_LABEL = "Zerlegen und zusammenbauen";
 const themeBar = `<div class="themebar">`
@@ -907,7 +907,7 @@ const themeBar = `<div class="themebar">`
   + `</div>`;
 
 
-// Schwerpunkt je Baugruppe: daran haengt spaeter die Nummer mit ihrer Linie.
+// Centroid per assembly: the number and its leader line hang on it later.
 const CENTRE = {};
 {
   const sum = {};
@@ -919,9 +919,9 @@ const CENTRE = {};
   }
   for (const [id, c] of Object.entries(sum)) CENTRE[id] = [c[0] / c[3], c[1] / c[3], c[2] / c[3]];
 }
-// Blickfeld, wenn alles draussen ist: die Huelle aller Teile in ihrer
-// Endstellung, mit demselben Rand, den die Zeichnung in Ruhe hat. Eine grobe
-// Abschaetzung liess die Maschine in viel Leerraum schrumpfen.
+// Field of view when everything is out: the hull of all parts in their
+// end position, with the same margin the drawing has at rest. A rough
+// estimate let the machine shrink into a lot of empty space.
 const VIEW_APART = (() => {
   const at = [], out = [];
   for (const it of R.items) {
@@ -933,19 +933,19 @@ const VIEW_APART = (() => {
   const span = (pts, i) => [Math.min(...pts.map((q) => q[i])), Math.max(...pts.map((q) => q[i]))];
   const [ax0, ax1] = span(at, 0), [ay0, ay1] = span(at, 1);
   const [ox0, ox1] = span(out, 0), [oy0, oy1] = span(out, 1);
-  // Rand, den die Ruhezeichnung ueber ihre Ankerpunkte hinaus braucht
+  // Margin the rest drawing needs beyond its anchor points
   const padL = ax0, padR = W - ax1, padU = ay0, padD = H - ay1;
   const x0 = ox0 - padL, y0 = oy0 - padU;
   let w = ox1 + padR - x0, h = oy1 + padD - y0;
-  // Seitenverhaeltnis festhalten: sonst waechst die Zeichnung in der Hoehe,
-  // die Legende darunter rutscht weg und die Maus steht ueber einem anderen
-  // Eintrag als dem, den man angeklickt hat.
+  // Pin the aspect ratio: otherwise the drawing grows taller, the legend below
+  // slides away and the mouse ends up over a different entry than the one
+  // that was clicked.
   if (w / h > W / H) h = w * H / W; else w = h * W / H;
   return [x0 - (w - (ox1 + padR - x0)) / 2, y0 - (h - (oy1 + padD - y0)) / 2, w, h];
 })();
 
-// Wie weit eine Baugruppe beim Ausfahren zum Betrachter wandert. Damit rechnet
-// die Seite die Zeichenreihenfolge in jedem Bild neu aus.
+// How far an assembly travels towards the viewer when moving out. The page
+// uses it to recompute the drawing order in every frame.
 const ORIGIN_DEPTH = k.depthOf([0, 0, 0], P);
 const LIFT = Object.fromEntries(Object.entries(MOVE).map(([id, m]) =>
   [id, Math.round((k.depthOf(m, P) - ORIGIN_DEPTH) * 100) / 100]));
@@ -994,7 +994,7 @@ const still = matchMedia("(prefers-reduced-motion: reduce)");
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const poly = (pts) => "M" + pts.map((p) => iso(p, P).map((n) => Math.round(n * 10) / 10).join(" ")).join("L");
 
-// Laenge der Tourbahn, damit die Duese die gezeichnete Bahn genau abfaehrt
+// Length of the tour path, so the nozzle follows the drawn path exactly
 const legs = TOUR.map((p, i) => { const q = TOUR[(i + 1) % TOUR.length]; return Math.hypot(q[0] - p[0], q[1] - p[1]); });
 const total = legs.reduce((a, b) => a + b, 0);
 function onTour(s) {
@@ -1011,7 +1011,7 @@ let frame = 0, last = 0, s = 0, touring = true, visible = false, idle = 0, picke
 
 function draw() {
   poseExplode();
-  const cy = gy - HEAD_Y;          // Lage des Schlittens hinter der Duese
+  const cy = gy - HEAD_Y;          // position of the carriage behind the nozzle
   for (const el of movers.y) el.setAttribute("transform", translateAlong(P, [0, cy, 0]));
   for (const el of movers.xy) el.setAttribute("transform", translateAlong(P, [tx, cy, 0]));
   for (const which of ["A", "B"]) {
@@ -1020,7 +1020,7 @@ function draw() {
       const el = belts[which + i];
       if (el) el.setAttribute("d", onTop(pts, bz, P));
     });
-    // Riemenweg = Drehung der Scheibe: A = x + y, B = x - y
+    // Belt travel = rotation of the pulley: A = x + y, B = x - y
     const travel = which === "A" ? tx + gy : tx - gy;
     const ang = travel / PULR;
     const c = which === "A" ? MOT_A : MOT_B;
@@ -1051,7 +1051,7 @@ function tick(now) {
 }
 const run = () => { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } };
 const steer = (x, y) => {
-  if (playing) return;                     // waehrend des Zerlegens faehrt nichts
+  if (playing) return;                     // nothing moves while taking apart
   touring = false;
   want = [clamp(x, REACH_X[0], REACH_X[1]), clamp(y, REACH_Y[0], REACH_Y[1])];
   clearTimeout(idle);
@@ -1064,7 +1064,7 @@ if (still.matches) touring = false;
 stage.addEventListener("pointermove", (ev) => {
   const box = svg.getBoundingClientRect();
   const u = (ev.clientX - box.left) / box.width, v = (ev.clientY - box.top) / box.height;
-  // Bildschirm -> Bauraum: rechts/unten heisst +x, links/unten heisst +y
+  // Screen -> build volume: right/down means +x, left/down means +y
   const a = (u - 0.5) * 2, b = (0.62 - v) * 2.6;
   steer((a + b) * 86, (b - a) * 86);
 });
@@ -1078,10 +1078,10 @@ stage.addEventListener("keydown", (ev) => {
   steer(want[0] + d[0], want[1] + d[1]);
 });
 
-// --- Explosionsdarstellung ---------------------------------------------
-// Federn und Staffelung sind dieselben Zahlen, die der Pruefer durchrechnet;
-// beim Schliessen laeuft die Reihenfolge rueckwaerts, aus dem Zerlegen wird so
-// von selbst ein Aufbau von innen nach aussen.
+// --- Exploded view -----------------------------------------------------
+// The springs mirror the kit's springStates (kit/audit.mjs). When closing, the
+// order runs backwards, so taking apart turns into building from the inside
+// out by itself.
 const byPiece = {};
 for (const el of groups) (byPiece[el.dataset.piece] = byPiece[el.dataset.piece] || []).push(el);
 const spr = {};
@@ -1113,8 +1113,8 @@ function springStep(dt) {
   return moving;
 }
 
-// Nummern mit Fuehrungslinie. Sie haengen am Schwerpunkt ihrer Baugruppe und
-// weichen in deren Fluchtrichtung aus, damit sie sich nicht gegenseitig decken.
+// Numbers with leader lines. They hang on the centroid of their assembly and
+// step aside in its escape direction so they do not cover each other.
 const NS = "http://www.w3.org/2000/svg";
 const nums = {}, away = {};
 let numLayer = null;
@@ -1139,8 +1139,8 @@ let numLayer = null;
   svg.append(layer);
   numLayer = layer;
 }
-// Zeichnungseinheiten je Bildschirmpixel. Ohne das waeren die Nummern auf dem
-// Telefon sechs Pixel hoch und am grossen Schirm doppelt so gross wie noetig.
+// Drawing units per screen pixel. Without it the numbers would be six pixels
+// tall on a phone and twice as large as needed on a big screen.
 let unitPerPx = 900 / 652, numHide = false, svgWidth = 652;
 function measure() {
   const box = svg.getBoundingClientRect();
@@ -1148,18 +1148,18 @@ function measure() {
   const vb = svg.getAttribute("viewBox").split(" ").map(Number);
   svgWidth = box.width;
   unitPerPx = vb[2] / box.width;
-  // Unter rund 430 px Zeichnungsbreite stehen elf Nummern dichter als sie
-  // lesbar sind; die Legende darunter traegt sie ohnehin.
+  // Below about 430 px of drawing width eleven numbers stand closer than they
+  // can be read; the legend underneath carries them anyway.
   numHide = box.width < 430;
   if (numLayer) numLayer.style.display = numHide ? "none" : "";
 }
 new ResizeObserver(measure).observe(stage);
 measure();
 
-// Zeichenreihenfolge je Bild. Ein fester Schluessel je Teil kann eine Maschine,
-// deren Baugruppen quer durcheinanderfahren, nicht ordnen; die Tiefe zur
-// Laufzeit kann es. KEYS ist die geloeste Ruhereihenfolge, LIFT der
-// Tiefenversatz, den eine Baugruppe beim Ausfahren gewinnt.
+// Drawing order per frame. One fixed key per part cannot order a machine
+// whose assemblies sweep past each other; depth at run time can. KEYS is the
+// solved rest order, LIFT the depth offset an assembly gains when it moves
+// out.
 const sortParent = groups[0].parentNode;
 const sortAfter = groups[groups.length - 1].nextSibling;
 let drawn = groups.map((_, i) => i);
@@ -1193,10 +1193,10 @@ function poseExplode() {
   const box = VIEW0.map((v, i) => v + (VIEW1[i] - v) * open);
   svg.setAttribute("viewBox", box.map((v) => Math.round(v * 10) / 10).join(" "));
   unitPerPx = box[2] / Math.max(1, svgWidth);
-  // Nummern und ihre Linien sind in Zeichnungseinheiten gesetzt: beim
-  // Herauszoomen schrumpften sie auf sieben Pixel. Mitwachsen lassen.
+  // Numbers and their lines are set in drawing units: when zooming out they
+  // shrank to seven pixels. Let them grow along.
   if (numHide) return open;
-  const zoom = unitPerPx;             // Einheiten je Bildschirmpixel
+  const zoom = unitPerPx;             // drawing units per screen pixel
   for (const id in nums) {
     const own = NUM_PIECE[id] || id;
     const share = spr[own] ? spr[own].x : 0;
@@ -1204,7 +1204,7 @@ function poseExplode() {
     const at = iso([c[0] + m[0] * share, c[1] + m[1] * share, c[2] + m[2] * share], P);
     const a = away[id], n = nums[id];
     const lx = at[0] + a[0] * 26 * zoom, ly = at[1] + a[1] * 26 * zoom;
-    // Der Rahmen bleibt stehen, seine Nummer erscheint mit der Bewegung der anderen.
+    // The frame stays put, its number appears with the movement of the others.
     n.g.setAttribute("opacity", clamp(((id === "rahmen" ? open : share) - 0.14) / 0.3, 0, 1));
     n.line.setAttribute("x1", at[0]); n.line.setAttribute("y1", at[1]);
     n.line.setAttribute("x2", lx); n.line.setAttribute("y2", ly);
@@ -1215,11 +1215,11 @@ function poseExplode() {
   return open;
 }
 
-// Ein Eintrag der Legende faehrt seine Baugruppe allein heraus (nur beim Klick,
-// nicht schon beim Darueberfahren - sonst zappelt die Zeichnung).
+// A legend entry flies its assembly out alone (on click only, not already
+// on hover - the drawing would twitch otherwise).
 function focus(key) {
-  // Legendeneintrag 04 deckt Antrieb und Riemen ab, 05 nur den Traeger: beide
-  // liegen auf der Zeichengruppe "corexy", also faehrt 04 zwei Baugruppen heraus.
+  // Legend entry 04 covers drive and belts, 05 only the beam: both
+  // sit on the drawing group "corexy", so 04 flies two assemblies out.
   const want = key ? key.split(" ").flatMap((g) => (key.includes("riemen") && ALSO[g]) || [PIECE_OF[g]]) : [];
   for (const id in spr) { spr[id].pending = null; spr[id].target = want.includes(id) ? 1 : 0; }
   run();
@@ -1241,14 +1241,14 @@ function play() {
   playing = true;
   picked = null;
   show(null);
-  touring = false;                         // Kopf anhalten, er faehrt sonst auf nichts
+  touring = false;                         // stop the head, it would otherwise move over nothing
   playButton.textContent = "Abbrechen";
   playButton.setAttribute("aria-pressed", "true");
   const apart = (ORDER.length - 1) * OUT_GAP + 1100;
   schedule(true, OUT_GAP);
   run();
-  // Zerlegen, kurz halten, dann Schritt fuer Schritt zusammensetzen und dabei
-  // jede Baugruppe benennen.
+  // Take apart, hold briefly, then put together step by step, naming each
+  // assembly on the way.
   timers.push(setTimeout(() => {
     schedule(false, IN_GAP);
     run();
@@ -1263,7 +1263,7 @@ function play() {
 playButton.addEventListener("click", play);
 stage.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && playing) { stopPlay(); ev.preventDefault(); } });
 
-// Legende: ein Eintrag hebt seine Gruppen hervor und erklaert ihre Aufgabe
+// Legend: an entry highlights its groups and explains their job
 function show(key) {
   const wanted = key ? key.split(" ") : null;
   for (const el of groups) {
@@ -1288,8 +1288,8 @@ for (const b of document.querySelectorAll("[data-pick]")) {
 }
 document.querySelector(".iso-keys").addEventListener("pointerleave", () => show(picked));
 
-// Hell/Dunkel: dieselbe Taste und derselbe Speicherschluessel wie in den
-// Werkzeugen, damit die Wahl fuer die ganze Seite gilt.
+// Light/dark: the same button and the same storage key as in the
+// tools, so the choice applies to the whole site.
 const themeButton = document.getElementById("btn-theme");
 const SUN = ${JSON.stringify(SUN)}, MOON = ${JSON.stringify(MOON)};
 const themeGlyph = ${themeGlyph.toString()};
@@ -1303,13 +1303,13 @@ themeButton.addEventListener("click", () => {
   document.body.dataset.theme = next;
   try { localStorage.setItem("3d-druck.theme", next); } catch (e) { /* ignore */ }
   paintThemeButton();
-  // Die Toene stehen als Inline-Werte am Koerper: ohne Neuberechnung behielte
-  // das helle Thema die dunkle Leiter.
+  // The tones are inline values on the body: without recomputing, the
+  // light theme would keep the dark ladder.
   window.anatomieKontrast(kontrast.valueAsNumber / 100);
 });
 paintThemeButton();
 
-// Kontrast: jedes Geraet - Schreibtisch, Laptop, Beamer - haelt seine Stufe.
+// Contrast: every device - desk, laptop, projector - keeps its own step.
 const kontrast = document.getElementById("kontrast");
 const kontrastWert = document.getElementById("kontrast-wert");
 function applyKontrast(save) {
@@ -1319,7 +1319,7 @@ function applyKontrast(save) {
   if (save) { try { localStorage.setItem("3d-druck.kontrast", kontrast.value); } catch (e) { /* ignore */ } }
 }
 kontrast.value = String(Math.round((window.anatomieKontrastWert ?? ${K_DEFAULT}) * 100));
-// Beim Ziehen nur zeichnen, erst beim Loslassen speichern.
+// While dragging only draw, save on release.
 kontrast.addEventListener("input", () => applyKontrast(false));
 kontrast.addEventListener("change", () => applyKontrast(true));
 applyKontrast(false);
@@ -1363,8 +1363,8 @@ ${TONE_CSS}
 .playbtn[aria-pressed="true"] { color: #f2912f; border-color: color-mix(in srgb, #f2912f 45%, transparent) }
 .iso[data-theme="light"] .playbtn[aria-pressed="true"] { color: #9a4c05; border-color: color-mix(in srgb, #9a4c05 45%, transparent) }
 .iso-nums { pointer-events: none }
-/* Die Nummern liegen ueber der Zeichnung, nicht darin: der Kontur-Umriss haelt
-   sie auch vor einem hellen Teil lesbar. */
+/* The numbers lie over the drawing, not in it: the outline keeps them
+   readable even in front of a light part. */
 .iso-nums text { font: 600 20px/1 system-ui, sans-serif; fill: var(--anatomy-hi);
   paint-order: stroke; stroke: var(--anatomy-paper); stroke-width: 4px; stroke-linejoin: round }
 .iso-nums line { stroke: var(--anatomy-mid); stroke-width: 1; vector-effect: non-scaling-stroke }
@@ -1385,9 +1385,9 @@ ${TONE_CSS}
   color: color-mix(in srgb, currentColor 88%, transparent) }
 .iso-stage svg [data-g] { transition: opacity .2s ease }
 .iso-stage svg [data-g].dim { opacity: .16 }
-/* Gewaehlte Teile im Hausorange (shared/css: --accent). Abblenden allein reichte
-   auf dem Beamer nicht; die vier Toene behalten ihr Gefaelle, damit die Form
-   lesbar bleibt. */
+/* Chosen parts in the house orange (shared/css: --accent). Fading alone was
+   not enough on a projector; the four tones keep their gradient so the form
+   stays readable. */
 .iso-stage svg [data-g].mark {
   --anatomy-shade-0: #6b2e04; --anatomy-shade-1: #93400a;
   --anatomy-shade-2: #bb5310; --anatomy-shade-3: #e26a19;
@@ -1408,9 +1408,9 @@ ${TONE_CSS}
 `;
 
 const THEME_SWITCH = `<script>
-// Hell/Dunkel wie in der Übersicht (dort umschaltbar) und die gespeicherte
-// Kontraststufe, beides vor dem ersten Zeichnen: nachträglich gesetzt würde
-// die 600-kB-Zeichnung einmal in der falschen Stufe aufblitzen.
+// Light/dark as on the overview (switchable there) and the stored
+// contrast step, both before the first paint: set afterwards, the 600 kB
+// drawing would flash once in the wrong step.
 (function () {
   var Q = ${JSON.stringify(TONE_QUIET)}, S = ${JSON.stringify(TONE_STRONG)};
   function mix(a, b, t) {
@@ -1423,15 +1423,15 @@ const THEME_SWITCH = `<script>
     }
     return out;
   }
-  // Auf dem Körper, nicht im Stylesheet: so gilt eine Stufe für beide Themen
-  // und überlebt das Umschalten, ohne dass Regeln nachgeladen werden.
+  // On the body, not in the stylesheet: so one step applies to both themes
+  // and survives switching, without loading rules afterwards.
   window.anatomieKontrast = function (t) {
     var theme = document.body.dataset.theme === "light" ? "light" : "dark";
     for (var n in Q[theme]) document.body.style.setProperty("--anatomy-" + n, mix(Q[theme][n], S[theme][n], t));
   };
   try {
-    // Hell ist der Grundzustand, wie auf der Übersicht: ein dunkel eingestellter
-    // Rechner am Beamer zeigte sonst eine Seite, die im hellen Raum niemand liest.
+    // Light is the default, as on the overview: a machine set to dark showed
+    // a page nobody can read in a bright room on a projector.
     if (localStorage.getItem("3d-druck.theme") !== "dark") document.body.dataset.theme = "light";
   } catch (e) { /* ignore */ }
   var t = ${K_DEFAULT};
@@ -1471,13 +1471,13 @@ if (process.argv.includes("--pieces")) {
 }
 
 const AUDIT_CROWD = [["ptfe.schlauch", "rahmen.riegel"], ["kabel.strang", "corexy.quertraeger"]];
-// Nachbarstuecke eines Schlauchs oder Riemens teilen ihre Endflaeche.
+// Neighbouring pieces of a tube or belt share their end face.
 const AUDIT_ALLOW = [["kabel.strang*", "kabel.strang*"], ["ptfe.schlauch*", "ptfe.schlauch*"], ["riemen.*", "riemen.*"]];
 
-// --apart prueft die Geometrie im auseinandergefahrenen Zustand: Teile, die
-// ineinanderstehen, Leitungsenden, die ins Leere greifen. Die Zeichenreihenfolge
-// steht dort NICHT zur Debatte - die loest die Seite je Bild selbst -, deshalb
-// ist das ein Bericht zum Lesen und kein Tor.
+// --apart checks the geometry in the exploded pose: parts standing in each
+// other, line ends that grab into nothing. Drawing order is NOT up for
+// debate there - the page solves it per frame - so this is a report to read
+// and not a gate.
 if (process.argv.includes("--apart")) {
   const out = A.audit(R, P, { apart: true, crowd: AUDIT_CROWD, allow: AUDIT_ALLOW });
   console.log(A.report(out));
