@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="#ff9f43"/>
+  <g fill="none" stroke="#1a1206" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Saeule mit Fussplatte und Tisch, davor die Spindel mit dem Bohrer -->
+    <path d="M6 27h20"/>
+    <path d="M21 27V8"/>
+    <path d="M11 18h8"/>
+    <path d="M14 8v6"/>
+  </g>
+  <!-- die beiden gegenlaeufigen Stufenscheiben -->
+  <path d="M10.5 7.2h7l-1.4 2.6h-4.2z" fill="#1a1206"/>
+  <path d="M19.2 9.8h4.4l-.9 2.4h-2.6z" fill="#1a1206"/>
+  <path d="M14 14.4l2.6 3.4L14 21.2l-2.6-3.4z" fill="#1a1206"/>
+</svg>

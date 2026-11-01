@@ -155,6 +155,40 @@ Jeder dieser Punkte ist einmal veröffentlicht worden.
 15. **Mehrere lange Läufe gleichzeitig** hungern sich aus (zwei Kerne). Immer nur einen Build oder
     Audit, und Prozesse **über die PID** beenden: `pkill -f <muster>` traf die eigene Shell.
 
+## Fallstricke aus der Bohrmaschine
+
+Diese vier kosteten zusammen vier Audit-Durchläufe und 160 gemeldete Probleme.
+
+16. **Nie einen Ring um einen gezeichneten Zylinder, nie einen Zylinder durch eine gezeichnete
+    Platte.** Beide stehen voreinander auf der einen und dahinter auf der anderen Seite; kein
+    Malschlüssel ordnet das, und der Audit meldet jedes solche Paar als `cycle`. Das ist mit
+    Abstand die häufigste Ursache: 160 der ersten 160 Meldungen waren davon. Die Gegenmittel sind
+    immer dieselben — die Säule an **jeder** Schelle schneiden und das verdeckte Stück gar nicht
+    zeichnen; die Spindel nur dort zeichnen, wo sie wirklich zu sehen ist; eine runde Schelle durch
+    einen **Klemmblock mit flachen Anschlussflächen** ersetzen, damit Arm, Lasche und Kurbel auf
+    eine Ebene treffen statt auf einen Mantel; eine umlaufende Kammerwand in **vier einzelne
+    Wände** teilen; und eine Stange, deren sichtbare Länge sich ändert, als **eine** Stange aus
+    ihrer Führung bauen (`G.rodOut` mit `holdStill`), nie als mehrere Kopien.
+17. **Die Verbindungskante einer gebohrten Platte ist Oberfläche.** Ein Grundriss mit Loch wird als
+    ein Ring gereicht (Außenkontur, dann das Loch rückwärts). Die Kante, die beide verbindet, tastet
+    der Audit als echte Fläche ab — und wenn sie quer durch das Loch läuft, meldet er den Guss als
+    3,4 mm **in** der Säule, die seine Bohrung hält, und findet gleichzeitig den Klemmblock nicht,
+    der an seiner eigenen Lasche sitzt. Den Außenring so drehen, dass er am lochnächsten Punkt
+    beginnt, das Loch an derselben Richtung beginnen lassen und beide Enden doppeln
+    (`[...o, o[0], ...loch, loch[0]]`): dann ist der Schlitz entartet und läuft radial.
+18. **Eine Bohrung mit Spiel trägt nichts.** Eine Bohrung 0,6 mm weiter als die Säule ist eine
+    Bohrung, in der die Säule hängt: der Audit fand keinen Kontakt und meldete die halbe Maschine —
+    69 Teile — als nicht abgestützt. Jede Bohrung auf das Maß dessen schneiden, was sie hält.
+    Dasselbe gilt für den Riemen: er muss die Scheibe wirklich berühren (0,15 ist die Schwelle),
+    sonst hängt er in der Luft.
+19. **Ein Teil neben der Maschine braucht einen eigenen Boden.** Die abgenommene Haube liegt auf
+    der Werkbank, und die Werkbank ist nicht gezeichnet. Ohne `ground: true` (oder einen Namen, der
+    mit `stand.` beginnt) hängt sie samt allem, was auf ihr sitzt, in der Luft.
+20. **Eine Kammerwand so hoch wie ihr Inhalt verdeckt ihn.** Die erste Riemenkammer war 112 mm hoch
+    und die Stufenscheiben 92 — zu sehen war nichts, worum es geht. Bei jedem Gehäuse, das den
+    Mechanismus umgibt, nach dem ersten Bild prüfen, ob er überhaupt zu sehen ist: niedriger Rand,
+    und was darüber muss (hier die Motorplatte), auf einen eigenen Bock stellen.
+
 ## Veröffentlichen
 
 - **Ordner:** `Anatomie-<Objekt>/` auf oberster Ebene (z. B. `Anatomie-Drehmaschine/`). `pages.yml`
@@ -168,9 +202,10 @@ Jeder dieser Punkte ist einmal veröffentlicht worden.
 - Der Build schreibt die Seite direkt. Nach der Änderung `--audit`, `--apart`, `lines.mjs`,
   `pruefe-figur.mjs`, `npm test`, dann Commit.
 
-## Für andere Maschinen (Ansatz, noch nicht gebaut)
+## Für andere Maschinen
 
-Beim ersten Umsetzen prüfen und diesen Abschnitt korrigieren.
+Die Bohrmaschine ist gebaut, der Rest ist Ansatz: beim ersten Umsetzen prüfen und diesen
+Abschnitt korrigieren, so wie es für die Bohrmaschine geschehen ist.
 
 - **Grundsatz aus dem Kit:** jede Zahl, die die Figur zeigt, kommt aus demselben Modell, das die
   Teile bewegt. Beim Drucker ist das `A = X + Y`, `B = X − Y`. Eine Anzeige ohne Modell ist
@@ -178,8 +213,11 @@ Beim ersten Umsetzen prüfen und diesen Abschnitt korrigieren.
 - **Drehmaschine:** Bett, Spindelstock mit Futter, Reitstock, Support (Längs- und Quer­schlitten),
   Werkzeughalter, Leitspindel. Explosion entlang der Spindelachse. Drehteile mit `lathe.mjs`.
   Anzeige: Drehzahl `n` und Schnittgeschwindigkeit `v = π · d · n`.
-- **Bohrmaschine:** Motor, Riemenstufen, Spindel mit Pinole, Bohrfutter, Säule, Tisch. Explosion
-  senkrecht entlang der Spindel. Anzeige: Drehzahl je Riemenstufe aus dem Übersetzungsverhältnis.
+- **Bohrmaschine: gebaut**, siehe `Anatomie-Bohrmaschine/`. Zwölf Baugruppen, dreizehn Nummern
+  (der Bohrer fährt im Futter mit und behält seine Nummer). Anzeige: Drehzahl je Riemenstufe aus
+  zwei gegenläufig gekegelten Stufenscheiben, deren Paare immer dieselbe Summe ergeben, dazu die
+  Schnittgeschwindigkeit am Bohrer. Die beiden Scheiben fahren in entgegengesetzte Richtungen
+  heraus und kommen nebeneinander zur Ruhe — dort liest man das Verhältnis ab.
 - **Fräsmaschine:** Konsole, Kreuztisch, Spindelkopf, Säule. Anzeige: Vorschub aus Drehzahl,
   Zähnezahl und Zahnvorschub.
 - **Einzelbauteil** (Getriebe, Spannfutter, Schraubstock): 5 bis 8 Baugruppen. Explosion entlang
@@ -188,12 +226,16 @@ Beim ersten Umsetzen prüfen und diesen Abschnitt korrigieren.
 
 ## Offen und bekannte Grenzen
 
-- **Ein einziges Beispiel.** Die Vorlage ist der Drucker; alles Allgemeine (Explosion, Nummern,
-  Legende, Thema, Kontrast, Prüfwerkzeug) steckt noch **in** `build-figur.mjs`, zwischen etwa 400
-  Zeilen Drucker-Geometrie. Eine zweite Figur kopiert das heute. Fehlerbehebungen kommen dann nicht
-  von selbst bei der ersten an. **Empfehlung:** das Allgemeine beim Start der zweiten Figur in ein
-  Modul ziehen, weil dann erst klar ist, wo die Naht wirklich liegt, und danach den Drucker mit
-  `pruefe-figur.mjs` als Regressionstest gegenprüfen.
+- **Zwei Figuren, ein Gerüst.** Das Allgemeine steht seit der Bohrmaschine in
+  `figur-kit.mjs` neben dieser Datei: Kontrastleiter, Hell/Dunkel, Leiste über der Zeichnung,
+  Explosionsfedern, Nummern mit Führungslinie, Legende, Tiefensortierung je Bild, Boot-Skript und
+  die Berichte `--names`, `--pieces`, `--apart`. Beide Figuren hängen daran, eine Behebung gilt
+  für beide. Beim Umbau blieb die Zeichnung des Druckers byte-gleich und seine
+  Zeichenreihenfolge in Ruhe unverändert — das ist die Gegenprobe, die ein solcher Umbau
+  schuldet, zusammen mit `--audit` und `pruefe-figur.mjs`.
+  Die Figur liefert Geometrie, `MOVE`/`STAGGER`/`SPRING`, Legende und ihren eigenen Mechanismus
+  über vier Haken (`figStep`, `figDraw`, `figHold`, `figPause`) und ruft `run()` und `held()`;
+  alles andere kommt aus `F.pageOf({...})`. Der Drucker ist die kürzere Vorlage dafür.
 - **Durchdringung im Flug nicht geprüft.** `--audit` und `--apart` decken Ruhelage und zerlegten
   Zustand ab, nicht die ~4 s dazwischen. Mehr kann der Audit nicht, ohne die Ruhelage zu verderben
   (Fallstrick 7).

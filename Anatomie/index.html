@@ -112,9 +112,6 @@ body[data-theme="light"]{color-scheme:light}
 body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
 </style></head><body class="iso" data-theme="dark"><script>
-// Light/dark as on the overview (switchable there) and the stored
-// contrast step, both before the first paint: set afterwards, the 600 kB
-// drawing would flash once in the wrong step.
 (function () {
   var Q = {"dark":{"shade-0":"#0f0f0f","shade-1":"#121212","shade-2":"#151515","shade-3":"#181818","top":"#1c1c1c","face":"#1b1b1b","lit-top":"#262626","lit-shade":"#1d1d1d","faint":"#2a2a2a","lo":"#3e3e3e","mid":"#6a6a6a","hi":"#d4d4d4"},"light":{"shade-0":"#dcdcd9","shade-1":"#e5e5e2","shade-2":"#ededea","shade-3":"#f4f4f1","top":"#ffffff","face":"#ffffff","lit-top":"#ffffff","lit-shade":"#eeeeeb","faint":"#d4d4d6","lo":"#b4b4b8","mid":"#8a8a8f","hi":"#26262a"}}, S = {"dark":{"shade-0":"#353535","shade-1":"#5e5e5e","shade-2":"#868686","shade-3":"#afafaf","top":"#c9c9c9","face":"#676767","lit-top":"#eaeaea","lit-shade":"#a5a5a5","faint":"#717171","lo":"#b4b4b4","mid":"#e6e6e6","hi":"#ffffff"},"light":{"shade-0":"#8e8e85","shade-1":"#b0b0a6","shade-2":"#d0d0c9","shade-3":"#edede8","top":"#ffffff","face":"#ffffff","lit-top":"#ffffff","lit-shade":"#cfcfc7","faint":"#88888f","lo":"#5b5b64","mid":"#33333f","hi":"#0b0b0f"}};
   function mix(a, b, t) {
@@ -146,8 +143,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
   window.anatomieKontrastWert = t;
   window.anatomieKontrast(t);
 })();
-</script><main class="iso-page"><style>
-.iso {
+</script><main class="iso-page"><style>.iso {
   --anatomy-shade-0: #202020;
   --anatomy-shade-1: #343434;
   --anatomy-shade-2: #484848;
@@ -909,6 +905,30 @@ const ISO_CSS = `
 `;
 
 const P = {"origin":[566.7303944190315,598.8628727740479],"scale":0.8324564050635743,"azimuth":38,"elevation":34};
+const MOVE = {"rahmen":[0,0,0],"filament":[-120,0,250],"ams":[-300,0,0],"kopf":[0,300,60],"corexy":[0,0,400],"antrieb":[0,-300,120],"bett":[280,0,-40],"zachse":[0,420,-150],"filter":[0,-280,-40],"elektronik":[180,180,-120]};
+const ORDER = ["filament","ams","kopf","corexy","antrieb","bett","zachse","filter","elektronik"];
+const SPR = {"stagger":0.16,"stiffness":52,"damping":13.6,"substeps":4};
+const OUT_GAP = 300, IN_GAP = 950;
+const BUILD = ["rahmen","elektronik","filter","zachse","bett","antrieb","corexy","kopf","ams","filament"];
+const CENTRE = {"ams":[-423.24444444444447,24.677777777777777,101.44444444444444],"rahmen":[-48.0625,8.979166666666666,270.18333333333334],"filament":[-244.24332289235778,-54.457488825579055,233.6242233942138],"elektronik":[68.42857142857143,142.85714285714286,45.57142857142857],"kopf":[-125.48604730066917,-22.963419010342225,281.5357524954392],"filter":[68.2,-168,230.6],"zachse":[-26.670663116626628,-46.55770772361114,192.0952380952381],"antrieb":[-0.1792028208208693,-71.54603140415401,409],"corexy":[0,2,380.85714285714283],"bett":[0,0,282.1333333333333],"duese":[0,28,386.5]};
+const NUM_PIECE = {"duese":"kopf"};
+const FLY = {"rahmen":["rahmen"],"elektronik":["elektronik"],"filter":["filter"],"corexy riemen":["antrieb","corexy"],"corexy":["corexy"],"kopf kabel":["kopf"],"duese":["kopf"],"bett druck":["bett"],"zachse":["zachse"],"ams":["ams"],"filament ptfe":["filament"]};
+const STEP = {"rahmen":{"no":"01","name":"Rahmen und Kammer","text":"Vier Eckprofile tragen Wände und Deckel. Die geschlossene Kammer hält die Wärme im Bauraum, damit sich ABS und ASA beim Abkühlen nicht verziehen."},"elektronik":{"no":"02","name":"Netzteil und Steuerung","text":"Im Sockel unter dem Kammerboden sitzen Netzteil und Hauptplatine. Das Gitter an der Seitenwand kühlt sie; der Bauraum bleibt davon getrennt."},"filter":{"no":"03","name":"Abluft und Aktivkohle","text":"Der Kammerlüfter drückt die Luft durch den Aktivkohlefilter. Er nimmt die Dämpfe aus dem Bauraum, bevor sie nach draußen gehen."},"antrieb":{"no":"04","name":"CoreXY-Antrieb","text":"Beide Schrittmotoren stehen fest am Rahmen; nur Riemen und Wagen bewegen sich. Deshalb bleibt die bewegte Masse klein und der Kopf schafft 500 mm/s."},"corexy":{"no":"05","name":"X-Träger und Y-Wagen","text":"Der X-Träger läuft mit zwei Wagen auf den beiden Y-Schienen. Er bewegt den Werkzeugkopf in Y, der Kopf selbst fährt darauf in X."},"kopf":{"no":"06","name":"Werkzeugkopf","text":"Am Gehäuse sitzen Extruder, Teilekühlung und die Riemenklemme. Über das Schleppkabel laufen Strom, Heizung und Sensorleitungen mit."},"duese":{"no":"07","name":"Hotend und Düse","text":"Der Heizblock bringt das Filament auf bis zu 300 Grad, die 0,4-mm-Düse legt es als Bahn ab. Der helle Umriss ist die Bahn der laufenden Schicht."},"bett":{"no":"08","name":"Heizbett und Druckplatte","text":"Das Heizbett hält bis zu 100 Grad, damit die erste Schicht haftet. Die Stahlplatte darauf wird magnetisch gehalten und zum Abnehmen herausgenommen."},"zachse":{"no":"09","name":"Z-Achse","text":"Ein Motor dreht über einen Zahnriemen drei Spindeln gleichzeitig. Der Träger senkt die Platte Schicht um Schicht, insgesamt 256 mm weit."},"ams":{"no":"10","name":"AMS: vier Spulen","text":"Vier Fächer, vier Spulen, jede mit eigener Vorschubeinheit. Das Trockenmittel dahinter hält das Filament trocken; vier solche Einheiten ergeben 16 Farben."},"filament":{"no":"11","name":"Filamentweg","text":"Jede Vorschubeinheit schiebt ihr Filament in das Sammelrohr. Von dort führt ein PTFE-Schlauch über den Rahmen zum Werkzeugkopf — immer nur eine Farbe."}};
+const INFO = {"rahmen":"Vier Eckprofile tragen Wände und Deckel. Die geschlossene Kammer hält die Wärme im Bauraum, damit sich ABS und ASA beim Abkühlen nicht verziehen.","elektronik":"Im Sockel unter dem Kammerboden sitzen Netzteil und Hauptplatine. Das Gitter an der Seitenwand kühlt sie; der Bauraum bleibt davon getrennt.","filter":"Der Kammerlüfter drückt die Luft durch den Aktivkohlefilter. Er nimmt die Dämpfe aus dem Bauraum, bevor sie nach draußen gehen.","corexy riemen":"Beide Schrittmotoren stehen fest am Rahmen; nur Riemen und Wagen bewegen sich. Deshalb bleibt die bewegte Masse klein und der Kopf schafft 500 mm/s.","corexy":"Der X-Träger läuft mit zwei Wagen auf den beiden Y-Schienen. Er bewegt den Werkzeugkopf in Y, der Kopf selbst fährt darauf in X.","kopf kabel":"Am Gehäuse sitzen Extruder, Teilekühlung und die Riemenklemme. Über das Schleppkabel laufen Strom, Heizung und Sensorleitungen mit.","duese":"Der Heizblock bringt das Filament auf bis zu 300 Grad, die 0,4-mm-Düse legt es als Bahn ab. Der helle Umriss ist die Bahn der laufenden Schicht.","bett druck":"Das Heizbett hält bis zu 100 Grad, damit die erste Schicht haftet. Die Stahlplatte darauf wird magnetisch gehalten und zum Abnehmen herausgenommen.","zachse":"Ein Motor dreht über einen Zahnriemen drei Spindeln gleichzeitig. Der Träger senkt die Platte Schicht um Schicht, insgesamt 256 mm weit.","ams":"Vier Fächer, vier Spulen, jede mit eigener Vorschubeinheit. Das Trockenmittel dahinter hält das Filament trocken; vier solche Einheiten ergeben 16 Farben.","filament ptfe":"Jede Vorschubeinheit schiebt ihr Filament in das Sammelrohr. Von dort führt ein PTFE-Schlauch über den Rahmen zum Werkzeugkopf — immer nur eine Farbe."};
+const PLAY_LABEL = "Zerlegen und zusammenbauen";
+const VIEW0 = [0, 0, 900, 800], VIEW1 = [-253.9,-273.9,1437,1277.3];
+const LIFT = {"rahmen":0,"filament":61.4,"ams":-195.99,"kopf":186.67,"corexy":223.68,"antrieb":-86.02,"bett":160.55,"zachse":130.49,"filter":-165.28,"elektronik":142.36};
+const KEYS = [-441.7,-320.22,-282.32,-240.49,-191.83,-119.01,-118.99,-118.97,-118.97,-118.95,-118.95,-118.95,-118.95,-118.95,-118.93,-118.93,-118.93,-118.91,-118.89,-118.87,-118.87,-118.87,-118.85,-118.85,-118.85,-118.83,-118.81,-118.79,-118.79,-118.79,-118.77,-118.77,-118.77,-118.75,-118.73,-118.71,-118.71,-108.91,-99.36,-84.84,-77.99,-77.97,-77.95,-77.95,-77.95,-73.76,-73.74,-73.74,-73.72,-73.7,-73.7,-73.68,-73.68,-73.66,-73.66,-73.64,-73.64,-73.62,-73.62,-73.6,-73.6,-73.58,-73.58,-73.56,-73.56,-73.54,-73.54,-73.52,-73.52,-70.57,-65.93,-62.57,-57.17,-54.57,-48.4,-47.13,-46.58,-39.64,-38.58,-36.98,-35.54,-31.2,-30.88,-27.48,-22.12,-13.36,-4.6,4.16,12.92,18.53,21.68,30.44,39.2,47.96,57.67,61.32,70.52,82.27,92.51,102.74,122.6,182.11,182.88,182.9,182.92,182.92,182.92,182.92,182.92,182.92,182.94,182.96,182.96,182.98,182.98,182.98,182.98,182.98,182.98,182.98,183,183,183,183,183,183,183,183,183,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.06,183.06,183.06,183.06,183.06,183.06,183.06,183.06,183.06,183.08,183.08,183.08,183.08,183.08,183.08,183.1,183.1,183.1,183.1,183.1,183.12,183.12,183.12,183.12,183.14,183.14,183.14,183.14,183.16,183.16,183.18,190.79,198.07,198.09,198.11,198.11,198.11,198.13,198.13,198.13,198.15,198.15,202.91,211.38,216.97,216.99,216.99,221.63,228.7,230.22,233.64,234.98,237.5,238.19,238.21,241.79,243.22,246.56,247.17,250.37,250.84,254.04,254.44,257.64,279.23,291.34,291.52,313.09,313.11,313.13,313.15,313.15,313.15,317.84,317.86,317.86,326.72,332.03,334.88,338.09,341.18,367.63,367.65,374.85,374.87,374.89,374.91,374.93];
+
+const stage = document.querySelector(".iso-stage");
+const svg = stage.querySelector("svg");
+const readout = document.querySelector("[data-readout]");
+const info = document.querySelector(".pickinfo");
+const INTRO = info.textContent;
+const groups = [...svg.querySelectorAll("[data-g]")];
+const still = matchMedia("(prefers-reduced-motion: reduce)");
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
 const TOUR = [[33,-46],[35.033648045523,-45.83994842773679],[37.017220926874316,-45.363734711837],[38.90187649661411,-44.58308481444878],[40.64120827980215,-43.517220926874316],[42.19238815542512,-42.19238815542512],[43.517220926874316,-40.64120827980215],[44.58308481444878,-38.90187649661411],[45.363734711837,-37.017220926874316],[45.83994842773679,-35.033648045523],[46,-33],[46,33],[45.83994842773679,35.033648045523],[45.363734711837,37.017220926874316],[44.58308481444878,38.90187649661411],[43.517220926874316,40.64120827980215],[42.19238815542512,42.19238815542512],[40.64120827980215,43.517220926874316],[38.90187649661411,44.58308481444878],[37.017220926874316,45.363734711837],[35.033648045523,45.83994842773679],[33,46],[-33,46],[-35.033648045523,45.83994842773679],[-37.017220926874316,45.363734711837],[-38.90187649661411,44.58308481444878],[-40.64120827980215,43.517220926874316],[-42.19238815542512,42.19238815542512],[-43.517220926874316,40.64120827980215],[-44.58308481444878,38.90187649661411],[-45.363734711837,37.017220926874316],[-45.839948427736786,35.033648045523],[-46,33],[-46,-33],[-45.83994842773679,-35.033648045523],[-45.363734711837,-37.017220926874316],[-44.58308481444878,-38.90187649661411],[-43.517220926874316,-40.64120827980215],[-42.19238815542512,-42.19238815542512],[-40.64120827980215,-43.517220926874316],[-38.90187649661411,-44.58308481444878],[-37.017220926874316,-45.363734711837],[-35.033648045523,-45.839948427736786],[-33,-46]];
 const MOT_A = [-148,-138], MOT_B = [148,-164];
 const IDL_A = [148,-138], IDL_B = [-148,-164];
@@ -956,27 +976,6 @@ const beltRuns = (tx, gy, which) => wrapLoop(which === "A"
 const REACH_X = [-110,110], REACH_Y = [-72,120];
 const GUIDE = [-168,-120,476], PULR = 11, HEAD_Y = 28;
 const ANCH = [-170,-140,410];
-const INFO = {"rahmen":"Vier Eckprofile tragen Wände und Deckel. Die geschlossene Kammer hält die Wärme im Bauraum, damit sich ABS und ASA beim Abkühlen nicht verziehen.","elektronik":"Im Sockel unter dem Kammerboden sitzen Netzteil und Hauptplatine. Das Gitter an der Seitenwand kühlt sie; der Bauraum bleibt davon getrennt.","filter":"Der Kammerlüfter drückt die Luft durch den Aktivkohlefilter. Er nimmt die Dämpfe aus dem Bauraum, bevor sie nach draußen gehen.","corexy riemen":"Beide Schrittmotoren stehen fest am Rahmen; nur Riemen und Wagen bewegen sich. Deshalb bleibt die bewegte Masse klein und der Kopf schafft 500 mm/s.","corexy":"Der X-Träger läuft mit zwei Wagen auf den beiden Y-Schienen. Er bewegt den Werkzeugkopf in Y, der Kopf selbst fährt darauf in X.","kopf kabel":"Am Gehäuse sitzen Extruder, Teilekühlung und die Riemenklemme. Über das Schleppkabel laufen Strom, Heizung und Sensorleitungen mit.","duese":"Der Heizblock bringt das Filament auf bis zu 300 Grad, die 0,4-mm-Düse legt es als Bahn ab. Der helle Umriss ist die Bahn der laufenden Schicht.","bett druck":"Das Heizbett hält bis zu 100 Grad, damit die erste Schicht haftet. Die Stahlplatte darauf wird magnetisch gehalten und zum Abnehmen herausgenommen.","zachse":"Ein Motor dreht über einen Zahnriemen drei Spindeln gleichzeitig. Der Träger senkt die Platte Schicht um Schicht, insgesamt 256 mm weit.","ams":"Vier Fächer, vier Spulen, jede mit eigener Vorschubeinheit. Das Trockenmittel dahinter hält das Filament trocken; vier solche Einheiten ergeben 16 Farben.","filament ptfe":"Jede Vorschubeinheit schiebt ihr Filament in das Sammelrohr. Von dort führt ein PTFE-Schlauch über den Rahmen zum Werkzeugkopf — immer nur eine Farbe."};
-const PLAY_LABEL = "Zerlegen und zusammenbauen";
-const MOVE = {"rahmen":[0,0,0],"filament":[-120,0,250],"ams":[-300,0,0],"kopf":[0,300,60],"corexy":[0,0,400],"antrieb":[0,-300,120],"bett":[280,0,-40],"zachse":[0,420,-150],"filter":[0,-280,-40],"elektronik":[180,180,-120]};
-const ORDER = ["filament","ams","kopf","corexy","antrieb","bett","zachse","filter","elektronik"];
-const SPR = {"stagger":0.16,"stiffness":52,"damping":13.6,"substeps":4};
-const OUT_GAP = 300, IN_GAP = 950;
-const BUILD = ["rahmen","elektronik","filter","zachse","bett","antrieb","corexy","kopf","ams","filament"];
-const CENTRE = {"ams":[-423.24444444444447,24.677777777777777,101.44444444444444],"rahmen":[-48.0625,8.979166666666666,270.18333333333334],"filament":[-244.24332289235778,-54.457488825579055,233.6242233942138],"elektronik":[68.42857142857143,142.85714285714286,45.57142857142857],"kopf":[-125.48604730066917,-22.963419010342225,281.5357524954392],"filter":[68.2,-168,230.6],"zachse":[-26.670663116626628,-46.55770772361114,192.0952380952381],"antrieb":[-0.1792028208208693,-71.54603140415401,409],"corexy":[0,2,380.85714285714283],"bett":[0,0,282.1333333333333],"duese":[0,28,386.5]};
-const PIECE_OF = {"rahmen":"rahmen","elektronik":"elektronik","filter":"filter","riemen":"antrieb","corexy":"corexy","kopf":"kopf","kabel":"kopf","duese":"kopf","bett":"bett","druck":"bett","zachse":"zachse","ams":"ams","filament":"filament","ptfe":"filament"};
-const NUM_PIECE = {"duese":"kopf"};
-const ALSO = {"corexy":["corexy","antrieb"]};
-const STEP = {"rahmen":{"no":"01","name":"Rahmen und Kammer","text":"Vier Eckprofile tragen Wände und Deckel. Die geschlossene Kammer hält die Wärme im Bauraum, damit sich ABS und ASA beim Abkühlen nicht verziehen."},"elektronik":{"no":"02","name":"Netzteil und Steuerung","text":"Im Sockel unter dem Kammerboden sitzen Netzteil und Hauptplatine. Das Gitter an der Seitenwand kühlt sie; der Bauraum bleibt davon getrennt."},"filter":{"no":"03","name":"Abluft und Aktivkohle","text":"Der Kammerlüfter drückt die Luft durch den Aktivkohlefilter. Er nimmt die Dämpfe aus dem Bauraum, bevor sie nach draußen gehen."},"antrieb":{"no":"04","name":"CoreXY-Antrieb","text":"Beide Schrittmotoren stehen fest am Rahmen; nur Riemen und Wagen bewegen sich. Deshalb bleibt die bewegte Masse klein und der Kopf schafft 500 mm/s."},"corexy":{"no":"05","name":"X-Träger und Y-Wagen","text":"Der X-Träger läuft mit zwei Wagen auf den beiden Y-Schienen. Er bewegt den Werkzeugkopf in Y, der Kopf selbst fährt darauf in X."},"kopf":{"no":"06","name":"Werkzeugkopf","text":"Am Gehäuse sitzen Extruder, Teilekühlung und die Riemenklemme. Über das Schleppkabel laufen Strom, Heizung und Sensorleitungen mit."},"duese":{"no":"07","name":"Hotend und Düse","text":"Der Heizblock bringt das Filament auf bis zu 300 Grad, die 0,4-mm-Düse legt es als Bahn ab. Der helle Umriss ist die Bahn der laufenden Schicht."},"bett":{"no":"08","name":"Heizbett und Druckplatte","text":"Das Heizbett hält bis zu 100 Grad, damit die erste Schicht haftet. Die Stahlplatte darauf wird magnetisch gehalten und zum Abnehmen herausgenommen."},"zachse":{"no":"09","name":"Z-Achse","text":"Ein Motor dreht über einen Zahnriemen drei Spindeln gleichzeitig. Der Träger senkt die Platte Schicht um Schicht, insgesamt 256 mm weit."},"ams":{"no":"10","name":"AMS: vier Spulen","text":"Vier Fächer, vier Spulen, jede mit eigener Vorschubeinheit. Das Trockenmittel dahinter hält das Filament trocken; vier solche Einheiten ergeben 16 Farben."},"filament":{"no":"11","name":"Filamentweg","text":"Jede Vorschubeinheit schiebt ihr Filament in das Sammelrohr. Von dort führt ein PTFE-Schlauch über den Rahmen zum Werkzeugkopf — immer nur eine Farbe."}};
-const VIEW0 = [0, 0, 900, 800], VIEW1 = [-253.9,-273.9,1437,1277.3];
-const LIFT = {"rahmen":0,"filament":61.4,"ams":-195.99,"kopf":186.67,"corexy":223.68,"antrieb":-86.02,"bett":160.55,"zachse":130.49,"filter":-165.28,"elektronik":142.36};
-const KEYS = [-441.7,-320.22,-282.32,-240.49,-191.83,-119.01,-118.99,-118.97,-118.97,-118.95,-118.95,-118.95,-118.95,-118.95,-118.93,-118.93,-118.93,-118.91,-118.89,-118.87,-118.87,-118.87,-118.85,-118.85,-118.85,-118.83,-118.81,-118.79,-118.79,-118.79,-118.77,-118.77,-118.77,-118.75,-118.73,-118.71,-118.71,-108.91,-99.36,-84.84,-77.99,-77.97,-77.95,-77.95,-77.95,-73.76,-73.74,-73.74,-73.72,-73.7,-73.7,-73.68,-73.68,-73.66,-73.66,-73.64,-73.64,-73.62,-73.62,-73.6,-73.6,-73.58,-73.58,-73.56,-73.56,-73.54,-73.54,-73.52,-73.52,-70.57,-65.93,-62.57,-57.17,-54.57,-48.4,-47.13,-46.58,-39.64,-38.58,-36.98,-35.54,-31.2,-30.88,-27.48,-22.12,-13.36,-4.6,4.16,12.92,18.53,21.68,30.44,39.2,47.96,57.67,61.32,70.52,82.27,92.51,102.74,122.6,182.11,182.88,182.9,182.92,182.92,182.92,182.92,182.92,182.92,182.94,182.96,182.96,182.98,182.98,182.98,182.98,182.98,182.98,182.98,183,183,183,183,183,183,183,183,183,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.02,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.04,183.06,183.06,183.06,183.06,183.06,183.06,183.06,183.06,183.06,183.08,183.08,183.08,183.08,183.08,183.08,183.1,183.1,183.1,183.1,183.1,183.12,183.12,183.12,183.12,183.14,183.14,183.14,183.14,183.16,183.16,183.18,190.79,198.07,198.09,198.11,198.11,198.11,198.13,198.13,198.13,198.15,198.15,202.91,211.38,216.97,216.99,216.99,221.63,228.7,230.22,233.64,234.98,237.5,238.19,238.21,241.79,243.22,246.56,247.17,250.37,250.84,254.04,254.44,257.64,279.23,291.34,291.52,313.09,313.11,313.13,313.15,313.15,313.15,317.84,317.86,317.86,326.72,332.03,334.88,338.09,341.18,367.63,367.65,374.85,374.87,374.89,374.91,374.93];
-const stage = document.querySelector(".iso-stage");
-const svg = stage.querySelector("svg");
-const readout = document.querySelector("[data-readout]");
-const info = document.querySelector(".pickinfo");
-const INTRO = info.textContent;
-const groups = [...svg.querySelectorAll("[data-g]")];
 const belts = {};
 for (const el of svg.querySelectorAll("[data-belt]")) belts[el.dataset.belt] = el;
 const marks = { A: svg.querySelector('[data-pulley="A"]'), B: svg.querySelector('[data-pulley="B"]') };
@@ -984,8 +983,6 @@ const lines = { ptfe: svg.querySelector('[data-line="ptfe"]'), kabel: svg.queryS
 const tips = [...svg.querySelectorAll('[data-line="dots"] circle')];
 const tipAt = (i, p) => { const q = iso(p, P); tips[i].setAttribute("cx", q[0]); tips[i].setAttribute("cy", q[1]); };
 const movers = { y: [...svg.querySelectorAll('[data-move="y"]')], xy: [...svg.querySelectorAll('[data-move="xy"]')] };
-const still = matchMedia("(prefers-reduced-motion: reduce)");
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const poly = (pts) => "M" + pts.map((p) => iso(p, P).map((n) => Math.round(n * 10) / 10).join(" ")).join("L");
 
 // Length of the tour path, so the nozzle follows the drawn path exactly
@@ -1001,10 +998,10 @@ function onTour(s) {
 }
 
 let tx = TOUR[0][0], gy = TOUR[0][1], want = [tx, gy];
-let frame = 0, last = 0, s = 0, touring = true, visible = false, idle = 0, picked = null;
+let s = 0, touring = true, idle = 0;
 
-function draw() {
-  poseExplode();
+// What the machine does while nobody takes it apart.
+function figDraw() {
   const cy = gy - HEAD_Y;          // position of the carriage behind the nozzle
   for (const el of movers.y) el.setAttribute("transform", translateAlong(P, [0, cy, 0]));
   for (const el of movers.xy) el.setAttribute("transform", translateAlong(P, [tx, cy, 0]));
@@ -1029,30 +1026,33 @@ function draw() {
   stage.setAttribute("aria-valuetext", text);
 }
 
-function tick(now) {
-  const dt = last ? Math.min((now - last) / 1000, 1 / 30) : 1 / 60;
-  last = now;
-  const calm = still.matches;
+function figStep(dt, calm) {
   if (touring) { s += dt * 46; want = onTour(s); }
   const ease = calm ? 1 : 1 - Math.exp(-dt / 0.22);
   tx += (want[0] - tx) * ease;
   gy += (want[1] - gy) * ease;
   if (Math.abs(want[0] - tx) < 0.02 && Math.abs(want[1] - gy) < 0.02) { tx = want[0]; gy = want[1]; }
-  const moving = springStep(calm && !playing ? 1 / 12 : dt);
-  draw();
-  const settled = !touring && !moving && tx === want[0] && gy === want[1];
-  frame = visible && !settled ? requestAnimationFrame(tick) : 0;
+  return touring || tx !== want[0] || gy !== want[1];
 }
-const run = () => { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } };
+
+// Taking apart stops the head: it would otherwise move over nothing.
+// Afterwards the tour runs on, unless a legend entry is picked.
+function figHold(on, picked) { touring = !on && !still.matches && !picked; }
+// An entry is being read: hold the tour that long.
+function figPause(seconds) {
+  touring = false;
+  clearTimeout(idle);
+  idle = setTimeout(() => { touring = !still.matches; s = 0; run(); }, seconds * 1000);
+}
+
 const steer = (x, y) => {
-  if (playing) return;                     // nothing moves while taking apart
+  if (held()) return;                     // nothing moves while taking apart
   touring = false;
   want = [clamp(x, REACH_X[0], REACH_X[1]), clamp(y, REACH_Y[0], REACH_Y[1])];
   clearTimeout(idle);
   idle = setTimeout(() => { touring = !still.matches; s = 0; run(); }, 3800);
   run();
 };
-new IntersectionObserver((e) => { visible = e[e.length - 1].isIntersecting; if (visible) run(); }, { rootMargin: "140px 0px" }).observe(stage);
 if (still.matches) touring = false;
 
 stage.addEventListener("pointermove", (ev) => {
@@ -1074,13 +1074,16 @@ stage.addEventListener("keydown", (ev) => {
 
 // --- Exploded view -----------------------------------------------------
 // The springs mirror the kit's springStates (kit/audit.mjs). When closing, the
-// order runs backwards, so taking apart turns into building from the inside
-// out by itself.
+// order runs backwards, so taking apart turns into building from the inside out
+// by itself.
 const byPiece = {};
 for (const el of groups) (byPiece[el.dataset.piece] = byPiece[el.dataset.piece] || []).push(el);
 const spr = {};
 for (const id in MOVE) spr[id] = { x: 0, v: 0, target: 0, pending: null };
 let eclock = 0, playing = false, timers = [];
+let frame = 0, last = 0, visible = false, picked = null;
+
+function held() { return playing; }
 
 function schedule(on, gap) {
   let i = 0;
@@ -1135,14 +1138,14 @@ let numLayer = null;
 }
 // Drawing units per screen pixel. Without it the numbers would be six pixels
 // tall on a phone and twice as large as needed on a big screen.
-let unitPerPx = 900 / 652, numHide = false, svgWidth = 652;
+let unitPerPx = VIEW0[2] / 652, numHide = false, svgWidth = 652;
 function measure() {
   const box = svg.getBoundingClientRect();
   if (!box.width) return;
   const vb = svg.getAttribute("viewBox").split(" ").map(Number);
   svgWidth = box.width;
   unitPerPx = vb[2] / box.width;
-  // Below about 430 px of drawing width eleven numbers stand closer than they
+  // Below about 430 px of drawing width a dozen numbers stand closer than they
   // can be read; the legend underneath carries them anyway.
   numHide = box.width < 430;
   if (numLayer) numLayer.style.display = numHide ? "none" : "";
@@ -1150,10 +1153,9 @@ function measure() {
 new ResizeObserver(measure).observe(stage);
 measure();
 
-// Drawing order per frame. One fixed key per part cannot order a machine
-// whose assemblies sweep past each other; depth at run time can. KEYS is the
-// solved rest order, LIFT the depth offset an assembly gains when it moves
-// out.
+// Drawing order per frame. One fixed key per part cannot order a machine whose
+// assemblies sweep past each other; depth at run time can. KEYS is the solved
+// rest order, LIFT the depth offset an assembly gains when it moves out.
 const sortParent = groups[0].parentNode;
 const sortAfter = groups[groups.length - 1].nextSibling;
 let drawn = groups.map((_, i) => i);
@@ -1198,8 +1200,10 @@ function poseExplode() {
     const at = iso([c[0] + m[0] * share, c[1] + m[1] * share, c[2] + m[2] * share], P);
     const a = away[id], n = nums[id];
     const lx = at[0] + a[0] * 26 * zoom, ly = at[1] + a[1] * 26 * zoom;
-    // The frame stays put, its number appears with the movement of the others.
-    n.g.setAttribute("opacity", clamp(((id === "rahmen" ? open : share) - 0.14) / 0.3, 0, 1));
+    // A part that stays put has no escape direction of its own: its number
+    // appears with the movement of the others.
+    const far = Math.hypot(m[0], m[1], m[2]) < 1e-6 ? open : share;
+    n.g.setAttribute("opacity", clamp((far - 0.14) / 0.3, 0, 1));
     n.line.setAttribute("x1", at[0]); n.line.setAttribute("y1", at[1]);
     n.line.setAttribute("x2", lx); n.line.setAttribute("y2", ly);
     n.label.setAttribute("x", lx + a[0] * 6 * zoom); n.label.setAttribute("y", ly + (a[1] * 6 + 4.5) * zoom);
@@ -1209,33 +1213,50 @@ function poseExplode() {
   return open;
 }
 
-// A legend entry flies its assembly out alone (on click only, not already
-// on hover - the drawing would twitch otherwise).
+// --- The frame loop ----------------------------------------------------
+function draw() {
+  poseExplode();
+  if (typeof figDraw === "function") figDraw();
+}
+function tick(now) {
+  const dt = last ? Math.min((now - last) / 1000, 1 / 30) : 1 / 60;
+  last = now;
+  const calm = still.matches;
+  const busy = typeof figStep === "function" ? figStep(dt, calm) : false;
+  const moving = springStep(calm && !playing ? 1 / 12 : dt);
+  draw();
+  frame = visible && (busy || moving) ? requestAnimationFrame(tick) : 0;
+}
+function run() { if (!frame && visible) { last = 0; frame = requestAnimationFrame(tick); } }
+new IntersectionObserver((e) => { visible = e[e.length - 1].isIntersecting; if (visible) run(); }, { rootMargin: "140px 0px" }).observe(stage);
+
+// A legend entry flies its assemblies out alone (on click only, not already on
+// hover - the drawing would twitch otherwise).
 function focus(key) {
-  // Legend entry 04 covers drive and belts, 05 only the beam: both
-  // sit on the drawing group "corexy", so 04 flies two assemblies out.
-  const want = key ? key.split(" ").flatMap((g) => (key.includes("riemen") && ALSO[g]) || [PIECE_OF[g]]) : [];
+  const want = key ? FLY[key] || [] : [];
   for (const id in spr) { spr[id].pending = null; spr[id].target = want.includes(id) ? 1 : 0; }
   run();
 }
 
 const playButton = document.getElementById("btn-explode");
-const stopPlay = (quiet) => {
+function stopPlay(quiet) {
   for (const t of timers) clearTimeout(t);
   timers = [];
   playing = false;
   playButton.textContent = PLAY_LABEL;
   playButton.setAttribute("aria-pressed", "false");
   if (!quiet) { schedule(false); show(picked); }
-  touring = !still.matches && !picked;
+  if (typeof figHold === "function") figHold(false, picked);
   run();
-};
+}
 function play() {
   if (playing) { stopPlay(); return; }
   playing = true;
   picked = null;
   show(null);
-  touring = false;                         // stop the head, it would otherwise move over nothing
+  // Whatever the machine does in its idle state stops now: it would otherwise
+  // move over nothing.
+  if (typeof figHold === "function") figHold(true, null);
   playButton.textContent = "Abbrechen";
   playButton.setAttribute("aria-pressed", "true");
   const apart = (ORDER.length - 1) * OUT_GAP + 1100;
@@ -1257,7 +1278,9 @@ function play() {
 playButton.addEventListener("click", play);
 stage.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && playing) { stopPlay(); ev.preventDefault(); } });
 
-// Legend: an entry highlights its groups and explains their job
+// Legend: an entry highlights its groups and explains their job. Showing (show)
+// and remembering (picked) are separate: hover used to record the key, so the
+// click saw it as already chosen and cleared it again.
 function show(key) {
   const wanted = key ? key.split(" ") : null;
   for (const el of groups) {
@@ -1267,7 +1290,7 @@ function show(key) {
   }
   for (const b of document.querySelectorAll("[data-pick]")) b.setAttribute("aria-pressed", String(b.dataset.pick === key));
   info.textContent = key ? INFO[key] : INTRO;
-  if (key) { touring = false; clearTimeout(idle); idle = setTimeout(() => { touring = !still.matches; s = 0; run(); }, 4200); }
+  if (key && typeof figPause === "function") figPause(4.2);
   else run();
 }
 for (const b of document.querySelectorAll("[data-pick]")) {
@@ -1282,8 +1305,8 @@ for (const b of document.querySelectorAll("[data-pick]")) {
 }
 document.querySelector(".iso-keys").addEventListener("pointerleave", () => show(picked));
 
-// Light/dark: the same button and the same storage key as in the
-// tools, so the choice applies to the whole site.
+// Light/dark: the same button and the same storage key as in the tools, so the
+// choice applies to the whole site.
 const themeButton = document.getElementById("btn-theme");
 const SUN = "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/>", MOON = "<path d=\"M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z\"/>";
 const themeGlyph = (dark) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dark ? SUN : MOON}</svg><span>${dark ? "Hell" : "Dunkel"}</span>`;
@@ -1297,8 +1320,8 @@ themeButton.addEventListener("click", () => {
   document.body.dataset.theme = next;
   try { localStorage.setItem("3d-druck.theme", next); } catch (e) { /* ignore */ }
   paintThemeButton();
-  // The tones are inline values on the body: without recomputing, the
-  // light theme would keep the dark ladder.
+  // The tones are inline values on the body: without recomputing, the light
+  // theme would keep the dark ladder.
   window.anatomieKontrast(kontrast.valueAsNumber / 100);
 });
 paintThemeButton();
@@ -1312,6 +1335,7 @@ function applyKontrast(save) {
   kontrastWert.textContent = kontrast.value + " %";
   if (save) { try { localStorage.setItem("3d-druck.kontrast", kontrast.value); } catch (e) { /* ignore */ } }
 }
+// Number(null) is 0: an empty store used to set the slider to 0 instead of 45.
 kontrast.value = String(Math.round((window.anatomieKontrastWert ?? 0.45) * 100));
 // While dragging only draw, save on release.
 kontrast.addEventListener("input", () => applyKontrast(false));
