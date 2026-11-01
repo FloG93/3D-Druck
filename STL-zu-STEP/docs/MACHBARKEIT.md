@@ -163,3 +163,39 @@ Das Budget in SPEC 8 („100 000 Dreiecke < 5 s") wird für Stufe-3-Teile (Platt
 - **`3DBenchy.stl`: 123 der 142 „Zylinder" sind Splitter** (r = 0,01 … 0,5 mm aus drei bis fünf Dreiecken). Die echten Merkmale findet die Erkennung sauber (Kaminbohrung r = 5,000, zwei Fenster r = 2,000). Die Splitter kosten Stufe 3, die die Prüfung zu Recht verweigert. Rauschen allein erzeugt sie nicht (`kugel-rauschen.stl` ergibt 0 Zylinder) – sie entstehen an entarteten Dreiecken.
 - **Dateigrößen:** Stufe 1 und 2 schreiben für große Netze riesige Dateien (Benchy 205 MB). Das ist die ehrliche Folge von „jede Facette eine Fläche"; die Oberfläche warnt davor.
 - **Die Dateien des Auftraggebers** fehlen weiterhin: diese sieben sind öffentlich verfügbare Modelle, keine echten Druckteile mit Bohrungen aus Thingiverse/Printables.
+
+## 8. 3MF-Dateien (30.10.2026)
+
+3MF ist das Druckformat der Slicer: ein ZIP-Archiv mit `3D/3dmodel.model` (XML), Objekten aus Netzen oder Komponenten, einer Bauliste mit Transform je Teil, einer Einheit und – je nach Programm – Zusatzdateien. Gemessen wurde an **zehn selbst gebauten Dateien** (`tests/fixtures/3mf/`, Erzeuger `tests/tools/make_3mf_fixtures.mjs`), nicht an echten Slicer-Dateien.
+
+**Was gebaut ist und womit es geprüft wurde**
+
+| Baustein | Prüfung |
+|---|---|
+| `inflate.js` (eigener, synchroner Entpacker) | 25 Kombinationen aus Daten (leer, Text, Zufall, gemischt) und Verfahren (gespeichert, feste und dynamische Codes, RLE) stimmen mit `node:zlib` überein; 59 MB in 0,5 s |
+| `zip.js` | Eintrag, Prüfsumme (CRC-32 gegen den Standardwert), abgeschnittenes Archiv, falsche Prüfsumme |
+| `xml.js` (kleiner Scanner statt DOMParser, der im Worker fehlt) | Attribute mit beiden Anführungszeichen, Entitäten, Kommentare, CDATA, Text |
+| `threemf.js` | Einheit, verschachtelte Komponenten, Instanzen, Spiegelung, Typen, Produktionserweiterung, Fehlerfälle |
+| gegen **`lib3mf`** (`tests/tools/crosscheck_3mf.py`) | Dreiecke, Volumen und Lage von 7 Dateien stimmen überein, darunter verschachtelte Komponenten mit Skalierung (2125 mm³, 55 × 10 × 10 mm) und Zoll (16 387 064 mm³) |
+| **55 3MF-Dateien des Text-Generators** (`Text-Generator/tests/tools/generate-exports.mjs`, ein unabhängiger Erzeuger mit mehreren Objekten und Farben) | alle gelesen, **Dreiecke, Volumen und Lage stimmen bei allen 55 mit `lib3mf` überein** (z. B. 62 600 Dreiecke, 4190,517 mm³) |
+| alle zehn Dateien durch die ganze Pipeline und OpenCascade | 47 STEP-Dateien gültig |
+
+**Entscheidungen, die die Spezifikation offenlässt**
+
+- **Spiegelung:** Ein Transform mit negativer Determinante dreht die Umlaufrichtung. `lib3mf` wendet die Matrix unverändert an und liefert dabei −1000 mm³ für einen Würfel, der Leser +1000 mm³ und meldet „gespiegelt“ im Bericht.
+- **Nicht übernommen** werden Objekte vom Typ `support`, `solidsupport`, `surface` und `other` sowie Teile mit `printable="0"`; jedes steht mit Grund im Bericht. Ein 3MF ohne Bauliste übernimmt alle Objekte vom Typ `model` und warnt.
+- **Einheit:** wird aus der Datei auf Millimeter umgerechnet. Ist in der Oberfläche zusätzlich eine Einheit eingestellt, gilt sie obendrauf, und der Bericht sagt es.
+- **Kreisförmige Komponenten** (A enthält B enthält A): nur dieser Zweig wird übersprungen, mit Meldung. Vorher lief die Rekursion bis zur Tiefengrenze und lieferte 16 Würfel statt einen (im Test gefunden).
+- **Körper:** Instanzen und getrennte Teile werden getrennte Volumenkörper (die Trennung geschieht wie bisher über Kanten nach dem Verschweißen). Der Name eines 3MF-Objekts erscheint im Bericht, **nicht** als Name des Körpers in der STEP-Datei: nach Heilung und Trennung ist die Zuordnung Dreieck → Objekt verloren.
+- **Grobe Schätzung vor dem Start:** ein 3MF braucht gemessen 11 bis 13 Byte je Dreieck; darauf beruht die Warnung vor sehr großen Dateien.
+
+**Nur nach Beschreibung gebaut, nicht an echten Dateien geprüft:** Das Layout von **Bambu Studio** (Teile in `3D/Objects/*.model`, Teiltypen `normal_part`, `negative_part`, `modifier_part`, Namen und Platten in `Metadata/model_settings.config`) und von **PrusaSlicer** (Modifizierer als Dreiecksbereiche im selben Netz laut `Metadata/Slic3r_PE_model.config`). Die Testdateien dazu folgen der Beschreibung und sind gültige 3MF-Dateien (`lib3mf` liest sie), beweisen aber nicht, dass echte Dateien genauso aufgebaut sind. Ein **Negativteil wird nicht vom Körper abgezogen**, sondern ausgelassen – der Bericht sagt das ausdrücklich.
+
+**Nicht gelesen:** Farben und Materialien (nur gezählt), Gitterstäbe (Beam-Lattice), Schichtdaten (Slice), verschlüsselte oder ZIP64-Archive. Das Vorhandensein steht im Bericht.
+
+**Einordnung zu den Mehrfarb-Druckdateien:** Beim Umwandeln der 55 Dateien des Text-Generators enden viele Körper als „offen“ (z. B. `preset3`: 111 von 112). Das liegt an der Geometrie, nicht am Leser: Die Farbteile berühren sich und überlappen (Schrift auf Grundplatte), und die STL-Fassung desselben Modells endet ebenfalls zu großen Teilen offen (88 von 113). Der Bericht nennt das je Körper; eine Auswertung, ob sich solche Druckdateien besser behandeln lassen (z. B. Teile je Farbe vereinigen), ist nicht gemacht.
+
+**Leistung:** 136 192 Dreiecke als 3MF (1,5 MB) werden in 0,5 s gelesen.
+
+**Offen:** echte 3MF-Dateien aus Bambu Studio, PrusaSlicer und Cura (die Dateien des Auftraggebers); Farben aus der Datei in die Vorschau; Negativteile abziehen; Namen der Objekte als Namen der Körper in der STEP-Datei.
+

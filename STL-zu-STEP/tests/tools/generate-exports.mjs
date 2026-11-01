@@ -14,6 +14,7 @@ import path from 'node:path';
 import { convert } from '../../js/core/pipeline.js';
 import { writeStep } from '../../js/export/step.js';
 import { mergeBreps } from '../../js/core/brep.js';
+import { fileURLToPath } from 'node:url';
 import { loadFixture, expected } from '../helpers.mjs';
 
 const OUT = process.argv[2] || 'build/stl-exports';
@@ -86,6 +87,30 @@ for (const name of Object.keys(all)) {
     if (result.components.every((c) => c.tier === tier)) extra.push(write(name, result, exp, { tier, forced: true }).file);
   }
   console.log(`${name.padEnd(32)} Stufe ${info.tiers.join('+').padEnd(5)} ${String(info.faces).padStart(5)} Flächen  ${String(Math.round(info.bytes / 1024)).padStart(5)} kB${extra.length ? `  + ${extra.join(', ')}` : ''}`);
+}
+
+// The 3MF fixtures (tests/fixtures/3mf/): the reader's output goes through the
+// whole pipeline, so OpenCascade sees solids that came out of 3MF files too.
+// The numbers are worked out by hand in tests/threemf.test.mjs.
+const PLATE = all['platte.stl'];
+const THREEMF = {
+  'wuerfel.3mf': { koerper: 1, volumen: 1000 },
+  'platte.3mf': { ...PLATE },
+  'zoll.3mf': { koerper: 1, volumen: 254 ** 3 }, // 10 inch = 254 mm
+  'zwei-instanzen.3mf': { koerper: 2, volumen: 1000 }, // per body; the summary multiplies by the number of bodies
+  'komponenten.3mf': { koerper: 3, volumen: 2125 / 3 },
+  'gespiegelt.3mf': { koerper: 1, volumen: 1000 },
+  'stuetzen-und-nicht-druckbar.3mf': { koerper: 1, volumen: 1000 },
+  'defekt-loch.3mf': { ...PLATE },
+  'bambu-stil.3mf': { ...PLATE },
+  'prusa-stil.3mf': { ...PLATE },
+};
+const dir3mf = fileURLToPath(new URL('../fixtures/3mf/', import.meta.url));
+for (const [name, exp] of Object.entries(THREEMF)) {
+  const bytes = fs.readFileSync(dir3mf + name);
+  const result = convert(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), name, {});
+  const info = write(name, result, exp, {});
+  console.log(`${name.padEnd(32)} Stufe ${info.tiers.join('+').padEnd(5)} ${String(info.faces).padStart(5)} Flächen  ${String(Math.round(info.bytes / 1024)).padStart(5)} kB`);
 }
 
 // The open shell as well: forced through the whole fallback chain, so the

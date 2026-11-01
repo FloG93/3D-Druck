@@ -98,7 +98,8 @@ function main() {
 
   /** Warns about very large files before the work starts (SPEC 6.6). */
   function openFile(file) {
-    const estimate = Math.round((file.size - 84) / 50); // binary STL: 50 bytes per triangle
+    // Binary STL: 50 bytes per triangle. A 3MF is a compressed XML text: about 12 bytes per triangle (measured 11–13).
+    const estimate = /\.3mf$/i.test(file.name) ? Math.round(file.size / 12) : Math.round((file.size - 84) / 50);
     if (estimate > BIG_MESH_TRIANGLES) {
       const ok = window.confirm(`Die Datei hat etwa ${estimate.toLocaleString('de-DE')} Dreiecke. Das kann Minuten dauern und viel Speicher brauchen. Weitermachen?`);
       if (!ok) return;
