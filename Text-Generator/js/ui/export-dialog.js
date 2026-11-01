@@ -34,6 +34,8 @@ const STAMP = 'Stempelplatte und Griff sind eigene Objekte: die Platte mit der S
 
 const CUP = 'Der Becher steht auf seinem Boden – so drucken, ohne Stützen.';
 
+const CLIP = 'Der Clip steht aufrecht auf dem Druckbett, der Spalt zeigt zur Seite – so drucken, ohne Stützen. PETG oder TPU federn besser als PLA.';
+
 // Formats that take a series (every name a piece of its own).
 const SERIES_FORMATS = ['3mf', 'stl', 'svg', 'dxf'];
 
@@ -45,14 +47,16 @@ function seriesInfo(format, n, bed) {
 }
 
 const INFO = {
-  '3mf': (m, series) => (m.cup ? `${CUP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teilen: ${partsList(m)} – im AMS die Farben zuweisen. Der Boden reicht zur Hälfte in die Wand, beide verschmelzen beim Slicen.` : m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
+  '3mf': (m, series) => (m.cup?.open ? `${CLIP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)} – im AMS die Farben zuweisen.` : m.cup ? `${CUP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I). Es entsteht ein Objekt aus ${m.parts.length} Teilen: ${partsList(m)} – im AMS die Farben zuweisen. Der Boden reicht zur Hälfte in die Wand, beide verschmelzen beim Slicen.` : m.stamp?.handle ? `${STAMP} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I), beide Teile liegen schon nebeneinander.` : m.pieces.length
     ? `${PIECES(m)} <b>In Bambu Studio:</b> Datei → <i>Importieren</i> (Strg+I) – jedes Teil ist ein eigenes Objekt. Mit <i>Anordnen</i> (Taste A) auf die Druckplatte verteilen; passen nicht alle darauf, eine weitere Platte hinzufügen und erneut anordnen.`
     : `<b>In Bambu Studio:</b> Datei → <i>Importieren</i> → <i>3MF/STL/STEP … importieren</i> (Strg+I). Es entsteht ${series ? 'je Name ' : ''}ein Objekt aus ${m.parts.length} Teil${m.parts.length === 1 ? '' : 'en'}: ${partsList(m)}. Im AMS die passenden Farben den Filamenten zuweisen, slicen, drucken.
     <br>Ein Teil lässt sich auch in der Objektliste per Rechtsklick → <i>Filament ändern</i> umstellen. OrcaSlicer liest die Datei genauso.`),
   stl: (m) => (m.stamp?.handle ? `${STAMP} In der STL liegen beide nebeneinander – im Slicer <i>In Objekte teilen</i>.` : m.pieces.length
     ? `${PIECES(m)} Alle Teile liegen auseinandergezogen in einer Datei – im Slicer <i>In Objekte teilen</i> und anordnen. Mit <b>3MF</b> sind es gleich getrennte Objekte.`
     : 'Alle Teile in einer Datei – der Slicer vereint sie zu einem Körper. Für mehrfarbigen Druck lieber <b>3MF</b> nehmen.'),
-  svg: (m) => (m.cup
+  svg: (m) => (m.cup?.open
+    ? 'Der abgewickelte Ring des Clips im Maßstab 1:1 (Bogenlänge × Länge) – als Kontrolle oder als Vorlage für einen Aufkleber. Den fertigen Clip gibt es als <b>STEP</b>.'
+    : m.cup
     ? `Die abgewickelte Wand des Bechers im Maßstab 1:1${m.cup.conical ? ' – beim konischen Becher ein Kreisring-Ausschnitt, der genau um die Wand passt' : ' (Umfang × Höhe)'}, zum Beispiel als Vorlage für Folie oder Papier. <b>Für Fusion 360:</b> <b>Nur Schrift</b> auf eine Ebene legen, die den Zylinder berührt, und mit <i>Erstellen → Prägen</i> um die Mantelfläche legen – den ganzen Becher gibt es als <b>STEP</b>.`
     : `Draufsicht 1:1 mit glatten Kurven. <b>Farbig</b> für Doku, <b>Umrisse</b> für Laser, Plotter oder Fusion 360${m.relief === 'cut' ? ' (bei der Schablone alle Schnittlinien mit Stegen)' : ''}, <b>Nur Schrift</b> für eine Skizze auf deinem eigenen Teil.
     <br><b>In Fusion 360:</b> <i>Einfügen → SVG einfügen</i>, Fläche wählen – die Größe stimmt ohne Skalieren –, dann <i>Extrusion</i> (Verbinden oder Ausschneiden) oder auf runden Flächen <i>Erstellen → Prägen</i>.`),

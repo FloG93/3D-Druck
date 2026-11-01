@@ -130,6 +130,32 @@ function rejectionBlock(result) {
     h('ul', {}, ...[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([reason, n]) => h('li', {}, `${reason}: ${de(n, 0)}×`))));
 }
 
+/** The analysis of a 3MF file: program, unit, every object, and what was left out. */
+function sourceBlock(source) {
+  if (!source || source.format !== '3mf') return null;
+  const size = (o) => (o.size ? o.size.map((v) => de(v, 1)).join(' × ') : '–');
+  const meta = [
+    source.slicer || source.application ? ['Erstellt mit', source.slicer ? `${source.slicer}${source.application ? ` (${source.application})` : ''}` : source.application] : null,
+    source.title ? ['Titel', source.title] : null,
+    ['Einheit', source.unitFactor === 1 ? source.unitName : `${source.unitName} – auf Millimeter umgerechnet (× ${de(source.unitFactor, 4)})`],
+    source.materials > 0 ? ['Materialien/Farben', `${de(source.materials, 0)} (werden nicht gelesen)`] : null,
+  ].filter(Boolean);
+  return h('div', { class: 'report-section' },
+    h('h3', {}, '3MF-Datei'),
+    h('dl', { class: 'report-rows' }, ...meta.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
+    h('table', { class: 'report-objects' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Objekt'), h('th', {}, 'Größe (mm)'), h('th', {}, 'Volumen (mm³)'))),
+      h('tbody', {}, ...source.objects.map((o) => h('tr', {},
+        h('td', {}, o.name, o.instances > 1 ? ` ×${o.instances}` : '', o.plate ? ` · Platte ${o.plate}` : '', o.mirrored ? ' · gespiegelt' : ''),
+        h('td', {}, size(o)),
+        h('td', {}, de(o.volume, 1)))))),
+    source.skipped.length > 0
+      ? h('details', { class: 'report-compare', open: true },
+        h('summary', {}, `${plural(source.skipped.length, 'Teil nicht übernommen', 'Teile nicht übernommen')}`),
+        h('ul', { class: 'report-list' }, ...source.skipped.map((text) => h('li', {}, text))))
+      : null);
+}
+
 /**
  * renderReport(container, result, handlers) – draws the whole report.
  * handlers: { onToggleUncertain }
@@ -146,6 +172,9 @@ export function renderReport(container, result, handlers = {}) {
   container.append(h('div', { class: 'report-file' },
     h('b', {}, result.fileName),
     h('span', {}, `${plural(result.triangles, 'Dreieck', 'Dreiecke')}, ${plural(result.healReport.points, 'Punkt', 'Punkte')}, ${plural(bodies, 'Körper', 'Körper')}`)));
+
+  const source = sourceBlock(result.source);
+  if (source) container.append(source);
 
   for (const warning of result.warnings) {
     container.append(h('p', { class: 'report-warn' }, h('span', { class: 'inline-icon', html: icon('warn') }), warning));

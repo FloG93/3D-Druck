@@ -11,4 +11,6 @@ trimesh>=4.0
 pymeshfix>=0.17
 numpy>=1.26
 scipy>=1.11
+# crosscheck_3mf.py      the 3MF reader against lib3mf (reference implementation of the 3MF consortium)
+lib3mf>=2.3
 # make_fixtures.py       builds the fixtures (cadquery-ocp plus numpy)

@@ -14,7 +14,7 @@ import { qrBlock, graphicBlock, hasQrLogo } from './blocks.js';
 import { bridgeIslands } from './stencil.js';
 import { splitStencil } from './split.js';
 import { stampHandle, handleVolume } from './stamp.js';
-import { cupShape } from './cup.js';
+import { cupShape, clipCup } from './cup.js';
 
 export const PART_NAMES = { base: 'Platte', text: 'Schrift', border: 'Rand', outline: 'Kontur', back: 'Rückseite', piece: 'Teil', handle: 'Griff', floor: 'Boden' };
 export const KIND_NAMES = { text: 'Text', qr: 'QR-Code', graphic: 'Grafik' };
@@ -153,6 +153,14 @@ function basePlate(doc, text, box, warnings, center = null) {
       // as the wall along its surface.
       const { circumference: C, length: H } = cupShape(doc.cup);
       return union([[-C / 2, -H / 2, C / 2, -H / 2, C / 2, H / 2, -C / 2, H / 2]]);
+    }
+    case 'clip': {
+      // The ring unrolled: the opening is missing from the circumference,
+      // so the wall stays open and snaps onto the cable.
+      const { circumference: C } = cupShape(clipCup(doc.clip, doc.body.thickness));
+      const W = (C * (360 - doc.clip.opening)) / 360;
+      const H = doc.clip.length;
+      return union([[-W / 2, -H / 2, W / 2, -H / 2, W / 2, H / 2, -W / 2, H / 2]]);
     }
     case 'circle': {
       if (fixed) return union([circleRing(0, 0, b.width / 2)]);
@@ -529,9 +537,12 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   // A cup (pen holder): the wall unrolled, bent around afterwards; no
   // mount, magnets, back or stamp (the panels say so; only dropped
   // lettering is worth a warning).
-  const cup = doc.base.shape === 'cup';
+  // A cable clip is the same wall, only it does not close.
+  const openWall = doc.base.shape === 'clip';
+  const cup = doc.base.shape === 'cup' || openWall;
+  const wrapName = openWall ? 'Ein Kabelclip' : 'Ein Becher';
   if (cup) {
-    if (back.length) warnings.push('Ein Becher hat keine Rückseite – die Blöcke hinten entfallen.');
+    if (back.length) warnings.push(`${wrapName} hat keine Rückseite – die Blöcke hinten entfallen.`);
     doc = { ...doc, mount: { ...doc.mount, type: 'none' }, magnets: { ...doc.magnets, enabled: false }, stamp: { ...doc.stamp, enabled: false }, stencil: { ...doc.stencil, split: false } };
     back.length = 0;
     layouts.splice(0, layouts.length, ...front);
@@ -602,8 +613,9 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
     else area = plate;
     const keepOut = mount.countersinks.map((c) => circleRing(c.cx, c.cy, c.R + (sunk ? MIN_WALL : 0.4)));
     if (keepOut.length) area = difference(area, keepOut);
-    // A cup: nothing on the seam at the back, where the wall closes.
-    if (cup) {
+    // A cup: nothing on the seam at the back, where the wall closes. A clip
+    // is already open there, so its lettering may reach both ends.
+    if (cup && !openWall) {
       const b = regionBounds(base);
       area = intersection(area, [[b.minX + SEAM_GAP, b.minY - 1, b.maxX - SEAM_GAP, b.minY - 1, b.maxX - SEAM_GAP, b.maxY + 1, b.minX + SEAM_GAP, b.maxY + 1]]);
     }
@@ -864,29 +876,58 @@ export function buildModel(doc, getFace, { keepCurves = false, symbolsLoading = 
   let cupInfo = null;
   if (cup && base.length) {
     const b = regionBounds(base);
-    const shape = cupShape(doc.cup);
+    const shape = cupShape(openWall ? clipCup(doc.clip, t) : doc.cup);
     const { r0, r1, sin, cos } = shape;
-    const segments = Math.max(72, Math.min(360, Math.round(2 * Math.max(r0, r1) * 2.5)));
-    const wrap = { seam: [b.minX, b.maxX], radius: shape.radius, t, height: b.maxY - b.minY, sin, cos, segments };
+    // Enough segments that the facets stay well under the printer's
+    // resolution; the floor matters for small rings like a cable clip,
+    // where it keeps the mesh within 0.05 % of the round volume.
+    const segments = Math.max(120, Math.min(360, Math.round(2 * Math.max(r0, r1) * 2.5)));
+    // A cup's wall closes, so the plate spans the whole circumference; a
+    // clip covers only part of it, so the full circle stays the measure the
+    // bend works with and the rest of the circle is the opening.
+    const seam = openWall ? [-shape.circumference / 2, shape.circumference / 2] : [b.minX, b.maxX];
+    const wrap = { seam, radius: shape.radius, t, height: b.maxY - b.minY, sin, cos, segments };
     for (const part of parts) for (const s of part.solids) s.wrap = wrap;
     // The floor reaches halfway into the wall; on a sloped wall in slices
-    // that follow it.
-    const floor = Math.min(doc.cup.bottom, shape.height);
-    const tan = sin / cos;
-    const slices = Math.max(1, Math.ceil((floor * Math.abs(sin)) / (t / 2)));
-    const discs = [];
-    for (let i = 0; i < slices; i++) {
-      const z0 = (floor * i) / slices;
-      const z1 = (floor * (i + 1)) / slices;
-      discs.push({ region: union([circleRing(0, 0, r0 + ((z0 + z1) / 2) * tan - t / (2 * cos))]), z0, z1 });
+    // that follow it. A clip has none – the cable runs through.
+    const floor = openWall ? 0 : Math.min(doc.cup.bottom, shape.height);
+    if (floor > 0) {
+      const tan = sin / cos;
+      const slices = Math.max(1, Math.ceil((floor * Math.abs(sin)) / (t / 2)));
+      const discs = [];
+      for (let i = 0; i < slices; i++) {
+        const z0 = (floor * i) / slices;
+        const z1 = (floor * (i + 1)) / slices;
+        discs.push({ region: union([circleRing(0, 0, r0 + ((z0 + z1) / 2) * tan - t / (2 * cos))]), z0, z1 });
+      }
+      add('floor', PART_NAMES.floor, doc.colors.base, doc.slots.base, discs);
     }
-    add('floor', PART_NAMES.floor, doc.colors.base, doc.slots.base, discs);
     if (t > Math.min(r0, r1) * 0.6) warnings.push('Die Wand ist für diesen Durchmesser zu dick.');
     const degrees = Math.abs((shape.slope * 180) / Math.PI);
     if (degrees > 35) warnings.push(`Die Wand ist ${Math.round(degrees)}° schräg – ohne Stützen druckt man meist bis etwa 40°.`);
+    // The clip only holds while its gap is narrower than the cable, so that
+    // it has to spring over it: the gap is the chord of the opening inside.
+    const { cable, opening, play } = doc.clip;
+    const clipGap = openWall ? (cable + 2 * play) * Math.sin((opening * Math.PI) / 360) : 0;
+    if (openWall) {
+      // The clip has to spring open over the cable: a wall that is thick
+      // next to a thin cable barely gives, and a narrow opening barely lets
+      // the cable in.
+      if (t > cable * 0.35) {
+        warnings.push(`Die Wand ist mit ${fmt(t)} mm neben einem ${fmt(cable)}-mm-Kabel dick – der Clip federt kaum. Dünner machen oder PETG bzw. TPU drucken.`);
+      }
+      if (clipGap >= cable) {
+        warnings.push(`Der Spalt ist mit ${fmt(clipGap)} mm breiter als das ${fmt(cable)}-mm-Kabel – der Clip hält nicht. Öffnung auf höchstens ${Math.floor((360 / Math.PI) * Math.asin(cable / (cable + 2 * play)))}° verkleinern.`);
+      } else if (clipGap > 0.92 * cable) {
+        warnings.push(`Der Spalt ist mit ${fmt(clipGap)} mm fast so breit wie das Kabel – der Clip rutscht leicht ab. Öffnung verkleinern.`);
+      }
+      if (opening < 70) warnings.push(`Die Öffnung ist mit ${Math.round(opening)}° eng – der Clip lässt sich kaum aufschnappen (80–110° gehen leichter).`);
+    }
     cupInfo = {
-      diameter: doc.cup.diameter, top: 2 * r1, conical: r0 !== r1, height: shape.height, length: shape.length,
+      diameter: openWall ? 2 * r0 : doc.cup.diameter, top: 2 * r1, conical: r0 !== r1, height: shape.height, length: shape.length,
       circumference: b.maxX - b.minX, floor, wall: t, slope: degrees, shape,
+      // A cable clip: the cable it holds and how far the ring stays open.
+      open: openWall, cable: openWall ? cable : 0, opening: openWall ? opening : 0, gap: clipGap,
     };
   }
 

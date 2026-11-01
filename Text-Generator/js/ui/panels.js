@@ -7,7 +7,7 @@ import {
 import { icon } from '../../../shared/js/icons.js';
 import { BUILTIN_FONTS, fontKey, SYMBOLS } from '../core/fonts.js';
 import { KIND_NAMES, QR_MIN_MODULE } from '../core/model.js';
-import { STENCIL_THICKNESS, STAMP_KIND_DEFAULTS, firstLine } from '../core/document.js';
+import { STENCIL_THICKNESS, CLIP_WALL, STAMP_KIND_DEFAULTS, firstLine } from '../core/document.js';
 import { seriesNames, seriesTarget, MAX_SERIES } from '../core/series.js';
 import { parseSVG } from '../core/svgimport.js';
 
@@ -151,8 +151,8 @@ function commonFields(panel, app, id, bind) {
         },
       },
       options: [['front', 'Vorne'], ['back', 'Hinten']],
-      // A cup has no back: the lettering runs around it.
-      visible: () => hasBase() && app.doc.base.shape !== 'cup',
+      // A cup or clip has no back: the lettering runs around it.
+      visible: () => hasBase() && !['cup', 'clip'].includes(app.doc.base.shape),
     }),
     toggle(panel, {
       label: 'Eigene Farbe',
@@ -410,6 +410,7 @@ const SHAPE_NOTES = {
   oval: 'Ovale Platte.',
   circle: 'Runde Platte.',
   cup: 'Becher oder Stifthalter: Die Vorschau zeigt die Wand abgewickelt – die Schrift läuft rundherum, vorne ist die Mitte, links und rechts treffen sich hinten. In der 3D-Ansicht steht der Becher.',
+  clip: 'Kabelclip: ein Ring, der sich nicht schließt und seitlich aufs Kabel schnappt – die Schrift läuft außen herum. Die Vorschau zeigt den Ring abgewickelt, in der 3D-Ansicht steht der Clip.',
   none: 'Keine Platte: Die Buchstaben selbst sind das Teil. Getrennte Teile (i-Punkte, Umlaute) fallen auseinander – eine Schreibschrift oder „Fettung“ hilft.',
 };
 
@@ -434,6 +435,10 @@ export function buildRightPanel(root, app) {
   const hasBase = () => shape() !== 'none';
   const sizable = () => ['rect', 'capsule', 'oval', 'circle'].includes(shape());
   const cup = () => shape() === 'cup';
+  const clip = () => shape() === 'clip';
+  // Both are a wall bent around an axis: no mount, magnets, back or stamp.
+  const wrapped = () => cup() || clip();
+  const wrappedName = () => (clip() ? 'Ein Kabelclip' : 'Ein Becher');
   const fixed = () => sizable() && doc().base.sizeMode === 'fixed';
 
   const form = section('Grundform', { id: 'base', icon: 'shapeRect' });
@@ -441,6 +446,13 @@ export function buildRightPanel(root, app) {
     segmented(panel, {
       bind: bindPath(app, 'base.shape'),
       iconOnly: true,
+      onChange: (v) => {
+        // A clip is a spring, not a plate: a plate-thick wall would not give.
+        if (v === 'clip' && doc().body.thickness > CLIP_WALL) {
+          app.set('body.thickness', CLIP_WALL);
+          app.amend();
+        }
+      },
       options: [
         ['contour', 'Kontur', 'shapeContour', 'Kontur – folgt der Schrift'],
         ['rect', 'Rechteck', 'shapeRect', 'Rechteck'],
@@ -448,6 +460,7 @@ export function buildRightPanel(root, app) {
         ['oval', 'Oval', 'shapeOval', 'Oval'],
         ['circle', 'Kreis', 'shapeCircle', 'Kreis'],
         ['cup', 'Becher', 'shapeCup', 'Becher oder Stifthalter – Schrift rundherum'],
+        ['clip', 'Clip', 'shapeClip', 'Kabelclip – schnappt aufs Kabel, Schrift außen'],
         ['none', 'Ohne', 'shapeNone', 'Ohne Platte – nur Buchstaben'],
       ],
     }),
@@ -470,12 +483,16 @@ export function buildRightPanel(root, app) {
     note(panel, 'Konisch, z. B. ein Übertopf: Die Vorschau zeigt die Wand als Rechteck mit dem Umfang auf halber Höhe, die Höhe entlang der Wand gemessen. Zum weiten Ende hin wird die Schrift auf dem Becher etwas breiter; SVG und DXF enthalten den genauen Zuschnitt der Wand.', () => cup() && doc().cup.conical),
     segmented(panel, { label: 'Größe', bind: bindPath(app, 'base.sizeMode'), options: [['auto', 'Um die Schrift'], ['fixed', 'Feste Maße']], visible: sizable }),
     grid(
-      numberField(panel, { label: 'Randabstand', title: 'Abstand zwischen Schrift und Plattenrand', unit: 'mm', bind: bindPath(app, 'base.padding'), min: 0, max: 100, step: 0.2, digits: 2, slider: [0, 10], visible: () => hasBase() && !fixed() && !cup() }),
+      numberField(panel, { label: 'Randabstand', title: 'Abstand zwischen Schrift und Plattenrand', unit: 'mm', bind: bindPath(app, 'base.padding'), min: 0, max: 100, step: 0.2, digits: 2, slider: [0, 10], visible: () => hasBase() && !fixed() && !wrapped() }),
       numberField(panel, { label: 'Durchmesser', title: 'Außen, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.diameter'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: () => cup() && !doc().cup.conical }),
       numberField(panel, { label: 'Ø unten', title: 'Außendurchmesser am Boden, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.diameter'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: () => cup() && doc().cup.conical }),
       numberField(panel, { label: 'Ø oben', title: 'Außendurchmesser am Rand, ohne erhabene Schrift', unit: 'mm', bind: bindPath(app, 'cup.top'), min: 10, max: 500, step: 1, digits: 1, slider: [30, 150], visible: () => cup() && doc().cup.conical }),
       numberField(panel, { label: 'Höhe', unit: 'mm', bind: bindPath(app, 'cup.height'), min: 5, max: 500, step: 1, digits: 1, slider: [20, 200], visible: cup }),
       numberField(panel, { label: 'Boden', title: 'Dicke des Bodens', unit: 'mm', bind: bindPath(app, 'cup.bottom'), min: 0.4, max: 20, step: 0.2, digits: 2, slider: [1, 6], visible: cup }),
+      numberField(panel, { label: 'Kabel-Ø', title: 'Außendurchmesser des Kabels – am besten nachmessen', unit: 'mm', bind: bindPath(app, 'clip.cable'), min: 1, max: 120, step: 0.1, digits: 2, slider: [2, 20], visible: clip }),
+      numberField(panel, { label: 'Spiel', title: 'Luft zwischen Kabel und Clip, rundum', unit: 'mm', bind: bindPath(app, 'clip.play'), min: 0, max: 3, step: 0.05, digits: 2, slider: [0, 1], visible: clip }),
+      numberField(panel, { label: 'Öffnung', title: 'Wie weit der Ring offen bleibt; der Spalt muss schmaler als das Kabel sein, damit der Clip hält', unit: '°', bind: bindPath(app, 'clip.opening'), min: 20, max: 170, step: 5, digits: 0, slider: [60, 140], visible: clip }),
+      numberField(panel, { label: 'Länge', title: 'Wie weit der Clip am Kabel entlangreicht', unit: 'mm', bind: bindPath(app, 'clip.length'), min: 3, max: 200, step: 0.5, digits: 1, slider: [6, 40], visible: clip }),
       numberField(panel, { label: 'Breite', unit: 'mm', bind: bindPath(app, 'base.width'), min: 1, max: 2000, step: 1, digits: 1, visible: () => fixed() && shape() !== 'circle' }),
       numberField(panel, { label: 'Durchmesser', unit: 'mm', bind: bindPath(app, 'base.width'), min: 1, max: 2000, step: 1, digits: 1, visible: () => fixed() && shape() === 'circle' }),
       numberField(panel, { label: 'Höhe', unit: 'mm', bind: bindPath(app, 'base.height'), min: 1, max: 2000, step: 1, digits: 1, visible: () => fixed() && shape() !== 'circle' }),
@@ -485,9 +502,9 @@ export function buildRightPanel(root, app) {
 
   const mount = section('Befestigung', { id: 'mount', icon: 'ring' });
   const mtype = () => doc().mount.type;
-  const mountOn = () => hasBase() && !cup() && mtype() !== 'none';
-  const screws = () => hasBase() && !cup() && mtype() === 'screws';
-  const stake = () => hasBase() && !cup() && mtype() === 'stake';
+  const mountOn = () => hasBase() && !wrapped() && mtype() !== 'none';
+  const screws = () => hasBase() && !wrapped() && mtype() === 'screws';
+  const stake = () => hasBase() && !wrapped() && mtype() === 'stake';
   const MOUNT_NOTES = {
     eyelet: 'Die Öse sitzt außen an der Platte – für Schlüsselring oder Band.',
     hole: 'Das Loch liegt in der Platte; sie wird dafür verlängert.',
@@ -496,8 +513,8 @@ export function buildRightPanel(root, app) {
     stake: 'Spitze unten an der Platte – für Pflanzenstecker oder Tortenaufsatz. Mindestens 2,4 mm Plattendicke, in Erde besser 3 mm, damit der Stecker nicht bricht; für Lebensmittel PETG oder PLA mit Lebensmittelfreigabe.',
   };
   mount.body.append(
-    segmented(panel, { label: 'Art', bind: bindPath(app, 'mount.type'), options: [['none', 'Keine'], ['eyelet', 'Öse'], ['hole', 'Loch'], ['slot', 'Schlitz'], ['screws', 'Schrauben'], ['stake', 'Stecker']], columns: 3, visible: () => hasBase() && !cup() }),
-    note(panel, 'Ein Becher braucht keine Befestigung.', cup),
+    segmented(panel, { label: 'Art', bind: bindPath(app, 'mount.type'), options: [['none', 'Keine'], ['eyelet', 'Öse'], ['hole', 'Loch'], ['slot', 'Schlitz'], ['screws', 'Schrauben'], ['stake', 'Stecker']], columns: 3, visible: () => hasBase() && !wrapped() }),
+    note(panel, () => `${wrappedName()} braucht keine Befestigung.`, wrapped),
     note(panel, () => (shape() === 'contour' && (mtype() === 'hole' || mtype() === 'slot' || mtype() === 'screws')
       ? `${MOUNT_NOTES[mtype()]} Bei der Kontur wird dafür eine Lasche angesetzt.`
       : MOUNT_NOTES[mtype()] || ''), mountOn),
@@ -519,10 +536,10 @@ export function buildRightPanel(root, app) {
   );
 
   const mag = section('Magnete (hinten)', { id: 'magnets', icon: 'shapeCircle', open: false });
-  const magOn = () => hasBase() && !cup() && doc().magnets.enabled;
+  const magOn = () => hasBase() && !wrapped() && doc().magnets.enabled;
   mag.body.append(
-    toggle(panel, { label: 'Magnet-Taschen auf der Rückseite', bind: bindPath(app, 'magnets.enabled'), visible: () => hasBase() && !cup() }),
-    note(panel, 'Ein Becher hat keine Magnet-Taschen.', cup),
+    toggle(panel, { label: 'Magnet-Taschen auf der Rückseite', bind: bindPath(app, 'magnets.enabled'), visible: () => hasBase() && !wrapped() }),
+    note(panel, () => `${wrappedName()} hat keine Magnet-Taschen.`, wrapped),
     grid(
       numberField(panel, { label: 'Anzahl', bind: bindPath(app, 'magnets.count'), min: 1, max: 12, step: 1, digits: 0, slider: [1, 6], visible: magOn }),
       numberField(panel, { label: 'Ø', title: 'Durchmesser der Tasche (Magnet + etwa 0,2 mm Spiel)', unit: 'mm', bind: bindPath(app, 'magnets.diameter'), min: 1, max: 60, step: 0.1, digits: 2, slider: [3, 20], visible: magOn }),
@@ -534,10 +551,10 @@ export function buildRightPanel(root, app) {
 
   const body = section('Körper (3D)', { id: 'body', icon: 'cube' });
   const relief = () => doc().body.relief;
-  const hasBack = () => hasBase() && !cup() && relief() !== 'cut' && doc().texts.some((t) => t.side === 'back');
+  const hasBack = () => hasBase() && !wrapped() && relief() !== 'cut' && doc().texts.some((t) => t.side === 'back');
   const stencil = () => hasBase() && relief() === 'cut';
-  const split = () => stencil() && !cup() && doc().stencil.split;
-  const stampOn = () => hasBase() && !cup() && relief() !== 'cut' && doc().stamp.enabled;
+  const split = () => stencil() && !wrapped() && doc().stencil.split;
+  const stampOn = () => hasBase() && !wrapped() && relief() !== 'cut' && doc().stamp.enabled;
   // Settings that suit the kind of stamp, folded into the same undo step.
   const applyStampKind = (kind) => {
     const d = STAMP_KIND_DEFAULTS[kind];
@@ -570,7 +587,7 @@ export function buildRightPanel(root, app) {
       label: 'Stempel (Schrift gespiegelt)',
       title: 'Tinten-, Keks- oder Tonstempel: die Schrift wird gespiegelt, dazu ein Griff zum Aufstecken',
       bind: bindPath(app, 'stamp.enabled'),
-      visible: () => hasBase() && !cup() && relief() !== 'cut',
+      visible: () => hasBase() && !wrapped() && relief() !== 'cut',
       onChange: (on) => {
         if (on) applyStampKind(doc().stamp.kind);
       },
@@ -578,8 +595,8 @@ export function buildRightPanel(root, app) {
     segmented(panel, { label: 'Stempel für', bind: bindPath(app, 'stamp.kind'), options: [['ink', 'Tinte'], ['cookie', 'Keks & Fondant'], ['clay', 'Ton, Seife, Leder']], visible: stampOn, onChange: (k) => applyStampKind(k) }),
     note(panel, () => STAMP_NOTES[doc().stamp.kind], stampOn),
     grid(
-      numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: () => hasBase() && !cup() }),
-      numberField(panel, { label: 'Wandstärke', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.4, max: 20, step: 0.2, digits: 2, slider: [0.8, 5], visible: cup }),
+      numberField(panel, { label: 'Plattendicke', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: () => hasBase() && !wrapped() }),
+      numberField(panel, { label: 'Wandstärke', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.4, max: 20, step: 0.2, digits: 2, slider: [0.8, 5], visible: wrapped }),
       numberField(panel, { label: 'Dicke', title: 'Dicke der Buchstaben', unit: 'mm', bind: bindPath(app, 'body.thickness'), min: 0.2, max: 100, step: 0.2, digits: 2, slider: [0.6, 8], visible: () => !hasBase() }),
       numberField(panel, { label: 'Schrifthöhe', title: 'Wie weit die Schrift heraussteht', unit: 'mm', bind: bindPath(app, 'body.height'), min: 0.1, max: 50, step: 0.1, digits: 2, slider: [0.2, 4], visible: () => hasBase() && relief() === 'raised' }),
       numberField(panel, { label: 'Tiefe', title: 'Wie tief die Schrift in der Platte liegt', unit: 'mm', bind: bindPath(app, 'body.height'), min: 0.1, max: 50, step: 0.1, digits: 2, slider: [0.2, 4], visible: () => hasBase() && (relief() === 'engraved' || relief() === 'flush') }),

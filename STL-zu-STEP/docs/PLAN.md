@@ -4,9 +4,11 @@ Für Claude Code. Vorher lesen: [`SPEC.md`](SPEC.md) (was), [`MACHBARKEIT.md`](M
 
 ## Stand (15.10.2026)
 
-**Schritte 0 bis 10 sind gebaut**, jeder mit Tests und einem eigenen Commit; `npm test` und `npm run validate:stl` sind grün (37 STEP-Dateien von OpenCascade gelesen). Gelöst sind dabei auch die beiden offenen Punkte der Machbarkeitsstudie: **Torus 0 statt 3 Scheinzylinder** (Randprüfung) und **Stufe 3 für die unterteilten Netze** (Zwangsbedingungen, Ecken geschlossen gelöst). Abweichungen vom ursprünglichen Plan stehen mit Messwert in `SPEC.md` und `MACHBARKEIT.md`.
+**Schritte 0 bis 10 sind gebaut**, jeder mit Tests und einem eigenen Commit; `npm test` und `npm run validate:stl` sind grün (47 STEP-Dateien von OpenCascade gelesen). Gelöst sind dabei auch die beiden offenen Punkte der Machbarkeitsstudie: **Torus 0 statt 3 Scheinzylinder** (Randprüfung) und **Stufe 3 für die unterteilten Netze** (Zwangsbedingungen, Ecken geschlossen gelöst). Abweichungen vom ursprünglichen Plan stehen mit Messwert in `SPEC.md` und `MACHBARKEIT.md`.
 
 **Reparaturschritt (16.10.2026, nach Schritt 11):** `convert()` läuft jetzt diagnose → heilen → diagnose → validate (`diagnose.js`, `repair.js`, `spatial.js`; SPEC 5.3 Nachtrag). Die Heilung selbst ist unverändert; neu sind der Befund vorher/nachher, die Prüfung der Reparatur gegen die Eingabe mit Toleranz, die Warnung bei großen Löchern, der optionale Filter für kleine Schalen und der JSON-Bericht. Gegenprobe mit trimesh/pymeshfix: `tests/tools/crosscheck_trimesh.py`. Kommandozeile: `tests/tools/repair-report.mjs`.
+
+**3MF (30.10.2026):** `parseMesh` liest jetzt auch 3MF-Dateien (Bauliste, Komponenten, Transforms, Einheit, Produktionserweiterung) und liefert eine Analyse für den Bericht. Gegen `lib3mf` geprüft; die Layouts von Bambu Studio und PrusaSlicer sind nur nach Beschreibung gebaut, echte Dateien fehlen (MACHBARKEIT 8).
 
 **Schritt 11 (Realitätstest) ist zur Hälfte erledigt:** sieben öffentlich verfügbare Modelle sind gemessen (`MACHBARKEIT.md` Abschnitt 7); sie haben fünf Fehler zutage gefördert, die behoben und als Fixtures und Tests abgesichert sind. Was fehlt, sind **echte Druckteile mit Bohrungen vom Auftraggeber** und das Öffnen der Ergebnisse in Fusion 360 oder FreeCAD – beides kann nur er liefern.
 
@@ -139,7 +141,7 @@ Die Testsammlung ist synthetisch. **Der Auftraggeber liefert 5–10 echte STL-Da
 
 ## Phase 2 (nicht jetzt)
 
-Kegel, Kugel, Torus-Erkennung; schräge Kappen (Ellipsen); Winding-Number-/Voxel-Notanker für hoffnungslos kaputte Netze; Hohlräume (Innenschalen) als Solid-Schalen; Radien-Einrasten auf Normmaße; Slicer-Übergabe (Bambu Studio); 3MF-Eingabe.
+Kegel, Kugel, Torus-Erkennung; schräge Kappen (Ellipsen); Winding-Number-/Voxel-Notanker für hoffnungslos kaputte Netze; Hohlräume (Innenschalen) als Solid-Schalen; Radien-Einrasten auf Normmaße; Slicer-Übergabe (Bambu Studio); 3MF-Eingabe mit Farben und Negativteilen (die 3MF-Eingabe selbst ist gebaut, MACHBARKEIT 8).
 
 ---
 

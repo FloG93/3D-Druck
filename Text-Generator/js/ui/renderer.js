@@ -330,10 +330,12 @@ export class Renderer {
     ctx.textBaseline = 'bottom';
     ctx.textAlign = 'center';
     ctx.fillText('vorne', xm, yt - 6);
+    // A cup closes at the back; a clip stays open there.
+    const ends = m.cup.open ? ['Spalt', 'Spalt'] : ['hinten', 'hinten'];
     ctx.textAlign = 'left';
-    ctx.fillText('hinten', xl, yt - 6);
+    ctx.fillText(ends[0], xl, yt - 6);
     ctx.textAlign = 'right';
-    ctx.fillText('hinten', xr, yt - 6);
+    ctx.fillText(ends[1], xr, yt - 6);
     // A conical wall: its diameters at the rim and at the foot.
     if (m.cup.conical) {
       const d = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 });

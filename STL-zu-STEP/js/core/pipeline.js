@@ -50,6 +50,9 @@ export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress =
   }
 
   const scale = opts.unitScale ?? 1;
+  if (parsed.info && scale !== 1) {
+    warnings.push(`Die 3MF-Datei bringt ihre Einheit mit (${parsed.info.unitName}, schon in Millimeter umgerechnet); die eingestellte Einheit (× ${scale}) wird zusätzlich angewendet.`);
+  }
   if (scale !== 1) {
     for (let i = 0; i < parsed.tris.length; i++) parsed.tris[i] *= scale;
   }
@@ -86,6 +89,7 @@ export function convert(buffer, fileName = 'modell.stl', opts = {}, onProgress =
     warnings,
     healReport: healed.report,
     repair: healed.repair,
+    source: parsed.info ?? null,
     mesh: { V: healed.V, F: healed.F },
     meshVolume,
     triangles: healed.F.length / 3,
@@ -137,6 +141,7 @@ export function toTransferable(result) {
     warnings: [...result.warnings],
     healReport: { ...result.healReport, holesOpen: result.healReport.holesOpen.map((h) => ({ ...h })) },
     repair: structuredClone(result.repair),
+    source: result.source ? structuredClone(result.source) : null,
     components: result.components.map((c) => ({
       tier: c.tier,
       open: c.open,
