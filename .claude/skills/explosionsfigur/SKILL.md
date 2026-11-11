@@ -168,6 +168,30 @@ Jeder dieser Punkte ist einmal veröffentlicht worden.
 - Der Build schreibt die Seite direkt. Nach der Änderung `--audit`, `--apart`, `lines.mjs`,
   `pruefe-figur.mjs`, `npm test`, dann Commit.
 
+## Weitere Figuren günstig und in gleicher Qualität (aus Pneu-EPneu gelernt)
+
+Gilt, sobald die Figuren-Bausteine in `figur/`-Modulen liegen (Naht verschoben, siehe „Offen und bekannte Grenzen") und eine Figur nur noch Maße, Teile, Wege und Modell liefert. Ausführlich: `references/schnittseite.md` im Skill `azubi-visualisierung` des Repos Pneu-EPneu.
+
+**Ablauf**
+1. **Quellenkarte vor dem Entwurf** (Controller, nicht delegieren): echte Bauform als Schnittbild oder Katalog-Funktionsschnitt, Datenblatt, Normsymbol – jede Quelle mit dem Read-Werkzeug **angesehen**. Nie das Lehrbuchbild als Bauform nehmen (ein Drosselventil mit Kugel wurde so veröffentlicht und musste neu gebaut werden). Fehlt der Schnitt, heißt die Figur „nachgezeichnet nach …".
+2. **Entwurf und Plan aus der letzten Figur kopieren**, Inhalte ersetzen; Abnahmekriterien als messbare Sätze, keine Adjektive.
+3. **Ein Implementer (Sonnet) in drei Paketen:** Modell+Symbol / Geometrie+Legende+Zerlegen / Luft+Bedienung+Texte+Prüfung+Doku. Commit nach jedem Teilschritt (Nutzungslimits unterbrechen mitten im Paket), Fortsetzung per `SendMessage` statt neuem Agenten.
+4. **Nach der Geometrie sieht der Controller die Bilder** (hell/dunkel, zusammen/zerlegt, Telefonbreite) und gibt frei oder nennt konkrete Mängel – das ersetzt Klarheitsrunden.
+5. **Ein Abschluss-Review** mit Wackel-Suche (12 Läufe der Browserprüfung, einer mit künstlicher Last), Texte als Lehrer des ersten Lehrjahrs, Regression aller anderen Seiten, Frische-Check der erzeugten Seiten. Eine Korrekturrunde, dann pushen und die Live-Adresse prüfen.
+
+**Abnahmekriterien, die jede Figur messbar erfüllt**
+- Teile und Legende stimmen mit dem Schnitt der Quelle überein; jede Nummer sitzt auf einem eigenen Teil.
+- Medium nahezu deckend, Wandlinien darüber; „unter Druck" gegen „entspannt" an Pixeln gemessen ≥ 2,4:1 in beiden Modi; Farbe folgt dem Zustand, nie einer festen Seite.
+- Teilchen nur auf Wegen mit Durchfluss, in Strömungsrichtung, nie über Material.
+- Anzeige bricht um und liegt bei 390 px im Fenster ohne Überlappung (Hinweiszeile unter 640 px ausblenden).
+- Zerlegte Ansicht nutzt die Fläche, kleinste Baugruppe ≥ 30 px (sonst eigene Nummer, fährt mit), je Baugruppe ein eigener Fluchtweg.
+- Annahmen im Text als „im Modell" / „angenommen" / „nachgezeichnet" / „überhöht" gekennzeichnet.
+- Jede neue Prüfung hat eine RED-Probe; keine festen Wartezeiten (auf Zustand warten oder Bildpaare im selben `evaluate`), Zeitprüfungen mit Spielraum.
+
+**Hebel**: gemeinsame Prüfungen einmal im gemeinsamen Prüfer statt je Figur; Gerüst-Generator für neue Figuren; ein Kommando, das alle Tore fährt und je Tor nur eine Zeile ausgibt; Implementer-Brief als Datei. Geteilter Code wird beim **zweiten** Bauteil nach `figur/` verschoben, nicht erst im Review gefunden; die alten Seiten bleiben dabei byte-gleich.
+
+**Zugriff auf Quellen:** `ftp.festo.com/public/PNEUMATIC/SOFTWARE_SERVICE/DataSheet/DE_DE/<Nr>.pdf` und `…/Documentation/<Jahr>/DE/<Reihe>.PDF` funktionieren (`pdftotext -layout`, Seite mit `pdftoppm -r 600` zuschneiden); `festo.com/net/…`, `pdf_flip` und `didacticonline` liefern 403/503. Bilder von Wikimedia: `commons.wikimedia.org/wiki/Special:FilePath/<Datei>?width=900`. Nichts davon ins Repo kopieren.
+
 ## Für andere Maschinen (Ansatz, noch nicht gebaut)
 
 Beim ersten Umsetzen prüfen und diesen Abschnitt korrigieren.
